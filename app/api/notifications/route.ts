@@ -1,8 +1,8 @@
 import { db } from '@/lib/firebase-admin';
 import { fail, requireUser } from '@/lib/auth';
-import { rows } from '@/lib/serialize';
+import { byMerchant } from '@/lib/serialize';
 export async function GET(req: Request) {
   try { const u = await requireUser(req);
-    return Response.json({ items: rows(await db.collection('notifications').where('merchantId', '==', u.uid).orderBy('createdAt', 'desc').limit(20).get()) });
+    return Response.json({ items: await byMerchant('notifications', u.uid) });
   } catch (e) { return fail(e); }
 }

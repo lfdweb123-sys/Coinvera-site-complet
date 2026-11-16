@@ -16,7 +16,7 @@ NON TESTE en conditions reelles : aucun appel vers le prestataire d'encaissement
 ## Installation
 1. `npm install` puis `npm test`.
 2. Copier `.env.example` en `.env.local` et remplir. `openssl rand -hex 32` pour API_SECRET_ENC_KEY et CRON_SECRET.
-3. Firebase : activer Authentication (email, Google, GitHub), creer Firestore, `firebase deploy --only firestore:rules,firestore:indexes`. Autoriser les domaines coinvera.com dans Authentication.
+3. Firebase : activer Authentication (email, Google, GitHub), creer Firestore, `firebase deploy --only firestore:rules`. Autoriser les domaines coinvera.com dans Authentication.
 4. Premier admin : creer un compte, puis `node scripts/set-admin.mjs <uid>`.
 5. Vercel : importer le depot, renseigner les variables, ajouter les domaines coinvera.com, www et docs.coinvera.com (meme projet). Le cron des retraits (vercel.json) demande un plan Pro, sinon appeler /api/cron/withdrawals toutes les 5 min avec `Authorization: Bearer $CRON_SECRET`.
 6. DNS : CNAME www et docs vers cname.vercel-dns.com ; apex selon les instructions Vercel.

@@ -1,8 +1,0 @@
-{"indexes":[
-{"collectionGroup":"transactions","queryScope":"COLLECTION","fields":[{"fieldPath":"merchantId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]},
-{"collectionGroup":"withdrawals","queryScope":"COLLECTION","fields":[{"fieldPath":"merchantId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]},
-{"collectionGroup":"ledger_entries","queryScope":"COLLECTION","fields":[{"fieldPath":"merchantId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]},
-{"collectionGroup":"support_tickets","queryScope":"COLLECTION","fields":[{"fieldPath":"merchantId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]},
-{"collectionGroup":"notifications","queryScope":"COLLECTION","fields":[{"fieldPath":"merchantId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]},
-{"collectionGroup":"api_usage","queryScope":"COLLECTION","fields":[{"fieldPath":"merchantId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]},
-{"collectionGroup":"webhook_events","queryScope":"COLLECTION","fields":[{"fieldPath":"merchantId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]}],"fieldOverrides":[]}

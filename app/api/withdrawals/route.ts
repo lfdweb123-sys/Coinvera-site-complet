@@ -5,7 +5,7 @@ import { fail, HttpError, requireUser } from '@/lib/auth';
 import { postEntry, readBal, writeBal } from '@/lib/ledger';
 import { toUnits } from '@/lib/money';
 import { getSettings } from '@/lib/settings';
-import { rows } from '@/lib/serialize';
+import { byMerchant } from '@/lib/serialize';
 import { rateLimit } from '@/lib/ratelimit';
 const Body = z.object({ coin: z.string(), chain: z.string(), address: z.string().min(20).max(120), amount: z.number().positive() });
 export async function POST(req: Request) {
@@ -30,6 +30,6 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try { const u = await requireUser(req);
-    return Response.json({ items: rows(await db.collection('withdrawals').where('merchantId', '==', u.uid).orderBy('createdAt', 'desc').limit(100).get()) });
+    return Response.json({ items: await byMerchant('withdrawals', u.uid) });
   } catch (e) { return fail(e); }
 }

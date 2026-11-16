@@ -18,9 +18,12 @@ export function ser(d: any): any {
 }
 export const rows = (s: FirebaseFirestore.QuerySnapshot) => s.docs.map(x => ({ id: x.id, ...ser(x.data()) }));
 
-// Liste les documents d'un marchand SANS index composite : filtre simple cote Firestore, tri fait cote serveur.
-export async function byMerchant(col: string, merchantId: string, max = 200) {
-  const s = await db.collection(col).where('merchantId', '==', merchantId).limit(1000).get();
+export const pq = (req: Request) => { const u = new URL(req.url).searchParams; return { page: Math.max(1, Number(u.get('page') || 1)), size: Math.min(100, Math.max(1, Number(u.get('size') || 20))), u }; };
+// Liste paginee des documents d'un marchand SANS index composite : filtre simple cote Firestore, tri/filtre/pagination cote serveur.
+export async function byMerchant(col: string, merchantId: string, req: Request, filter: (x: any) => boolean = () => true) {
+  const { page, size } = pq(req);
+  const s = await db.collection(col).where('merchantId', '==', merchantId).limit(5000).get();
   const t = (d: FirebaseFirestore.QueryDocumentSnapshot) => { const v = d.data().createdAt; return v?.toMillis ? v.toMillis() : v instanceof Date ? v.getTime() : 0; };
-  return s.docs.sort((a, b) => t(b) - t(a)).slice(0, max).map(x => ({ id: x.id, ...ser(x.data()) }));
+  const all = s.docs.sort((a, b) => t(b) - t(a)).map(x => ({ id: x.id, ...ser(x.data()) })).filter(filter);
+  return { items: all.slice((page - 1) * size, page * size), total: all.length, page, size };
 }

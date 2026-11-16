@@ -6,6 +6,6 @@ export async function GET(req: Request) {
   try { await requireAdmin(req); const c = new URL(req.url).searchParams.get('c') ?? '';
     if (!(c in OK)) throw new HttpError(400, 'unknown_collection');
     const q = OK[c] ? db.collection(c).orderBy('createdAt', 'desc') : db.collection(c);
-    return Response.json({ items: rows(await q.limit(100).get()) });
+    return Response.json({ items: rows(await q.limit(1000).get()) });
   } catch (e) { return fail(e); }
 }

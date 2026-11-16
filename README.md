@@ -18,7 +18,13 @@ NON TESTE en conditions reelles : aucun appel vers le prestataire d'encaissement
 2. Copier `.env.example` en `.env.local` et remplir. `openssl rand -hex 32` pour API_SECRET_ENC_KEY et CRON_SECRET.
 3. Firebase : activer Authentication (email, Google, GitHub), creer Firestore, `firebase deploy --only firestore:rules`. Autoriser les domaines coinvera.com dans Authentication.
 4. Premier admin : creer un compte, puis `node scripts/set-admin.mjs <uid>`.
-5. Vercel : importer le depot, renseigner les variables, ajouter les domaines coinvera.com, www et docs.coinvera.com (meme projet). Le cron des retraits (vercel.json) demande un plan Pro, sinon appeler /api/cron/withdrawals toutes les 5 min avec `Authorization: Bearer $CRON_SECRET`.
+5. Vercel : importer le depot, renseigner les variables, ajouter les domaines coinvera.com, www et docs.coinvera.com (meme projet). Pas de cron Vercel : le traitement des retraits est déclenché par cron-job.org (voir ci-dessous).
 6. DNS : CNAME www et docs vers cname.vercel-dns.com ; apex selon les instructions Vercel.
 7. Declarer l'URL https://coinvera.com/api/webhooks/processor chez le prestataire d'encaissement et renseigner PROCESSOR_WEBHOOK_SECRET.
 8. Brevo : verifier l'expediteur SUPPORT_EMAIL. Plugin : public/downloads/coinvera-crypto-gateway.zip.
+
+## Cron des retraits (cron-job.org)
+Créez une tâche sur cron-job.org : URL `https://coinvera.com/api/cron/withdrawals`, méthode GET, toutes les 5 minutes (ou chaque minute), et ajoutez l'en-tête `Authorization: Bearer <valeur de CRON_SECRET>`. La réponse attendue est `{"ok":true}`.
+
+## Pagination
+Toutes les listes sont paginées côté serveur (`?page=1&size=20`, size max 100), sans index Firestore : le serveur lit au plus 5000 documents d'un marchand, les trie et découpe la page demandée.

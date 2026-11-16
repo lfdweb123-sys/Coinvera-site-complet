@@ -1,1 +1,0 @@
-{"crons":[{"path":"/api/cron/withdrawals","schedule":"*/5 * * * *"}]}

@@ -30,6 +30,6 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try { const u = await requireUser(req);
-    return Response.json({ items: await byMerchant('withdrawals', u.uid) });
+    return Response.json(await byMerchant('withdrawals', u.uid, req));
   } catch (e) { return fail(e); }
 }

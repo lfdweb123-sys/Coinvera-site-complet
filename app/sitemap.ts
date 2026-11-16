@@ -1,0 +1,1 @@
+export default function sitemap() { const u = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://coinvera.com'; return ['', '/features', '/pricing', '/woocommerce', '/contact', '/terms', '/privacy', '/refund-policy', '/login', '/register'].map(p => ({ url: u + p })); }

@@ -1,0 +1,1 @@
+export default function robots() { const u = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://coinvera.com'; return { rules: { userAgent: '*', allow: '/', disallow: ['/dashboard', '/admin', '/api'] }, sitemap: u + '/sitemap.xml' }; }

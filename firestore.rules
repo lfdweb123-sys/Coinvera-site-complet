@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    match /merchants/{id} { allow read: if signedIn() && request.auth.uid == id; allow write: if false; }
+    match /balances/{id} { allow read: if signedIn() && request.auth.uid == id; allow write: if false; }
+    match /transactions/{id} { allow read: if signedIn() && resource.data.merchantId == request.auth.uid; allow write: if false; }
+    match /withdrawals/{id} { allow read: if signedIn() && resource.data.merchantId == request.auth.uid; allow write: if false; }
+    match /ledger_entries/{id} { allow read: if signedIn() && resource.data.merchantId == request.auth.uid; allow write: if false; }
+    match /notifications/{id} { allow read: if signedIn() && resource.data.merchantId == request.auth.uid; allow write: if false; }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

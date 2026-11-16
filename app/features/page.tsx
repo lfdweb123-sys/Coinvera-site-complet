@@ -1,0 +1,7 @@
+import { BarChart3, CreditCard, Code2, Landmark, LifeBuoy, Store } from 'lucide-react';
+import { Header, Footer } from '@/components/Site';
+import PageHero from '@/components/PageHero';
+export const metadata = { title: 'Fonctionnalités' };
+const F = [[CreditCard, 'Paiements par carte', 'Page de paiement hébergée, 3-D Secure, confirmation vérifiée côté serveur.'], [BarChart3, 'Soldes et registre', 'Registre comptable immuable en partie double ; disponible, réservé, commissions.'], [Landmark, 'Retraits automatisés', 'Contrôles de solde, limites, adresse et réseau, puis envoi automatique et suivi jusqu’à confirmation.'], [Code2, 'API et webhooks', 'Clés test et production, signatures HMAC, anti-rejeu, notifications signées.'], [Store, 'Plugin WooCommerce', 'Licence, mises à jour, vérification automatique du statut des commandes.'], [LifeBuoy, 'Support intégré', 'Formulaire de contact, tickets, réponses par email.']] as const;
+export default function P() { return <><Header /><PageHero eyebrow="Fonctionnalités" title="Une plateforme complète pour vos paiements" sub="Encaissement, comptabilité interne, retraits et intégrations dans un seul outil." />
+  <main className="wrap sec" style={{ paddingTop: 40 }}><div className="grid g3">{F.map(([I, t, d]) => <div className="card feat" key={t}><div className="ic"><I size={22} /></div><h3>{t}</h3><p>{d}</p></div>)}</div></main><Footer /></>; }

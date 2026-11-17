@@ -1,8 +1,34 @@
 'use client';
-import Link from 'next/link';
-import { Skel, useData } from '@/lib/client';
-export default function Settings() {
-  const { data, loading } = useData('/api/settings'); const p = data?.profile;
-  return <div style={{ display: 'grid', gap: 20, maxWidth: 720 }}><h1>Paramètres</h1>{loading ? <Skel /> : <div className="card"><p><b>{p?.fullName}</b><br />{p?.company || '—'}<br />{p?.email}</p><p className="mut">Identifiant marchand : <code>{p?.merchantCode}</code></p>
-    <Link className="btn" href="/dashboard/webhooks">Webhooks</Link> <Link className="btn" href="/dashboard/security">Sécurité</Link></div>}</div>;
+import { useEffect, useState } from 'react';
+import { sendPasswordResetEmail, signOut } from 'firebase/auth';
+import { Building2, CheckCircle2, Eye, KeyRound, Lock, Mail } from 'lucide-react';
+import { api, auth, msg, Skel, useData } from '@/lib/client';
+import { PageHead } from '@/components/Bits';
+import { CardLogos } from '@/components/Logos';
+export default function Profile() {
+  const { data, loading, reload } = useData('/api/settings'); const p = data?.profile;
+  const [tab, setTab] = useState('profile'), [name, setName] = useState(''), [url, setUrl] = useState(''), [m, setM] = useState(''), [e, setE] = useState(''), [pm, setPm] = useState(''), [busy, setBusy] = useState(false);
+  useEffect(() => { if (new URLSearchParams(location.search).get('tab') === 'password') setTab('password'); }, []);
+  useEffect(() => { if (p) { setName(p.company || p.fullName); setUrl(p.storeUrl ?? ''); } }, [p]);
+  async function save(ev: React.FormEvent) { ev.preventDefault(); setM(''); setE(''); setBusy(true); try { await api('/api/profile', { method: 'PUT', body: JSON.stringify({ company: name, storeUrl: url }) }); setM('Modifications enregistrées.'); reload(); } catch (x) { setE(msg(x)); } setBusy(false); }
+  if (loading) return <Skel />;
+  const since = p?.createdAt ? new Date(p.createdAt).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '—';
+  return <div className="stack"><PageHead title="Profil et sécurité" sub="Gérez l’identité de votre entreprise, vos identifiants de connexion et la protection de votre compte." />
+    <div className="card pcard"><div className="pav">{(name || 'C')[0].toUpperCase()}</div><div style={{ minWidth: 0 }}><div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}><h2 style={{ fontSize: 24 }}>{p?.company || p?.fullName}</h2><span className="badge ok"><CheckCircle2 size={12} />Compte vérifié</span></div>
+      <div className="mut" style={{ marginTop: 6, display: 'flex', gap: '4px 16px', flexWrap: 'wrap' }}><span><Mail size={14} style={{ verticalAlign: -2 }} /> {p?.email}</span><span>Membre depuis {since}</span><span>ID {p?.merchantCode}</span></div></div></div>
+    <div><div className="tab" role="tablist"><button role="tab" aria-selected={tab === 'profile'} className={tab === 'profile' ? 'on' : ''} onClick={() => setTab('profile')}><Building2 size={17} />Profil de l’entreprise</button><button role="tab" aria-selected={tab === 'password'} className={tab === 'password' ? 'on' : ''} onClick={() => setTab('password')}><KeyRound size={17} />Mot de passe</button></div></div>
+    {tab === 'profile' ? <div className="g2" style={{ alignItems: 'stretch' }}>
+      <form className="card" onSubmit={save}><div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 6 }}><div className="ic" style={{ margin: 0 }}><Building2 size={22} /></div><div><h3 style={{ fontSize: 19 }}>Informations de l’entreprise</h3><p className="mut" style={{ margin: 0 }}>Apparaît sur vos reçus et vos relevés.</p></div></div>
+        <label htmlFor="bn">Nom de l’entreprise <span style={{ color: 'var(--bad)' }}>*</span></label><input id="bn" className="in" required minLength={2} value={name} onChange={ev => setName(ev.target.value)} />
+        <label htmlFor="su">Site web / boutique <span className="mut">(facultatif)</span></label><input id="su" className="in" type="url" placeholder="https://votre-boutique.com" value={url} onChange={ev => setUrl(ev.target.value)} />
+        <label htmlFor="em">Email principal</label><div style={{ position: 'relative' }}><input id="em" className="in" readOnly value={p?.email ?? ''} style={{ background: 'var(--soft)', paddingRight: 42 }} /><Lock size={16} style={{ position: 'absolute', right: 14, top: 14, color: 'var(--mut)' }} /></div><p className="mut" style={{ marginTop: 6 }}>Pour modifier votre email, contactez le support.</p>
+        {e && <div className="err">{e}</div>}{m && <div className="okm">{m}</div>}<button className="btn p lg" style={{ marginTop: 16 }} disabled={busy}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button></form>
+      <div className="card"><div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 16 }}><div className="ic" style={{ margin: 0 }}><Eye size={22} /></div><div><h3 style={{ fontSize: 19 }}>Aperçu de la page de paiement</h3><p className="mut" style={{ margin: 0 }}>Vue illustrative de ce que vos clients voient.</p></div></div>
+        <div style={{ border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden', background: 'var(--soft)' }}><div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', background: '#fff', display: 'flex', gap: 6, alignItems: 'center' }}>{[0, 1, 2].map(i => <i key={i} style={{ width: 9, height: 9, borderRadius: '50%', background: '#D5DCE8' }} />)}<span className="mut" style={{ marginLeft: 8 }}>Paiement sécurisé</span></div>
+          <div style={{ padding: 18, background: '#fff' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><div className="pav" style={{ width: 44, height: 44, fontSize: 18, borderRadius: 12 }}>{(name || 'C')[0].toUpperCase()}</div><div><b>{name || 'Votre entreprise'}</b><div className="mut">{url.replace(/^https?:\/\//, '') || 'votre-boutique.com'}</div></div></div><CardLogos /></div>
+            <div className="kv" style={{ marginTop: 16, alignItems: 'center' }}><div><div className="mut">Montant dû</div><b style={{ fontSize: 22 }}>49,00 $</b></div><span className="badge ok">Commande #1042</span></div>
+            <div className="in" style={{ marginTop: 12, color: 'var(--mut)', display: 'flex', alignItems: 'center' }}>•••• •••• •••• 4242</div><div className="g2" style={{ marginTop: 10, gap: 10 }}><div className="in" style={{ color: 'var(--mut)', display: 'flex', alignItems: 'center' }}>12 / 28</div><div className="in" style={{ color: 'var(--mut)', display: 'flex', alignItems: 'center' }}>CVC •••</div></div>
+            <div className="hv-btn" style={{ borderRadius: 10 }}>Payer 49,00 $</div></div></div></div></div> :
+    <div className="g2"><div className="card"><h3 style={{ fontSize: 19 }}>Mot de passe</h3><p className="mut" style={{ margin: '6px 0 16px' }}>Recevez par email un lien sécurisé pour définir un nouveau mot de passe.</p><button className="btn p" onClick={async () => { await sendPasswordResetEmail(auth, auth.currentUser!.email!); setPm('Email envoyé. Consultez votre boîte de réception.'); }}>Envoyer le lien de réinitialisation</button>{pm && <p className="okm">{pm}</p>}</div>
+      <div className="card"><h3 style={{ fontSize: 19 }}>Session</h3><p className="mut" style={{ margin: '6px 0 16px' }}>Déconnectez-vous de cet appareil.</p><button className="btn d" onClick={() => signOut(auth).then(() => location.assign('/login'))}>Se déconnecter</button></div></div>}</div>;
 }

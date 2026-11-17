@@ -1,29 +1,54 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { ArrowUpRight, Info, ShieldAlert, X } from 'lucide-react';
 import { api, msg, useData } from '@/lib/client';
 import { Badge, day, PageHead, usd } from '@/components/Bits';
 import DataTable from '@/components/DataTable';
-const CH: Record<string, string> = { TRX: 'TRON (TRC20)', ETH: 'Ethereum (ERC20)', BSC: 'BNB Smart Chain (BEP20)' };
-export default function Wd() {
-  const [page, setPage] = useState(1); const { data, loading, reload } = useData(`/api/withdrawals?page=${page}&size=10`); const bal = useData('/api/balance'); const pr = useData('/api/pricing');
-  const [chain, setChain] = useState('TRX'), [address, setAddress] = useState(''), [amount, setAmount] = useState(''), [err, setErr] = useState(''), [ok, setOk] = useState(''), [busy, setBusy] = useState(false);
-  async function submit(e: React.FormEvent) {
-    e.preventDefault(); setErr(''); setOk('');
-    if (!confirm(`Confirmer le retrait de ${amount} USDT sur ${CH[chain]} vers ${address} ?\nLes transactions blockchain sont irréversibles.`)) return;
-    setBusy(true);
-    try { await api('/api/withdrawals', { method: 'POST', body: JSON.stringify({ coin: 'USDT', chain, address: address.trim(), amount: Number(amount) }) }); setOk('Demande enregistrée : elle sera traitée automatiquement après contrôles.'); setAmount(''); reload(); bal.reload(); }
-    catch (x) { setErr(msg(x)); } setBusy(false);
-  }
-  return <div className="stack"><PageHead title="Retraits" sub="Envoyez votre solde disponible en USDT." />
-    <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,340px),1fr))', alignItems: 'start' }}>
-      <form className="card" onSubmit={submit}><div className="mut">Solde disponible</div><div style={{ font: '700 30px Space Grotesk' }}>{usd(bal.data?.available)}</div>
-        <label htmlFor="c">Cryptomonnaie</label><select id="c" className="in" disabled><option>USDT</option></select>
-        <label htmlFor="n">Réseau</label><select id="n" className="in" value={chain} onChange={e => setChain(e.target.value)}>{Object.entries(CH).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-        <label htmlFor="a">Adresse de destination</label><input id="a" className="in" required value={address} onChange={e => setAddress(e.target.value)} placeholder="Collez l’adresse du portefeuille" />
-        <label htmlFor="m">Montant (USDT)</label><input id="m" className="in" required type="number" step="0.01" min="0" value={amount} onChange={e => setAmount(e.target.value)} />
-        <p className="mut" style={{ marginTop: 10 }}>Minimum {pr.data?.minWithdrawalUsd ?? 10} USD. Des frais de réseau peuvent s’appliquer ; le montant exact est confirmé à l’exécution.</p>
-        {err && <div className="err" role="alert">{err}</div>}{ok && <div className="okm">{ok}</div>}<button className="btn p lg" style={{ width: '100%' }} disabled={busy}>{busy ? 'Envoi…' : 'Demander le retrait'}</button></form>
-      <div className="card flat"><h3 style={{ marginBottom: 8 }}>Avant de confirmer</h3><ul className="ck">{['Vérifiez l’adresse et le réseau : un envoi est irréversible.', 'Le montant est réservé dès la demande.', 'Le retrait est terminé uniquement après confirmation réelle.', 'En cas d’échec confirmé, le montant revient à votre solde disponible.'].map(x => <li key={x}>{x}</li>)}</ul></div></div>
-    <h3>Historique</h3>
-    <DataTable loading={loading} rows={data?.items ?? []} empty="Aucun retrait" server={{ total: data?.total ?? 0, page, size: 10, onPage: setPage }} cols={[{ key: 'coin', label: 'Actif', render: r => `${r.coin} · ${r.chain}` }, { key: 'amountUnits', label: 'Montant', right: true, num: true, render: r => usd(r.amountUnits) }, { key: 'createdAt', label: 'Date', render: r => day(r.createdAt) }, { key: 'txHash', label: 'Hash', render: r => <span className="mut" style={{ wordBreak: 'break-all' }}>{r.txHash ?? '—'}</span> }, { key: 'status', label: 'Statut', render: r => <Badge s={r.status} /> }]} /></div>;
+const NET: Record<string, { n: string; s: string; hint: string; re: RegExp }> = {
+  TRX: { n: 'USDT', s: 'TRC-20 · TRON', hint: 'TRC-20 : l’adresse commence par T (34 caractères).', re: /^T[1-9A-HJ-NP-Za-km-z]{33}$/ },
+  BSC: { n: 'USDT', s: 'BEP-20 · BNB Chain', hint: 'BEP-20 : l’adresse commence par 0x (42 caractères).', re: /^0x[0-9a-fA-F]{40}$/ },
+  ETH: { n: 'USDT', s: 'ERC-20 · Ethereum', hint: 'ERC-20 : l’adresse commence par 0x (42 caractères).', re: /^0x[0-9a-fA-F]{40}$/ } };
+const TH = [50, 100, 250, 500, 1000];
+export default function Wallet() {
+  const bal = useData('/api/balance'), pr = useData('/api/pricing'), po = useData('/api/payout'); const [page, setPage] = useState(1); const hist = useData(`/api/withdrawals?page=${page}&size=10`);
+  const [chain, setChain] = useState('TRX'), [addr, setAddr] = useState(''), [auto, setAuto] = useState(false), [th, setTh] = useState(50), [m, setM] = useState(''), [e, setE] = useState(''), [busy, setBusy] = useState(false), [modal, setModal] = useState(false);
+  useEffect(() => { if (po.data) { setChain(po.data.chain); setAddr(po.data.address); setAuto(po.data.autoPayout); setTh(po.data.threshold); } }, [po.data]);
+  const okAddr = NET[chain].re.test(addr.trim()); const avail = Number(bal.data?.available ?? 0);
+  async function save() { setM(''); setE(''); setBusy(true); try { await api('/api/payout', { method: 'PUT', body: JSON.stringify({ chain, address: addr.trim(), autoPayout: auto, threshold: th }) }); setM('Paramètres enregistrés.'); po.reload(); } catch (x) { setE(msg(x)); } setBusy(false); }
+  return <div className="stack"><PageHead title="Crypto Wallet" sub="Votre solde, vos paramètres de retrait et l’historique des envois." />
+    <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}><div><div className="mut">Solde disponible</div><div style={{ font: '800 clamp(32px,4vw,44px) Manrope,Inter,sans-serif', letterSpacing: '-.04em' }}>{bal.loading ? '…' : usd(bal.data?.available)}</div>{Number(bal.data?.reserved) > 0 && <div className="mut">dont {usd(bal.data?.reserved)} réservés (retraits en cours)</div>}</div>
+      <button className="btn p lg" onClick={() => setModal(true)}><ArrowUpRight size={18} />Retirer</button></div>
+    <div className="card pad0"><div style={{ padding: 'clamp(18px,2.4vw,26px)', borderBottom: '1px solid var(--line)' }}><h3 style={{ fontSize: 20 }}>Paramètres de retrait</h3><p className="mut" style={{ margin: '4px 0 0' }}>Choisissez le réseau, enregistrez votre adresse et configurez le retrait automatique.</p></div>
+      <div style={{ padding: 'clamp(18px,2.4vw,26px)', display: 'grid', gap: 22 }}>
+        <div><label style={{ marginTop: 0 }}>Réseau de retrait (USDT)</label><div className="nets">{Object.entries(NET).map(([k, v]) => <button type="button" key={k} className={'net' + (chain === k ? ' on' : '')} onClick={() => setChain(k)}><span className="av" style={{ background: '#26A17B', width: 40, height: 40 }}>₮</span><span><b>{v.n}</b><small>{v.s}</small></span><i className="rd" /></button>)}</div></div>
+        <div className="g2" style={{ alignItems: 'start' }}><div><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><label style={{ margin: 0 }} htmlFor="ad">Adresse de réception</label><span className="badge info">{chain === 'TRX' ? 'TRC-20' : chain === 'BSC' ? 'BEP-20' : 'ERC-20'}</span></div>
+          <input id="ad" className="in" style={{ marginTop: 8, fontFamily: 'ui-monospace,Menlo,monospace', borderColor: addr && !okAddr ? 'var(--bad)' : undefined }} value={addr} onChange={ev => setAddr(ev.target.value.trim())} spellCheck={false} autoComplete="off" placeholder="Collez votre adresse" />
+          <p className="mut" style={{ marginTop: 8 }}>{addr && !okAddr ? <span style={{ color: 'var(--bad)' }}>Format incorrect pour ce réseau. {NET[chain].hint}</span> : NET[chain].hint}</p></div>
+          <div className="card flat" style={{ background: 'var(--warnsoft)', borderColor: '#F3DDA5' }}><div style={{ display: 'flex', gap: 10 }}><ShieldAlert size={20} color="var(--warn)" style={{ flex: 'none', marginTop: 2 }} /><div style={{ fontSize: 14 }}><b>Vérifiez votre adresse avec soin.</b> Les retraits sont envoyés sans vérification manuelle et les transactions sont <b>irréversibles</b> : une adresse erronée ou un mauvais réseau entraîne la perte définitive des fonds.</div></div></div></div>
+        <div className="tg" style={{ borderTop: '1px solid var(--line)', paddingTop: 20 }}><div><b>Retraits automatiques</b><div className="mut">Envoie votre solde disponible vers cette adresse lorsque le seuil est atteint.</div></div><button type="button" role="switch" aria-checked={auto} aria-label="Retraits automatiques" className={'sw' + (auto ? ' on' : '')} onClick={() => setAuto(!auto)} /></div>
+        <div><label style={{ marginTop: 0 }}>Seuil de déclenchement (USD)</label><div className="chips">{TH.map(t => <button type="button" key={t} className={'chip' + (th === t ? ' on' : '')} onClick={() => setTh(t)}>{usd(t).replace(',00', '')}</button>)}</div></div>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}><button className="btn p lg" onClick={save} disabled={busy || (!!addr && !okAddr)}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button>{m && <span className="okm">{m}</span>}{e && <span className="err">{e}</span>}</div></div></div>
+    <h3 style={{ fontSize: 20 }}>Retraits récents</h3>
+    <DataTable loading={hist.loading} rows={hist.data?.items ?? []} empty="Aucun retrait pour le moment" emptyHint="Vos retraits manuels et automatiques apparaîtront ici." server={{ total: hist.data?.total ?? 0, page, size: 10, onPage: setPage }}
+      cols={[{ key: 'chain', label: 'Réseau', render: r => `USDT · ${NET[r.chain]?.s.split(' · ')[0] ?? r.chain}${r.auto ? ' (auto)' : ''}` }, { key: 'amountUnits', label: 'Montant', right: true, num: true, render: r => usd(r.amountUnits) }, { key: 'feeUnits', label: 'Frais', right: true, num: true, render: r => usd(r.feeUnits) }, { key: 'createdAt', label: 'Date', render: r => day(r.createdAt) }, { key: 'txHash', label: 'Hash', render: r => <span className="mut" style={{ wordBreak: 'break-all' }}>{r.txHash ?? '—'}</span> }, { key: 'status', label: 'Statut', render: r => <Badge s={r.status} /> }]} />
+    {modal && <Withdraw avail={avail} min={pr.data?.minWithdrawalUsd ?? 10} fees={pr.data?.fees ?? {}} saved={{ chain, addr: okAddr ? addr : '' }} onClose={() => setModal(false)} onDone={() => { bal.reload(); hist.reload(); }} />}</div>;
+}
+function Withdraw({ avail, min, fees, saved, onClose, onDone }: { avail: number; min: number; fees: Record<string, number>; saved: { chain: string; addr: string }; onClose: () => void; onDone: () => void }) {
+  const [amount, setAmount] = useState(''), [chain, setChain] = useState(saved.chain), [addr, setAddr] = useState(saved.addr), [last, setLast] = useState(''), [ck, setCk] = useState(false), [err, setErr] = useState(''), [busy, setBusy] = useState(false), [done, setDone] = useState(false);
+  const a = Number(amount.replace(',', '.')) || 0, fee = fees[chain] ?? 1, recv = Math.max(0, a - fee), valid = NET[chain].re.test(addr.trim()); const tail = addr.trim().slice(-6);
+  const can = valid && a >= min && a <= avail && a > fee && last.trim() === tail && ck && !busy;
+  async function go() { setErr(''); setBusy(true); try { await api('/api/withdrawals', { method: 'POST', body: JSON.stringify({ chain, address: addr.trim(), amount: a }) }); setDone(true); onDone(); } catch (x) { setErr(msg(x)); } setBusy(false); }
+  return <div className="modal" role="dialog" aria-modal="true" aria-label="Retirer des fonds" onClick={ev => ev.target === ev.currentTarget && onClose()}><div className="mbox">
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><div><h3 style={{ fontSize: 22 }}>Retirer des fonds</h3><p className="mut" style={{ margin: '4px 0 0' }}>Transférez votre solde disponible vers votre portefeuille.</p></div><button className="btn sm" aria-label="Fermer" onClick={onClose}><X size={16} /></button></div>
+    {done ? <div className="empty"><b>Demande enregistrée</b>Le retrait sera envoyé automatiquement après les contrôles. Suivez son statut dans « Retraits récents ».<div style={{ marginTop: 16 }}><button className="btn p" onClick={onClose}>Fermer</button></div></div> : <>
+      <div className="kv" style={{ marginTop: 18 }}><span className="mut">Solde disponible</span><b style={{ color: 'var(--ok)' }}>{usd(avail)}</b></div>
+      <label htmlFor="am">Montant à retirer (USD)</label><div style={{ position: 'relative' }}><input id="am" className="in" inputMode="decimal" value={amount} onChange={ev => setAmount(ev.target.value.replace(/[^0-9.,]/g, ''))} placeholder="0,00" style={{ paddingRight: 70 }} /><button type="button" className="btn sm" style={{ position: 'absolute', right: 6, top: 6 }} onClick={() => setAmount(String(avail))}>MAX</button></div><p className="mut" style={{ margin: '6px 0 0' }}>Retrait minimum : {usd(min)}</p>
+      <label htmlFor="nw">Réseau</label><select id="nw" className="in" value={chain} onChange={ev => setChain(ev.target.value)}>{Object.entries(NET).map(([k, v]) => <option key={k} value={k}>{v.n} — {v.s}</option>)}</select>
+      <label htmlFor="da">Adresse de destination</label><input id="da" className="in" style={{ fontFamily: 'ui-monospace,Menlo,monospace', borderColor: addr && !valid ? 'var(--bad)' : undefined }} value={addr} onChange={ev => setAddr(ev.target.value.trim())} spellCheck={false} autoComplete="off" />{addr && !valid && <div className="err">Adresse incorrecte pour ce réseau. {NET[chain].hint}</div>}
+      <div className="kv" style={{ marginTop: 16 }}><span className="mut">Frais de réseau</span><b>{usd(fee)}</b></div><div className="kv big"><b>Vous recevez</b><b style={{ color: 'var(--ok)' }}>{recv.toFixed(2)} USDT</b></div>
+      {valid && <div className="card flat" style={{ marginTop: 16, background: 'var(--warnsoft)', borderColor: '#F3DDA5', fontSize: 14 }}><div style={{ display: 'flex', gap: 8 }}><Info size={18} color="var(--warn)" style={{ flex: 'none', marginTop: 2 }} /><span>Envoi irréversible. Pour confirmer, saisissez les <b>6 derniers caractères</b> de l’adresse : <code style={{ background: '#fff', padding: '1px 6px', borderRadius: 6 }}>{tail}</code></span></div>
+        <input className="in" style={{ marginTop: 10, fontFamily: 'ui-monospace,Menlo,monospace' }} value={last} onChange={ev => setLast(ev.target.value)} placeholder="6 derniers caractères" aria-label="6 derniers caractères de l’adresse" autoComplete="off" />
+        <label style={{ display: 'flex', gap: 10, fontWeight: 400, alignItems: 'flex-start' }}><input type="checkbox" checked={ck} onChange={ev => setCk(ev.target.checked)} style={{ marginTop: 3, width: 18, height: 18 }} /><span>J’ai vérifié l’adresse et le réseau et je comprends que les fonds envoyés à une mauvaise adresse seront définitivement perdus.</span></label></div>}
+      {err && <div className="err" role="alert">{err}</div>}
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18, flexWrap: 'wrap' }}><button className="btn" onClick={onClose}>Annuler</button><button className="btn p" disabled={!can} onClick={go}>{busy ? 'Envoi…' : 'Retirer les fonds'}</button></div></>}</div></div>;
 }

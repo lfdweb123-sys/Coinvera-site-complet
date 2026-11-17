@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api, msg, useData } from '@/lib/client';
-const F: [string, string][] = [['platformFeeBps', 'Commission plateforme (points de base, 150 = 1,5 %)'], ['processingFeeBps', 'Frais de traitement affichés (points de base)'], ['apiActivationUsd', 'Prix d’activation API (USD)'], ['pluginPriceUsd', 'Prix licence plugin (USD)'], ['minWithdrawalUsd', 'Retrait minimum (USD)'], ['maxWithdrawalUsd', 'Retrait maximum (USD)'], ['freeTrials', 'Essais gratuits'], ['maxLicenseActivations', 'Sites par licence'], ['pluginVersion', 'Version du plugin publiée']];
+const F: [string, string][] = [['platformFeeBps', 'Commission plateforme (points de base, 150 = 1,5 %)'], ['processingFeeBps', 'Frais de traitement affichés (points de base)'], ['apiActivationUsd', 'Prix d’activation API (USD)'], ['pluginPriceUsd', 'Prix licence plugin (USD)'], ['minWithdrawalUsd', 'Retrait minimum (USD)'], ['maxWithdrawalUsd', 'Retrait maximum (USD)'], ['withdrawalFeeTRX', 'Frais de retrait TRC20 (USDT)'], ['withdrawalFeeETH', 'Frais de retrait ERC20 (USDT)'], ['withdrawalFeeBSC', 'Frais de retrait BEP20 (USDT)'], ['freeTrials', 'Essais gratuits'], ['maxLicenseActivations', 'Sites par licence'], ['pluginVersion', 'Version du plugin publiée']];
 export default function P() {
   const { data } = useData('/api/admin/pricing'); const [v, setV] = useState<any>({}), [m, setM] = useState('');
   useEffect(() => { if (data) setV(data); }, [data]);

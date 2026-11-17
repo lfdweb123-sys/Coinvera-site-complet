@@ -18,7 +18,7 @@ export async function verifyApiRequest(req: Request, rawBody: string) {
   const doc = snap.docs[0];
   if (!doc || doc.data().status !== 'active') throw new HttpError(401, 'invalid_or_revoked_key');
   const k = doc.data();
-  const path = new URL(req.url).pathname;
+  const path = new URL(req.url).pathname.replace(/^\/api(?=\/)/, '');   // chemin signe canonique : /v1/... (identique sur api.coinvera.me et sur /api/...)
   const expected = signPayload(dec(k.secretEnc), ts, nonce, req.method, path, rawBody);
   const a = Buffer.from(expected), b = Buffer.from(sig);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new HttpError(401, 'bad_signature');

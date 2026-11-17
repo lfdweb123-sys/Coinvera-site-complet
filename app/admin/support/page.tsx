@@ -7,7 +7,7 @@ export default function S() {
   const { data, loading, reload } = useData('/api/admin/list?c=support_tickets'); const [f, setF] = useState(''), [q, setQ] = useState(''), [open, setOpen] = useState<string | null>(null), [r, setR] = useState('');
   const items = (data?.items ?? []).filter((t: any) => (!f || t.status === f) && (t.subject + t.email + t.message).toLowerCase().includes(q.toLowerCase()));
   const up = async (id: string, b: object) => { await api('/api/admin/tickets', { method: 'PATCH', body: JSON.stringify({ id, ...b }) }); setR(''); reload(); };
-  return <div className="stack"><PageHead title="Tickets support" sub="Répondez par email et suivez les statuts." /><div className="grid"><input className="in" placeholder="Rechercher" value={q} onChange={e => setQ(e.target.value)} aria-label="Recherche" />
+  return <div className="stack"><PageHead title="Tickets support" sub="Répondez par email et suivez les statuts." /><div className="g2"><input className="in" placeholder="Rechercher" value={q} onChange={e => setQ(e.target.value)} aria-label="Recherche" />
     <select className="in" value={f} onChange={e => setF(e.target.value)} aria-label="Statut"><option value="">Tous</option>{ST.map(s => <option key={s}>{s}</option>)}</select></div>
     <div className="card pad0">{loading ? <div style={{ padding: 18 }}><Skel /></div> : items.map((t: any) => <div key={t.id} style={{ borderBottom: '1px solid var(--line)', padding: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, cursor: 'pointer', flexWrap: 'wrap' }} onClick={() => setOpen(open === t.id ? null : t.id)}><span><b>{t.subject}</b> <span className="mut">· {t.category} · {t.email} · {day(t.createdAt)}</span></span><Badge s={t.status} /></div>

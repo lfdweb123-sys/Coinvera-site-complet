@@ -4,7 +4,7 @@ import { fail, requireUser } from '@/lib/auth';
 import { safeUrl } from '@/lib/webhooks';
 export async function GET(req: Request) {
   try { const u = await requireUser(req); const s = (await db.doc(`merchant_settings/${u.uid}`).get()).data() ?? {};
-    return Response.json({ webhookUrl: s.webhookUrl ?? null, webhookSecret: s.webhookSecret, profile: { email: u.merchant.email, fullName: u.merchant.fullName, company: u.merchant.company, merchantCode: u.merchant.merchantCode } });
+    return Response.json({ webhookUrl: s.webhookUrl ?? null, webhookSecret: s.webhookSecret, profile: { email: u.merchant.email, fullName: u.merchant.fullName, company: u.merchant.company, merchantCode: u.merchant.merchantCode, storeUrl: s.storeUrl ?? '', createdAt: u.merchant.createdAt?.toDate?.().toISOString() ?? null, emailVerified: true } });
   } catch (e) { return fail(e); }
 }
 export async function PUT(req: Request) {

@@ -5,12 +5,14 @@ import { fail, requireUser } from '@/lib/auth';
 import { ipOf, rateLimit } from '@/lib/ratelimit';
 import { esc, sendMail } from '@/lib/brevo';
 import { notify } from '@/lib/audit';
+import { checkCaptcha } from '@/lib/captcha';
 const Body = z.object({ name: z.string().min(2).max(80), email: z.string().email(), subject: z.string().min(3).max(120),
-  category: z.enum(['Support technique', 'Paiement', 'Retrait', 'API', 'WooCommerce', 'Compte', 'Autre']), message: z.string().min(10).max(4000), website: z.string().max(0).optional() });
+  category: z.enum(['Support technique', 'Paiement', 'Retrait', 'API', 'WooCommerce', 'Compte', 'Autre']), message: z.string().min(10).max(4000), website: z.string().max(0).optional(), captchaToken: z.string(), captchaAnswer: z.string() });
 export async function POST(req: Request) {
   try {
     await rateLimit('contact_' + ipOf(req), 5, 3600);                      // anti-spam : 5 messages / heure / IP
-    const { website, ...b } = Body.parse(await req.json());                // 'website' = honeypot : doit rester vide
+    const { website, captchaToken, captchaAnswer, ...b } = Body.parse(await req.json());
+    await checkCaptcha(captchaToken, captchaAnswer);                // 'website' = honeypot : doit rester vide
     let merchantId: string | null = null;
     if (req.headers.get('authorization')) merchantId = (await requireUser(req)).uid;
     const ref = await db.collection('support_tickets').add({ ...b, merchantId, status: 'New', priority: 'normal', assignedTo: null, replies: [], createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { log } from './log';
 // API V5 : signature = HMAC_SHA256(secret, timestamp + apiKey + recvWindow + corps JSON ou query string)
 async function bybit(method: 'GET' | 'POST', path: string, payload: Record<string, unknown>) {
   const ts = Date.now().toString(), rw = '5000', key = process.env.BYBIT_API_KEY!;
@@ -7,7 +8,9 @@ async function bybit(method: 'GET' | 'POST', path: string, payload: Record<strin
   const r = await fetch(process.env.BYBIT_BASE_URL + path + (method === 'GET' ? '?' + qs : ''), {
     method, body: method === 'POST' ? qs : undefined, signal: AbortSignal.timeout(15_000),
     headers: { 'Content-Type': 'application/json', 'X-BAPI-API-KEY': key, 'X-BAPI-TIMESTAMP': ts, 'X-BAPI-RECV-WINDOW': rw, 'X-BAPI-SIGN': sign } });
-  return r.json() as Promise<{ retCode: number; retMsg: string; result: any }>;
+  const j = (await r.json()) as { retCode: number; retMsg: string; result: any };
+  log(j.retCode === 0 ? 'info' : 'warn', 'bybit.response', { path, httpStatus: r.status, retCode: j.retCode, retMsg: j.retMsg });
+  return j;
 }
 // requestId = id unique du retrait : rejouer la meme demande ne cree pas de doublon
 export const createWithdrawal = (w: { coin: string; chain: string; address: string; amount: string; requestId: string }) =>

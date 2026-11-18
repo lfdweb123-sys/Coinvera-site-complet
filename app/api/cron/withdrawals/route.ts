@@ -5,6 +5,7 @@ import { postEntry, readBal, writeBal } from '@/lib/ledger';
 import { fromUnits, toUnits } from '@/lib/money';
 import { notify } from '@/lib/audit';
 import { requestWithdrawal } from '@/lib/withdraw';
+import { info, warn, error } from '@/lib/log';
 async function finish(id: string, ok: boolean, extra: object) {
   await db.runTransaction(async tx => {
     const r = db.doc(`withdrawals/${id}`); const w = (await tx.get(r)).data()!;
@@ -31,18 +32,18 @@ export async function GET(req: Request) {
       const m = (await db.doc(`merchants/${d.id}`).get()).data(); if (m?.status !== 'active') continue;
       const s = d.data(); const bal = (await db.doc(`balances/${d.id}`).get()).data() ?? {};
       if (s.payoutAddress && (bal.available ?? 0) >= toUnits(s.payoutThreshold ?? 50)) { await requestWithdrawal(d.id, { chain: s.payoutChain ?? 'TRX', address: s.payoutAddress, amountUnits: bal.available, auto: true }); auto++; }
-    } catch (e) { console.error('auto_payout', d.id, (e as Error).message); }
+    } catch (e) { warn('cron.auto_payout_skipped', { merchantId: d.id, reason: (e as Error).message }); }
   }
   // 1) Envoi des retraits en file. 'processing' est reserve via transaction : un seul worker traite un retrait.
   for (const d of (await db.collection('withdrawals').where('status', '==', 'queued').limit(10).get()).docs) {
     const claimed = await db.runTransaction(async tx => { const s = await tx.get(d.ref); if (s.data()!.status !== 'queued') return false; tx.update(d.ref, { status: 'processing' }); return true; });
     if (!claimed) continue;
-    const w = d.data();
+    const w = d.data(); info('cron.sending', { withdrawalId: d.id, chain: w.chain });
     try {
       const r = await createWithdrawal({ coin: w.coin, chain: w.chain, address: w.address, amount: fromUnits(w.sendUnits ?? w.amountUnits).replace(/\.?0+$/, ''), requestId: d.id });
       if (r.retCode === 0) await d.ref.update({ status: 'broadcasted', bybitId: String(r.result.id) });
       else await finish(d.id, false, { error: `bybit_${r.retCode}` });       // refus explicite = echec confirme
-    } catch { await d.ref.update({ status: 'needs_review' }); }               // timeout : etat inconnu, on NE libere PAS les fonds
+    } catch (e) { error('cron.send_unknown_state', { withdrawalId: d.id, message: (e as Error).message }); await d.ref.update({ status: 'needs_review' }); }               // timeout : etat inconnu, on NE libere PAS les fonds
   }
   // 2) Reconciliation : 'completed' uniquement apres statut reel.
   for (const d of (await db.collection('withdrawals').where('status', '==', 'broadcasted').limit(20).get()).docs) {
@@ -51,6 +52,6 @@ export async function GET(req: Request) {
     if (row.status === 'success') await finish(d.id, true, { txHash: row.txID });
     else if (['fail', 'reject', 'cancelbyuser'].includes(String(row.status).toLowerCase())) await finish(d.id, false, { error: row.status });
   }
-  await db.doc('system/cron').set({ lastRun: Date.now() });
+  await db.doc('system/cron').set({ lastRun: Date.now() }); info('cron.done', { auto });
   return Response.json({ ok: true, auto });
 }

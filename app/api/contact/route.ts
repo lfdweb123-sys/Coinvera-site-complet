@@ -6,6 +6,7 @@ import { ipOf, rateLimit } from '@/lib/ratelimit';
 import { esc, sendMail } from '@/lib/brevo';
 import { notify } from '@/lib/audit';
 import { checkCaptcha } from '@/lib/captcha';
+import { info } from '@/lib/log';
 const Body = z.object({ name: z.string().min(2).max(80), email: z.string().email(), subject: z.string().min(3).max(120),
   category: z.enum(['Support technique', 'Paiement', 'Retrait', 'API', 'WooCommerce', 'Compte', 'Autre']), message: z.string().min(10).max(4000), website: z.string().max(0).optional(), captchaToken: z.string(), captchaAnswer: z.string() });
 export async function POST(req: Request) {
@@ -16,6 +17,7 @@ export async function POST(req: Request) {
     let merchantId: string | null = null;
     if (req.headers.get('authorization')) merchantId = (await requireUser(req)).uid;
     const ref = await db.collection('support_tickets').add({ ...b, merchantId, status: 'New', priority: 'normal', assignedTo: null, replies: [], createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+    info('contact.ticket_created', { ticketId: ref.id, category: b.category, merchantId });
     await notify('admin', `Nouveau ticket : ${b.subject}`, ref.id);
     const html = `<p><b>${esc(b.category)}</b> — ${esc(b.name)} (${esc(b.email)})${merchantId ? ' — marchand ' + merchantId : ''}</p><p>${esc(b.message).replace(/\n/g, '<br>')}</p><p>Ticket ${ref.id}</p>`;
     await Promise.allSettled([sendMail(process.env.SUPPORT_EMAIL!, `[Ticket] ${b.subject}`, html),

@@ -3,6 +3,7 @@ import { db } from './firebase-admin';
 import { postEntry, readBal, writeBal } from './ledger';
 import { bps, toUnits } from './money';
 import { getSettings } from './settings';
+import { info } from './log';
 // Credite le marchand UNE SEULE FOIS, uniquement apres confirmation lue aupres du prestataire (jamais sur un retour navigateur).
 export async function settlePayment(paymentId: string, charge: { amount: number; fee: number }) {
   const s = await getSettings();
@@ -21,6 +22,7 @@ export async function settlePayment(paymentId: string, charge: { amount: number;
       { account: `merchant:${m}:available`, dir: 'credit', amount: net },
       { account: 'platform:revenue', dir: 'credit', amount: platFee }], { paymentId });
     writeBal(tx, m, { ...bal, available: bal.available + net, totalReceived: bal.totalReceived + gross, feesPaid: bal.feesPaid + procFee + platFee });
+    info('payment.settled', { paymentId, merchantId: m, gross, procFee, platFee, net });
     tx.update(pRef, { status: 'confirmed', fees: { processing: procFee, platform: platFee, total: procFee + platFee }, net, updatedAt: FieldValue.serverTimestamp() });
   });
 }

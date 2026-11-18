@@ -1,6 +1,6 @@
 'use client';
 import React from "react";
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 const app = getApps()[0] ?? initializeApp({ apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'missing-key', authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -14,13 +14,22 @@ export async function api(path: string, init: RequestInit = {}) {
   return j;
 }
 export const ERR: Record<string, string> = { insufficient_balance: 'Solde disponible insuffisant.', amount_out_of_limits: 'Montant hors des limites autorisées.', unsupported_coin_or_network: 'Cryptomonnaie ou réseau non pris en charge.',
-  rate_limited: 'Trop de tentatives, réessayez plus tard.', email_not_verified: 'Vérifiez votre adresse email.', account_disabled: 'Compte désactivé.', invalid_request: 'Données invalides.', too_many_keys: 'Nombre maximal de clés atteint.', unsafe_url: 'URL non autorisée (https public requis).', invalid_address: 'Adresse invalide pour ce réseau : vérifiez-la (faute de frappe ?).', address_required: 'Enregistrez d’abord une adresse de retrait.' };
+  rate_limited: 'Trop de tentatives, réessayez plus tard.', email_not_verified: 'Vérifiez votre adresse email.', account_disabled: 'Compte désactivé.', invalid_request: 'Données invalides.', too_many_keys: 'Nombre maximal de clés atteint.', unsafe_url: 'URL non autorisée (https public requis).', invalid_address: 'Adresse invalide pour ce réseau : vérifiez-la (faute de frappe ?).', address_required: 'Enregistrez d’abord une adresse de retrait.', code_invalid: 'Code incorrect.', code_expired: 'Code expiré : demandez-en un nouveau.', too_many_attempts: 'Trop d’essais : demandez un nouveau code.', too_soon: 'Patientez avant de redemander un code.', mfa_required: 'Vérification en deux étapes requise.', network_unavailable: 'Le réseau est momentanément injoignable. Réessayez.', tx_already_used: 'Cette transaction a déjà été utilisée.', quote_unavailable: 'Cours indisponible, réessayez dans un instant.', currency_unavailable: 'Cette cryptomonnaie n’est pas disponible.', mail_failed: 'Envoi de l’e-mail impossible. Réessayez.', already_enabled: 'Déjà activé.', setup_required: 'Relancez la configuration.' };
 export const msg = (e: any) => ERR[e?.message] ?? 'Une erreur est survenue. Réessayez.';
+// Chargement initial compte globalement : le tableau de bord n'affiche rien tant que toutes les donnees de la page ne sont pas arrivees.
+let pending = 0; const subs = new Set<() => void>(); const bump = (d: number) => { pending += d; subs.forEach(f => f()); };
+export function usePending() { const [n, setN] = useState(pending); useEffect(() => { const f = () => setN(pending); subs.add(f); f(); return () => { subs.delete(f); }; }, []); return n; }
 export function useData<T = any>(path: string) {
-  const [data, setData] = useState<T | null>(null); const [error, setError] = useState(''); const [loading, setLoading] = useState(true);
-  const load = useCallback(async () => { setLoading(true); try { setData(await api(path)); setError(''); } catch (e) { setError(msg(e)); } setLoading(false); }, [path]);
+  const [data, setData] = useState<T | null>(null); const [error, setError] = useState(''); const [loading, setLoading] = useState(true); const [ready, setReady] = useState(false);
+  const counted = useRef(false), done = useRef(false);
+  const load = useCallback(async () => {
+    if (!done.current && !counted.current) { counted.current = true; bump(1); }
+    setLoading(true); try { setData(await api(path)); setError(''); } catch (e) { setError(msg(e)); }
+    setLoading(false); setReady(true); if (counted.current && !done.current) { done.current = true; bump(-1); }
+  }, [path]);
+  useEffect(() => () => { if (counted.current && !done.current) { done.current = true; bump(-1); } }, []);
   useEffect(() => { const u = onAuthStateChanged(auth, x => { if (x) load(); }); return u; }, [load]);
-  return { data, error, loading, reload: load };
+  return { data, error, loading, ready, reload: load };
 }
 export const Skel = () => <div style={{ display: 'grid', gap: 10 }}><div className="skel" /><div className="skel" style={{ width: '70%' }} /><div className="skel" style={{ width: '85%' }} /></div>;
 
@@ -28,4 +37,8 @@ export function useAuthUser() {
   const [st, setSt] = useState<{ ready: boolean; user: User | null }>({ ready: false, user: null });
   useEffect(() => onAuthStateChanged(auth, user => setSt({ ready: true, user })), []);
   return st;
+}
+export async function pub(path: string, body: unknown) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'error'); return j;
 }

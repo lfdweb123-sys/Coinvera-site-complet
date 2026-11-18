@@ -32,3 +32,15 @@ Toutes les listes sont paginées côté serveur (`?page=1&size=20`, size max 100
 ## Domaines (Vercel + DNS)
 Ajoutez au même projet Vercel : `www.coinvera.me` (principal), `api.coinvera.me`, `docs.coinvera.me`, `status.coinvera.me`. Chez votre registrar, créez un CNAME pour chacun (www, api, docs, status) vers la valeur indiquée par Vercel, et redirigez `coinvera.me` vers `www.coinvera.me`. Le middleware route les sous-domaines : `docs.` -> documentation, `status.` -> état des services, `api.` -> API (`https://api.coinvera.me/v1/payments`). Dans Firebase Authentication, autorisez ces domaines.
 Variable : `NEXT_PUBLIC_SITE_URL=https://www.coinvera.me`. `CAPTCHA_SECRET` est facultatif (par défaut `API_SECRET_ENC_KEY`).
+
+## Vérification e-mail, mot de passe et 2FA
+Aucun e-mail Firebase n'est utilisé : le code à 6 chiffres (inscription et réinitialisation du mot de passe) est envoyé par Brevo avec un modèle HTML maison. `SUPPORT_EMAIL` doit être un expéditeur validé dans Brevo. La 2FA est une application TOTP (Google Authenticator, Authy…), vérifiée à chaque nouvelle connexion.
+
+## Activation par cryptomonnaie
+La page `/dashboard/activate` affiche vos adresses `PAY_ADDR_*` (variables d'environnement). Chaque commande reçoit un **montant unique** ; le paiement est détecté en scrutant l'adresse (TRON, EVM pour les tokens, Bitcoin, Litecoin, Solana) ou via le hash de transaction (obligatoire pour ETH et BNB natifs). Monero n'est pas pris en charge (vérification impossible sans portefeuille dédié). Les confirmations manuelles sont possibles dans Admin > Crypto Orders. Non testé sur le réseau réel : faites un essai avec un petit montant par devise avant le lancement.
+
+## Journaux
+Tous les événements importants sont écrits en JSON dans Vercel > Logs (champ `event`, ex. `webhook.received`, `withdraw.queued`, `otp.sent`, `crypto.order_confirmed`). Les secrets sont masqués automatiquement.
+
+## Sous-domaines
+`helpcenter.coinvera.me` (centre d'aide) s'ajoute comme les autres sous-domaines dans Vercel.

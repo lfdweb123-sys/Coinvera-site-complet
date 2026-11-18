@@ -5,12 +5,13 @@ import { postEntry, readBal, writeBal } from './ledger';
 import { toUnits } from './money';
 import { getSettings } from './settings';
 import { validAddress } from './address';
+import { info, warn } from './log';
 // Cree une demande de retrait : valide l'adresse (somme de controle), reserve les fonds, met en file. Utilise par le retrait manuel ET automatique.
 export async function requestWithdrawal(uid: string, p: { chain: string; address: string; amountUnits: number; auto?: boolean }) {
   const s = await getSettings();
   if (!s.chains.USDT.includes(p.chain)) throw new HttpError(400, 'unsupported_coin_or_network');
   const address = p.address.trim();
-  if (!validAddress(p.chain, address)) throw new HttpError(400, 'invalid_address');
+  if (!validAddress(p.chain, address)) { warn('withdraw.invalid_address', { merchantId: uid, chain: p.chain, address }); throw new HttpError(400, 'invalid_address'); }
   const fee = toUnits((s as any)['withdrawalFee' + p.chain] ?? 1), amt = p.amountUnits;
   if (amt < toUnits(s.minWithdrawalUsd) || amt > toUnits(s.maxWithdrawalUsd) || amt <= fee) throw new HttpError(400, 'amount_out_of_limits');
   const ref = db.collection('withdrawals').doc();
@@ -22,5 +23,6 @@ export async function requestWithdrawal(uid: string, p: { chain: string; address
     writeBal(tx, uid, { ...bal, available: bal.available - amt, reserved: bal.reserved + amt });
     tx.set(ref, { merchantId: uid, coin: 'USDT', chain: p.chain, address, amountUnits: amt, feeUnits: fee, sendUnits: amt - fee, auto: !!p.auto, status: 'queued', createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
   });
+  info('withdraw.queued', { withdrawalId: ref.id, merchantId: uid, chain: p.chain, address, amountUnits: amt, feeUnits: fee, auto: !!p.auto });
   return ref.id;
 }

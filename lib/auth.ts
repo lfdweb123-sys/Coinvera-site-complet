@@ -1,5 +1,6 @@
 import { adminAuth, db } from './firebase-admin';
 import { info, warn, error } from './log';
+import { checkEnv } from './env';
 export class HttpError extends Error { constructor(public status: number, public code: string) { super(code); } }
 async function verify(req: Request, o: { mfa: boolean; verified: boolean }) {
   const t = req.headers.get('authorization')?.replace(/^Bearer /, '');
@@ -22,6 +23,6 @@ export async function requireAdmin(req: Request) {
 }
 export const fail = (e: unknown) => {
   if (e instanceof HttpError) { if (e.status >= 500) error('http.error', { status: e.status, code: e.code }); else info('http.rejected', { status: e.status, code: e.code }); return Response.json({ error: e.code }, { status: e.status }); }
-  const err = e as Error; error('unhandled', { message: err?.message, stack: String(err?.stack ?? '').split('\n').slice(0, 4).join(' | ') });
+  checkEnv(); const err = e as Error; error('unhandled', { message: err?.message, stack: String(err?.stack ?? '').split('\n').slice(0, 4).join(' | ') });
   return Response.json({ error: 'internal_error' }, { status: 500 });
 };

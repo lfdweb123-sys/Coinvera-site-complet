@@ -44,3 +44,8 @@ Tous les événements importants sont écrits en JSON dans Vercel > Logs (champ 
 
 ## Sous-domaines
 `helpcenter.coinvera.me` (centre d'aide) s'ajoute comme les autres sous-domaines dans Vercel.
+
+## Crons (cron-job.org)
+1. Retraits : `https://www.coinvera.me/api/cron/withdrawals`, toutes les 5 minutes.
+2. Paiements carte (filet de sécurité si un webhook est manqué) : `https://www.coinvera.me/api/cron/payments`, toutes les 10 minutes.
+Pour chacun : méthode GET, en-tête `Authorization: Bearer <valeur de CRON_SECRET>`. Réponse attendue : `{"ok":true,...}`.

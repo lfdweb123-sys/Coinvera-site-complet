@@ -11,7 +11,7 @@ import OtpInput from '@/components/OtpInput';
 const E: Record<string, string> = { 'auth/invalid-credential': 'Email ou mot de passe incorrect.', 'auth/too-many-requests': 'Trop de tentatives : réessayez plus tard.', 'auth/email-already-in-use': 'Cette adresse est déjà utilisée.', 'auth/weak-password': 'Mot de passe trop faible (8 caractères minimum).', 'auth/user-disabled': 'Ce compte est désactivé.', 'auth/account-exists-with-different-credential': 'Un compte existe déjà avec une autre méthode de connexion.', 'auth/popup-closed-by-user': 'Connexion annulée.' };
 const strength = (p: string) => [p.length >= 8, /[A-Z]/.test(p) && /[a-z]/.test(p), /\d/.test(p), /[^A-Za-z0-9]/.test(p), p.length >= 12].filter(Boolean).length;
 export default function AuthForm({ mode }: { mode: 'login' | 'register' | 'forgot' }) {
-  const r = useRouter(); const { user } = useAuthUser(); useEffect(() => { if (user && mode !== 'forgot') r.replace('/dashboard'); }, [user, mode, r]);
+  const r = useRouter(); const { user } = useAuthUser(); useEffect(() => { if (user && mode !== 'forgot') user.getIdTokenResult().then(t => r.replace(t.claims.role === 'admin' ? '/admin' : '/dashboard')); }, [user, mode, r]);
   const [f, setF] = useState({ name: '', company: '', email: '', pw: '', terms: false }), [show, setShow] = useState(false), [err, setErr] = useState(''), [ok, setOk] = useState(''), [busy, setBusy] = useState(false);
   const [step, setStep] = useState<'email' | 'reset'>('email'), [code, setCode] = useState('');
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });

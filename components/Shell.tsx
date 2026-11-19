@@ -12,10 +12,10 @@ import IdleLogout from '@/components/IdleLogout';
 import OtpInput from '@/components/OtpInput';
 import { DOCS, HELP, STATUS } from '@/lib/site';
 const ICONS: Record<string, any> = { dash: LayoutDashboard, tx: ArrowLeftRight, pay: CreditCard, link: Link2, wd: Landmark, bal: Wallet, key: KeyRound, shop: Store, hook: Webhook, rep: FileBarChart, help: LifeBuoy, set: UserCog, users: Users, shield: ShieldCheck, log: ScrollText, bell: Bell, tag: Tag, badge: BadgeCheck, coin: Coins };
-export type NavItem = { href: string; label: string; icon: string };
+export type NavItem = { href: string; label: string; icon: string; superOnly?: boolean };
 export type NavGroup = { title: string; items: NavItem[] };
 export default function Shell({ groups, admin, quick, children }: { groups: NavGroup[]; admin?: boolean; quick: string[]; children: React.ReactNode }) {
-  const path = usePathname(), r = useRouter(); const all = groups.flatMap(g => g.items); const pending = usePending();
+  const path = usePathname(), r = useRouter(); const pending = usePending();
   const [u, setU] = useState<User | null>(null), [me, setMe] = useState<any>(null), [col, setCol] = useState(false), [mob, setMob] = useState(false), [menu, setMenu] = useState(false), [bell, setBell] = useState(false), [notes, setNotes] = useState<any[]>([]), [settled, setSettled] = useState('');
   const [mc, setMc] = useState(''), [mErr, setMErr] = useState(''), [mBusy, setMBusy] = useState(false);
   const refMenu = useRef<HTMLDivElement>(null), refBell = useRef<HTMLDivElement>(null);
@@ -23,7 +23,7 @@ export default function Shell({ groups, admin, quick, children }: { groups: NavG
     if (!x) { r.replace('/login'); return; }
     if (!x.emailVerified) { r.replace('/verify-email'); return; }
     if (admin && (await x.getIdTokenResult()).claims.role !== 'admin') { r.replace('/dashboard'); return; }
-    try { setMe(await api('/api/me')); setU(x); } catch { await signOut(auth); r.replace('/login'); }
+    try { const m = await api('/api/me'); if (!admin && m.admin) { r.replace('/admin'); return; } setMe(m); setU(x); } catch { await signOut(auth); r.replace('/login'); }
   }), [admin, r]);
   useEffect(() => { if (me && (!me.twoFactor || me.mfa)) api('/api/notifications').then(d => setNotes(d.items)).catch(() => {}); }, [me]);
   useEffect(() => { setMob(false); setMenu(false); setBell(false); setSettled(path); }, [path]);
@@ -36,6 +36,8 @@ export default function Shell({ groups, admin, quick, children }: { groups: NavG
   if (me.twoFactor && !me.mfa) return <AuthShell title="Vérification en deux étapes" sub="Saisissez le code à 6 chiffres affiché par votre application d’authentification.">
     <OtpInput value={mc} onChange={setMc} invalid={!!mErr} disabled={mBusy} onComplete={async c => { setMBusy(true); setMErr(''); try { await api('/api/2fa/verify', { method: 'POST', body: JSON.stringify({ code: c }) }); setMe({ ...me, mfa: true }); } catch (e) { setMErr(msg(e)); setMc(''); } setMBusy(false); }} />
     {mErr && <div className="err" role="alert" style={{ marginTop: 12 }}>{mErr}</div>}<p className="mut" style={{ marginTop: 18 }}><a href="#" onClick={async e => { e.preventDefault(); await signOut(auth); r.replace('/login'); }}>Se déconnecter</a></p></AuthShell>;
+  groups = groups.map(g => ({ ...g, items: g.items.filter(n => !n.superOnly || me.superAdmin) }));
+  const all = groups.flatMap(g => g.items);
   const name = u.displayName || u.email || ''; const root = admin ? '/admin' : '/dashboard'; const on = (h: string) => h === root ? path === h : path.startsWith(h);
   const out = async () => { await signOut(auth); r.replace('/login'); };
   return <div className="app"><IdleLogout onExpire={expire} />

@@ -8,15 +8,14 @@ import { Badge, PageHead } from '@/components/Bits';
 import CryptoIcon from '@/components/CryptoIcon';
 import { Spinner } from '@/components/Loader';
 type Cur = { id: string; sym: string; net: string; name: string; scan: boolean };
-const PERKS = { api: [['Clés API de production', 'Générez des clés live et acceptez de vrais paiements par carte.'], ['Liens de paiement', 'Créez et partagez des liens de paiement en quelques secondes.'], ['Webhooks signés', 'Recevez chaque événement de paiement, vérifiable côté serveur.'], ['Retraits en USDT', 'Retrait manuel ou automatique vers votre portefeuille.'], ['Paiement unique', 'Aucun abonnement mensuel : vous payez une seule fois.']],
+const PERKS = { api: [['Clés API de production', 'Générez des clés live et acceptez de vrais paiements par carte.'], ['Plugin WooCommerce inclus', 'Licence, téléchargement et mises à jour compris dans le même paiement.'], ['Liens de paiement', 'Créez et partagez des liens de paiement en quelques secondes.'], ['Webhooks signés', 'Recevez chaque événement de paiement, vérifiable côté serveur.'], ['Retraits en USDT', 'Retrait manuel ou automatique vers votre portefeuille.'], ['Paiement unique', 'Aucun abonnement mensuel : vous payez une seule fois.']],
   plugin: [['Plugin WooCommerce', 'Téléchargement immédiat et mises à jour incluses.'], ['Configuration automatique', 'Le webhook se configure tout seul à l’enregistrement.'], ['Confirmation des commandes', 'Statuts mis à jour après vérification côté serveur.'], ['Activation par site', 'Licence liée à votre compte marchand.']] };
 const uri = (c: string, a: string, amt: string) => c === 'btc' ? `bitcoin:${a}?amount=${amt}` : c === 'ltc' ? `litecoin:${a}?amount=${amt}` : a;
 export default function Activate() {
-  const opts = useData('/api/crypto/options'); const [purpose, setPurpose] = useState<'api' | 'plugin'>('api');
+  const opts = useData('/api/crypto/options'); const purpose = 'api' as const;
   const [sel, setSel] = useState(''), [order, setOrder] = useState<any>(null), [qr, setQr] = useState(''), [err, setErr] = useState(''), [busy, setBusy] = useState(false), [txid, setTxid] = useState(''), [copied, setCopied] = useState(''), [checking, setChecking] = useState(false), [now, setNow] = useState(Date.now());
-  useEffect(() => { if (new URLSearchParams(location.search).get('for') === 'plugin') setPurpose('plugin'); }, []);
   const list: Cur[] = opts.data?.currencies ?? []; useEffect(() => { if (list.length && !sel) setSel(list[0].id); }, [list, sel]);
-  const cur = list.find(c => c.id === order?.cur) ?? list.find(c => c.id === sel); const price = purpose === 'api' ? opts.data?.priceApi : opts.data?.pricePlugin;
+  const cur = list.find(c => c.id === order?.cur) ?? list.find(c => c.id === sel); const price = opts.data?.priceApi;
   const poll = useCallback(async (manual = false) => { if (!order) return; if (manual) setChecking(true); try { const o = await api('/api/crypto/orders/' + order.id); setOrder(o); setErr(''); } catch (e) { if (manual) setErr(msg(e)); } setChecking(false); }, [order]);
   useEffect(() => { if (!order || order.status !== 'awaiting') return; const t = setInterval(() => poll(), 12000); return () => clearInterval(t); }, [order, poll]);
   useEffect(() => { if (!order) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [order]);
@@ -26,7 +25,7 @@ export default function Activate() {
   const copy = (k: string, v: string) => { navigator.clipboard.writeText(v); setCopied(k); setTimeout(() => setCopied(''), 1500); };
   const left = order ? Math.max(0, Math.floor((order.expiresAt - now) / 60000)) : 0; const done = order?.status === 'confirmed'; const expired = order?.status === 'expired' || (order && order.expiresAt < now && !done);
   if (purpose === 'api' && opts.data?.activated && !order) return <div className="stack"><PageHead title="Activation" /><div className="card" style={{ textAlign: 'center', padding: 40 }}><CheckCircle2 size={44} color="var(--ok)" /><h2 style={{ margin: '14px 0 8px' }}>Votre compte est déjà activé</h2><p className="mut">Les clés de production, les liens de paiement et les webhooks sont disponibles.</p><Link href="/dashboard/api" className="btn p">Accéder aux clés API</Link></div></div>;
-  return <div className="stack"><PageHead title={purpose === 'api' ? 'Activer votre compte marchand' : 'Acheter la licence WooCommerce'} sub={`Réglez le paiement unique de ${price} $ en cryptomonnaie pour ${purpose === 'api' ? 'débloquer les paiements en production, les liens de paiement et les clés API live' : 'obtenir votre licence du plugin WooCommerce'}.`} />
+  return <div className="stack"><PageHead title={purpose === 'api' ? 'Activer votre compte marchand' : 'Acheter la licence WooCommerce'} sub={`Réglez le paiement unique de ${price} $ en cryptomonnaie pour débloquer les paiements en production, les liens de paiement, les clés API live et le plugin WooCommerce.`} />
     <div className="act">
       <div className="card"><span className="badge ok" style={{ fontSize: 12.5, padding: '6px 14px' }}><ShieldCheck size={14} />{purpose === 'api' ? 'Licence marchand à vie' : 'Licence plugin'}</span>
         <div style={{ margin: '18px 0 10px', display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}><span style={{ font: '800 clamp(44px,6vw,60px) Manrope,Inter,sans-serif', letterSpacing: '-.05em' }}>{price} $</span><span className="mut" style={{ fontWeight: 600 }}>USD · paiement unique</span></div>

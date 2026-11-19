@@ -13,10 +13,11 @@ const VALID_MS = 60 * 60_000;
 export const view = (id: string, o: any) => ({ id, cur: o.cur, status: o.status, address: o.address, amount: fmt(BigInt(o.expected), o.decimals), amountUsd: String(o.usd / 1e6), expiresAt: o.expiresAt, purpose: o.purpose, txid: o.txid ?? null });
 export async function createOrder(uid: string, curId: string, purpose: 'api' | 'plugin') {
   const c = byId(curId); if (!c || !addrOf(c)) throw new HttpError(400, 'currency_unavailable');
+  if ((await db.doc(`api_activations/${uid}`).get()).data()?.activated) throw new HttpError(409, 'already_activated');
   const mine = await db.collection('crypto_orders').where('merchantId', '==', uid).get();
   const open = mine.docs.find(d => d.data().purpose === purpose && d.data().cur === c.id && d.data().status === 'awaiting' && d.data().expiresAt > Date.now() + 5 * 60_000);
   if (open) return view(open.id, open.data());
-  const s = await getSettings(); const usd = toUnits(purpose === 'api' ? s.apiActivationUsd : s.pluginPriceUsd);
+  const s = await getSettings(); const usd = toUnits(s.apiActivationUsd);   // un seul paiement : API de production + licence du plugin
   let base: bigint;
   if (c.stable) base = BigInt(Math.round(usd / 1e6 * 10 ** c.decimals));
   else { let p: number; try { p = await priceUsd(c.cg!); } catch { throw new HttpError(503, 'quote_unavailable'); } base = BigInt(Math.ceil(usd / 1e6 / p * 10 ** c.decimals)); }

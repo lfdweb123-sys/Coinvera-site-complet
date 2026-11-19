@@ -4,7 +4,7 @@ const KEY = '-----BEGIN PRIVATE KEY-----\nABC\n-----END PRIVATE KEY-----\n';
 describe('configuration Firebase', () => {
   const base = { FIREBASE_PROJECT_ID: 'p', FIREBASE_CLIENT_EMAIL: 'e@p.iam.gserviceaccount.com' };
   it('accepte la cle avec \\n echappes, guillemets ou vrais retours a la ligne', () => {
-    expect(loadCreds({ ...base, FIREBASE_PRIVATE_KEY: KEY.replace(/\n/g, '\\n') }).privateKey).toBe(KEY.trim() === KEY ? KEY : KEY.trimEnd());
+    expect(loadCreds({ ...base, FIREBASE_PRIVATE_KEY: KEY.replace(/\n/g, '\\n') }).privateKey).toBe(KEY);
     expect(loadCreds({ ...base, FIREBASE_PRIVATE_KEY: '"' + KEY.replace(/\n/g, '\\n') + '"' }).privateKey).toContain('BEGIN PRIVATE KEY-----\nABC');
     expect(loadCreds({ ...base, FIREBASE_PRIVATE_KEY: KEY }).privateKey).toContain('ABC');
   });

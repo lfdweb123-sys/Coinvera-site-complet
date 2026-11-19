@@ -1,13 +1,14 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { Activity, ArrowLeftRight, BadgeCheck, Bell, BookOpen, CreditCard, FileBarChart, HelpCircle, KeyRound, LayoutDashboard, LifeBuoy, Link2, LogOut, Menu, PanelLeft, ScrollText, Settings, ShieldCheck, Store, Tag, Users, Wallet, Webhook, ChevronDown, Lock, Landmark, UserCog, Ellipsis, Coins } from 'lucide-react';
 import { api, auth, msg, usePending } from '@/lib/client';
 import { LogoMark } from '@/components/Illustrations';
 import { PageLoader } from '@/components/Loader';
 import AuthShell from '@/components/AuthShell';
+import IdleLogout from '@/components/IdleLogout';
 import OtpInput from '@/components/OtpInput';
 import { DOCS, HELP, STATUS } from '@/lib/site';
 const ICONS: Record<string, any> = { dash: LayoutDashboard, tx: ArrowLeftRight, pay: CreditCard, link: Link2, wd: Landmark, bal: Wallet, key: KeyRound, shop: Store, hook: Webhook, rep: FileBarChart, help: LifeBuoy, set: UserCog, users: Users, shield: ShieldCheck, log: ScrollText, bell: Bell, tag: Tag, badge: BadgeCheck, coin: Coins };
@@ -30,13 +31,14 @@ export default function Shell({ groups, admin, quick, children }: { groups: NavG
   useEffect(() => { const down = (e: MouseEvent | TouchEvent) => { const t = e.target as Node; if (menu && !refMenu.current?.contains(t)) setMenu(false); if (bell && !refBell.current?.contains(t)) setBell(false); };
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setMenu(false); setBell(false); } };
     document.addEventListener('mousedown', down); document.addEventListener('touchstart', down); document.addEventListener('keydown', key); return () => { document.removeEventListener('mousedown', down); document.removeEventListener('touchstart', down); document.removeEventListener('keydown', key); }; }, [menu, bell]);
+  const expire = useCallback(async () => { try { sessionStorage.setItem('cv_expired', '1'); } catch {} await signOut(auth); r.replace('/login'); }, [r]);
   if (!u || !me) return <PageLoader full />;
   if (me.twoFactor && !me.mfa) return <AuthShell title="Vérification en deux étapes" sub="Saisissez le code à 6 chiffres affiché par votre application d’authentification.">
     <OtpInput value={mc} onChange={setMc} invalid={!!mErr} disabled={mBusy} onComplete={async c => { setMBusy(true); setMErr(''); try { await api('/api/2fa/verify', { method: 'POST', body: JSON.stringify({ code: c }) }); setMe({ ...me, mfa: true }); } catch (e) { setMErr(msg(e)); setMc(''); } setMBusy(false); }} />
     {mErr && <div className="err" role="alert" style={{ marginTop: 12 }}>{mErr}</div>}<p className="mut" style={{ marginTop: 18 }}><a href="#" onClick={async e => { e.preventDefault(); await signOut(auth); r.replace('/login'); }}>Se déconnecter</a></p></AuthShell>;
   const name = u.displayName || u.email || ''; const root = admin ? '/admin' : '/dashboard'; const on = (h: string) => h === root ? path === h : path.startsWith(h);
   const out = async () => { await signOut(auth); r.replace('/login'); };
-  return <div className="app">
+  return <div className="app"><IdleLogout onExpire={expire} />
     <div className={'scrim' + (mob ? ' on' : '')} onClick={() => setMob(false)} />
     <nav className={'side' + (col ? ' col' : '') + (mob ? ' mob' : '')} aria-label="Navigation principale">
       <Link href="/" className="logo"><LogoMark s={32} /><span>{admin ? 'Coinvera Admin' : 'Coinvera'}</span></Link>

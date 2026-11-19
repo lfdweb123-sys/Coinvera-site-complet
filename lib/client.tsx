@@ -42,3 +42,5 @@ export async function pub(path: string, body: unknown) {
   const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'error'); return j;
 }
+export const IDLE_KEY = 'cv_last_activity';
+export const touchSession = () => { try { localStorage.setItem(IDLE_KEY, String(Date.now())); } catch {} };

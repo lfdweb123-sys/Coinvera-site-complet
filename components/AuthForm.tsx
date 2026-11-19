@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createUserWithEmailAndPassword, GithubAuthProvider, GoogleAuthProvider, signInWithEmailAndPassword, signInWithPopup, updateProfile } from 'firebase/auth';
 import { Eye, EyeOff, Github } from 'lucide-react';
-import { api, auth, msg, pub, useAuthUser } from '@/lib/client';
+import { api, auth, msg, pub, touchSession, useAuthUser } from '@/lib/client';
 import { GoogleG } from '@/components/Logos';
 import AuthShell from '@/components/AuthShell';
 import OtpInput from '@/components/OtpInput';
@@ -13,17 +13,18 @@ const strength = (p: string) => [p.length >= 8, /[A-Z]/.test(p) && /[a-z]/.test(
 export default function AuthForm({ mode }: { mode: 'login' | 'register' | 'forgot' }) {
   const r = useRouter(); const { user } = useAuthUser(); useEffect(() => { if (user && mode !== 'forgot') user.getIdTokenResult().then(t => r.replace(t.claims.role === 'admin' ? '/admin' : '/dashboard')); }, [user, mode, r]);
   const [f, setF] = useState({ name: '', company: '', email: '', pw: '', terms: false }), [show, setShow] = useState(false), [err, setErr] = useState(''), [ok, setOk] = useState(''), [busy, setBusy] = useState(false);
-  const [step, setStep] = useState<'email' | 'reset'>('email'), [code, setCode] = useState('');
+  const [step, setStep] = useState<'email' | 'reset'>('email'), [code, setCode] = useState(''), [expired, setExpired] = useState(false);
+  useEffect(() => { if (mode === 'login' && sessionStorage.getItem('cv_expired')) { sessionStorage.removeItem('cv_expired'); setExpired(true); } }, [mode]);
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
   const go = async (fn: () => Promise<void>) => { setErr(''); setOk(''); setBusy(true); try { await fn(); } catch (x: any) { setErr(E[x?.code] ?? (x?.message && !String(x.message).includes('Firebase') ? msg(x) : 'Une erreur est survenue. Vérifiez les champs.')); } setBusy(false); };
-  const social = (P: any) => go(async () => { const c = await signInWithPopup(auth, new P()); await api('/api/auth/init', { method: 'POST', body: JSON.stringify({ fullName: c.user.displayName || c.user.email!.split('@')[0], company: '' }) }); r.push('/dashboard'); });
+  const social = (P: any) => go(async () => { const c = await signInWithPopup(auth, new P()); touchSession(); await api('/api/auth/init', { method: 'POST', body: JSON.stringify({ fullName: c.user.displayName || c.user.email!.split('@')[0], company: '' }) }); r.push('/dashboard'); });
   const submit = (e: React.FormEvent) => { e.preventDefault(); go(async () => {
     if (mode === 'forgot') {
       if (step === 'email') { await pub('/api/auth/reset-request', { email: f.email }); setStep('reset'); setOk('Si un compte existe pour cette adresse, un code à 6 chiffres vient d’être envoyé.'); return; }
       await pub('/api/auth/reset-confirm', { email: f.email, code, password: f.pw }); setOk('Mot de passe modifié. Redirection…'); setTimeout(() => r.push('/login'), 1400); return; }
-    if (mode === 'login') { await signInWithEmailAndPassword(auth, f.email, f.pw); r.push('/dashboard'); return; }
+    if (mode === 'login') { await signInWithEmailAndPassword(auth, f.email, f.pw); touchSession(); return; }
     if (!f.terms) throw { code: 'x' };
-    const c = await createUserWithEmailAndPassword(auth, f.email, f.pw); await updateProfile(c.user, { displayName: f.name });
+    const c = await createUserWithEmailAndPassword(auth, f.email, f.pw); touchSession(); await updateProfile(c.user, { displayName: f.name });
     await api('/api/auth/init', { method: 'POST', body: JSON.stringify({ fullName: f.name, company: f.company }) });
     try { await api('/api/auth/send-code', { method: 'POST' }); sessionStorage.setItem('cv_code_' + c.user.uid, '1'); } catch {}
     r.push('/verify-email'); }); };
@@ -32,6 +33,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' | 'forgo
   const sub = mode === 'login' ? 'Saisissez votre email et votre mot de passe pour accéder à votre compte.' : mode === 'register' ? 'Configurez votre compte marchand pour commencer à accepter des paiements.' : step === 'email' ? 'Saisissez votre email : nous vous envoyons un code de réinitialisation.' : `Saisissez le code reçu à ${f.email} puis choisissez un nouveau mot de passe.`;
   const pwField = (ph: string, ac: string) => <div className="pw" style={{ marginTop: 14 }}><input className="in fill" type={show ? 'text' : 'password'} required minLength={8} value={f.pw} onChange={set('pw')} autoComplete={ac} placeholder={ph} aria-label={ph} style={{ paddingRight: 52 }} /><button type="button" onClick={() => setShow(!show)} aria-label={show ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}>{show ? <EyeOff size={20} /> : <Eye size={20} />}</button></div>;
   return <AuthShell title={title} sub={sub} foot={<p style={{ textAlign: 'center', marginTop: 22 }}>{mode === 'login' ? <Link href="/register" style={{ fontWeight: 600 }}>Créer un compte</Link> : <>{mode === 'register' ? 'Vous avez déjà un compte ? ' : ''}<Link href="/login" style={{ fontWeight: 600 }}>Connexion</Link></>}</p>}>
+    {expired && <div className="note" role="status">Vous avez été déconnecté après 30 minutes d’inactivité. Reconnectez-vous pour continuer.</div>}
     {mode !== 'forgot' && <><div className="g2" style={{ gap: 10 }}><button className="btn lg" onClick={() => social(GoogleAuthProvider)} disabled={busy} style={{ minHeight: 54 }}><GoogleG />Google</button><button className="btn lg" onClick={() => social(GithubAuthProvider)} disabled={busy} style={{ minHeight: 54 }}><Github size={20} />GitHub</button></div>
       <div className="sep">{mode === 'login' ? 'Ou connexion par email' : 'Ou inscription par email'}</div></>}
     <form onSubmit={submit}>

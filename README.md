@@ -21,7 +21,7 @@ NON TESTE en conditions reelles : aucun appel vers le prestataire d'encaissement
 5. Vercel : importer le depot, renseigner les variables, ajouter les domaines coinvera.me, www et docs.coinvera.me (meme projet). Pas de cron Vercel : le traitement des retraits est déclenché par cron-job.org (voir ci-dessous).
 6. DNS : CNAME www et docs vers cname.vercel-dns.com ; apex selon les instructions Vercel.
 7. Declarer l'URL https://www.coinvera.me/api/webhooks/processor chez le prestataire d'encaissement et renseigner PROCESSOR_WEBHOOK_SECRET.
-8. Brevo : verifier l'expediteur SUPPORT_EMAIL. Plugin : public/downloads/coinvera-crypto-gateway.zip.
+8. Brevo : verifier l'expediteur SUPPORT_EMAIL. Plugins : public/downloads/coinvera-crypto-gateway.zip (WooCommerce) et public/downloads/coinvera-donations.zip (dons, source dans plugins/coinvera-donations/).
 
 ## Cron des retraits (cron-job.org)
 Créez une tâche sur cron-job.org : URL `https://www.coinvera.me/api/cron/withdrawals`, méthode GET, toutes les 5 minutes (ou chaque minute), et ajoutez l'en-tête `Authorization: Bearer <valeur de CRON_SECRET>`. La réponse attendue est `{"ok":true}`.
@@ -49,3 +49,7 @@ Tous les événements importants sont écrits en JSON dans Vercel > Logs (champ 
 1. Retraits : `https://www.coinvera.me/api/cron/withdrawals`, toutes les 5 minutes.
 2. Paiements carte (filet de sécurité si un webhook est manqué) : `https://www.coinvera.me/api/cron/payments`, toutes les 10 minutes.
 Pour chacun : méthode GET, en-tête `Authorization: Bearer <valeur de CRON_SECRET>`. Réponse attendue : `{"ok":true,...}`.
+
+## Plugin de dons (WordPress)
+Source : `plugins/coinvera-donations/` (plugin autonome, sans WooCommerce, même licence que le plugin WooCommerce). L'archive téléchargeable est `public/downloads/coinvera-donations.zip` ; à chaque modification du plugin, incrémentez la version dans `plugins/coinvera-donations/coinvera-donations.php` (en-tête et `CVD_VERSION`) ET dans `lib/plugins.ts`, puis régénérez l'archive : `cd plugins && zip -rq ../public/downloads/coinvera-donations.zip coinvera-donations -x '*.DS_Store'`. `npm test` vérifie la cohérence des versions et le contenu de l'archive. Les mises à jour WordPress interrogent `/license/update?plugin=donations`.
+Confirmation des dons : relecture du paiement via l'API (jamais sur un simple retour navigateur) par vérification automatique toutes les 5 minutes (WP-Cron) et, en option, par webhook. Attention : Coinvera ne mémorise qu'une URL de webhook par compte.

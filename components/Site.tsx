@@ -7,7 +7,7 @@ import { LogoMark } from '@/components/Illustrations';
 import { CardLogos } from '@/components/Logos';
 import { useAuthUser } from '@/lib/client';
 import { DOCS, HELP, STATUS } from '@/lib/site';
-const L = [['/features', 'Fonctionnalités'], ['/pricing', 'Tarification'], ['/woocommerce', 'WooCommerce'], [DOCS, 'Documentation'], ['/contact', 'Contact']];
+const L = [['/features', 'Fonctionnalités'], ['/pricing', 'Tarification'], ['/woocommerce', 'WooCommerce'], ['/dons', 'Dons'], [DOCS, 'Documentation'], ['/contact', 'Contact']];
 export function Header() {
   const [o, setO] = useState(false); const path = usePathname(); const { user } = useAuthUser();
   const cta = user ? <Link href="/dashboard" className="btn p">Tableau de bord</Link> : <><Link href="/login" className="btn">Connexion</Link><Link href="/register" className="btn p">Créer un compte</Link></>;
@@ -21,7 +21,7 @@ export function Header() {
 export function Footer() {
   return <footer className="foot"><div className="in2"><div className="cols">
     <div><div className="logo" style={{ color: '#fff', marginBottom: 16 }}><LogoMark />Coinvera</div><p style={{ maxWidth: 340 }}>Encaissez par carte, retirez en cryptomonnaie. La plateforme de paiement pensée pour les marchands et les développeurs.</p><div style={{ marginTop: 16 }}><CardLogos /></div></div>
-    <div><h4>Produit</h4><ul><li><Link href="/features">Fonctionnalités</Link></li><li><Link href="/pricing">Tarification</Link></li><li><Link href="/woocommerce">Plugin WooCommerce</Link></li></ul></div>
+    <div><h4>Produit</h4><ul><li><Link href="/features">Fonctionnalités</Link></li><li><Link href="/pricing">Tarification</Link></li><li><Link href="/woocommerce">Plugin WooCommerce</Link></li><li><Link href="/dons">Plugin de dons</Link></li></ul></div>
     <div><h4>Développeurs</h4><ul><li><a href={DOCS}>Documentation API</a></li><li><a href={HELP}>Centre d’aide</a></li><li><a href={STATUS}>État des services</a></li><li><Link href="/register">Créer un compte</Link></li></ul></div>
     <div><h4>Entreprise</h4><ul><li><Link href="/contact">Contact</Link></li><li><Link href="/login">Connexion</Link></li></ul></div>
     <div><h4>Légal</h4><ul><li><Link href="/terms">Conditions d’utilisation</Link></li><li><Link href="/privacy">Confidentialité</Link></li><li><Link href="/refund-policy">Remboursement</Link></li></ul></div></div>

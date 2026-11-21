@@ -51,7 +51,7 @@ describe('tarifs : prix fixes = Starter + marge, jamais à perte', () => {
   it('Platinum Starter : 1 $ + 1 % (min 1 $) à la création, 1 % (min 0,50 $) à la recharge', () => { expect(feeOf(STARTER.platinum.issue, 500)).toBe(200); expect(feeOf(STARTER.platinum.issue, 20000)).toBe(300); expect(feeOf(STARTER.platinum.topup, 2000)).toBe(50); expect(feeOf(STARTER.platinum.topup, 10000)).toBe(100); });
   it('arrondi au centime supérieur', () => { expect(feeOf({ fixed: 0, bps: 75, min: 0 }, 101)).toBe(1); expect(feeOf({ fixed: 0, bps: 100, min: 0 }, 150)).toBe(2); });
   it('reconnaît Platinum par le nom', () => { expect(categoryOf('Platinum Visa Card')).toBe('platinum'); expect(categoryOf('Virtual Visa Card')).toBe('standard'); expect(categoryOf('Contactless Visa Card')).toBe('standard'); });
-  it('marge nulle par défaut et service désactivé par défaut', () => { expect(SCARAB_DEFAULTS.enabled).toBe(false); expect(pricingOf(SCARAB_DEFAULTS)).toEqual({ issue: { flatMinor: 0, bps: 0 }, topup: { flatMinor: 0, bps: 0 } }); });
+  it('marges par défaut (2 $ + 2,5 % / 0,50 $ + 2,5 %) et service désactivé par défaut', () => { expect(SCARAB_DEFAULTS.enabled).toBe(false); expect(pricingOf(SCARAB_DEFAULTS)).toEqual({ issue: { flatMinor: 200, bps: 250 }, topup: { flatMinor: 50, bps: 250 } }); });
   it('marge : fixe + points de base sur le montant', () => {
     const m = pricingOf({ ...SCARAB_DEFAULTS, issueFlat: 1, issueBps: 100, loadFlat: 0.25, loadBps: 50 });
     expect(customerFee('issue', 'standard', 5000, m.issue)).toBe(250 + 100 + 50); expect(customerFee('topup', 'standard', 10000, m.topup)).toBe(175 + 25 + 50);

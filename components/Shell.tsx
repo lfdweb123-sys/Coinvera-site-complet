@@ -17,7 +17,7 @@ export type NavGroup = { title: string; items: NavItem[] };
 export default function Shell({ groups, admin, quick, children }: { groups: NavGroup[]; admin?: boolean; quick: string[]; children: React.ReactNode }) {
   const path = usePathname(), r = useRouter(); const pending = usePending();
   const [u, setU] = useState<User | null>(null), [me, setMe] = useState<any>(null), [col, setCol] = useState(false), [mob, setMob] = useState(false), [menu, setMenu] = useState(false), [bell, setBell] = useState(false), [notes, setNotes] = useState<any[]>([]), [settled, setSettled] = useState('');
-  const [mc, setMc] = useState(''), [mErr, setMErr] = useState(''), [mBusy, setMBusy] = useState(false);
+  const [opened, setOpened] = useState<Record<string, boolean>>({}), [mc, setMc] = useState(''), [mErr, setMErr] = useState(''), [mBusy, setMBusy] = useState(false);
   const refMenu = useRef<HTMLDivElement>(null), refBell = useRef<HTMLDivElement>(null);
   useEffect(() => onAuthStateChanged(auth, async x => {
     if (!x) { r.replace('/login'); return; }
@@ -44,7 +44,8 @@ export default function Shell({ groups, admin, quick, children }: { groups: NavG
     <div className={'scrim' + (mob ? ' on' : '')} onClick={() => setMob(false)} />
     <nav className={'side' + (col ? ' col' : '') + (mob ? ' mob' : '')} aria-label="Navigation principale">
       <Link href="/" className="logo"><LogoMark s={32} /><span>{admin ? 'Coinvera Admin' : 'Coinvera'}</span></Link>
-      <div className="scroll">{groups.map(g => <div key={g.title}><div className="grp">{g.title}</div>{g.items.map(n => { const I = ICONS[n.icon] ?? LayoutDashboard; return <Link key={n.href} href={n.href} className={'it' + (on(n.href) ? ' on' : '')} title={n.label} aria-current={on(n.href) ? 'page' : undefined}><I size={19} /><span className="t">{n.label}</span></Link>; })}</div>)}</div>
+      <div className="scroll">{groups.map((g, gi) => { const isOpen = !!opened[g.title], has = g.items.some(n => on(n.href)), id = 'grp-' + gi; return <div key={g.title} className="gw"><button type="button" className={'gh' + (has ? ' has' : '') + (isOpen ? ' open' : '')} aria-expanded={isOpen} aria-controls={id} onClick={() => setOpened({ ...opened, [g.title]: !isOpen })}><span>{g.title}</span><ChevronDown size={15} /></button>
+        <div id={id} className={'gi' + (isOpen ? '' : ' shut')}>{g.items.map(n => { const I = ICONS[n.icon] ?? LayoutDashboard; return <Link key={n.href} href={n.href} className={'it' + (on(n.href) ? ' on' : '')} title={n.label} aria-current={on(n.href) ? 'page' : undefined}><I size={19} /><span className="t">{n.label}</span></Link>; })}</div></div>; })}</div>
       <div className="bot"><button onClick={out} title="Déconnexion"><LogOut size={18} /><span className="t">Déconnexion</span></button><p>© {new Date().getFullYear()} COINVERA</p></div>
     </nav>
     <div className={'main' + (col ? ' col' : '')}>

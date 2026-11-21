@@ -12,6 +12,11 @@ describe('marge cartes', () => {
     expect(markupOf({ ...CARD_DEFAULTS, loadFlat: 0.25, loadBps: 100 }, 'topup', 100_000_000)).toBe(1_250_000);
   });
   it('le service est désactivé par défaut', () => { expect(CARD_DEFAULTS.enabled).toBe(false); });
+  it('les marges par défaut couvrent les frais de recharge du portefeuille (1,5 % ≈ 155 points de base) même sur un gros montant', () => {
+    expect(CARD_DEFAULTS.loadBps).toBeGreaterThan(155); expect(CARD_DEFAULTS.issueBps).toBeGreaterThan(155);
+    const A = 1000, T = A * 1.014 + 0.5 + 2.2, margin = markupOf(CARD_DEFAULTS, 'topup', A * 1e6) / 1e6;   // tarifs CORE-1 du 21/11/2026
+    expect(margin).toBeGreaterThan(T * 0.01523);
+  });
 });
 describe('signature du webhook cartes', () => {
   const raw = '{"cardId":1,"userExternalId":"123456789"}', secret = 'whsec_test';

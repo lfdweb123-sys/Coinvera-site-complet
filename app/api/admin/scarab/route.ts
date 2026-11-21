@@ -3,7 +3,7 @@ import { db } from '@/lib/firebase-admin';
 import { fail, HttpError, requireAdmin } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { fromUnits } from '@/lib/money';
-import { sp } from '@/lib/scarab/client';
+import { sp, SpError } from '@/lib/scarab/client';
 import { products, wallet } from '@/lib/scarab/catalog';
 import { scarabSettings, pricingOf } from '@/lib/scarab/settings';
 import { categoryOf, customerFee, feeOf, liveCost, centsToUsd, MARGIN_MAX, STARTER } from '@/lib/scarab/pricing';
@@ -13,7 +13,7 @@ const SAMPLES = [1000, 5000, 10000, 20000, 50000];
 // Réglages Carte Pro + état du portefeuille du programme (celui qui paie réellement chaque carte chez ScarabPay) + marge réelle par produit au plan actuel.
 export async function GET(req: Request) {
   try {
-    await requireAdmin(req); const settings = await scarabSettings(); const pr = pricingOf(settings); let w: any = null, prods: any[] = [], addresses: any[] = [], error: string | null = null;
+    await requireAdmin(req); const settings = await scarabSettings(); const pr = pricingOf(settings); let diag: string | null = null, w: any = null, prods: any[] = [], addresses: any[] = [], error: string | null = null;
     try {
       const x = await wallet(true); w = { mode: x.mode, availableMinor: x.availableMinor, verification: x.mode_verification, plan: x.plan };
       prods = (await products()).map(p => { const cat = categoryOf(p.name ?? '');
@@ -21,10 +21,12 @@ export async function GET(req: Request) {
           let rc: number | null = null; try { rc = liveCost('topup', p.fees, a); } catch {} const rp = customerFee('topup', cat, a, pr.topup);
           return { amount: centsToUsd(a), issuePrice: centsToUsd(price), issueCost: cost == null ? null : centsToUsd(cost), issueGain: cost == null ? null : centsToUsd(price - cost), topupPrice: centsToUsd(rp), topupCost: rc == null ? null : centsToUsd(rc), topupGain: rc == null ? null : centsToUsd(rp - rc) }; }) }; });
       try { addresses = ((await sp('GET', '/deposit-addresses')).data as any[]) ?? []; } catch { /* clé de test : les dépôts n'existent qu'en production */ }
-    } catch (e) { error = (e as Error).message; }
+    } catch (e) { error = (e as Error).message;
+      // Diagnostic réservé à l'admin : la vraie cause (statut + code du prestataire) au lieu du code public générique.
+      try { await sp('GET', '/wallet'); } catch (d) { diag = d instanceof SpError ? `HTTP ${d.status} · ${d.code}` : (d as Error).message; } }
     const [open, review, fees] = await Promise.all([db.collection('scarab_orders').where('status', 'in', ['reserved', 'processing']).get(), db.collection('scarab_orders').where('status', '==', 'review').get(), db.collection('scarab_fees').get()]);
     let feeMinor = 0; fees.forEach(d => feeMinor += d.data().amountMinor ?? 0);
-    return Response.json({ settings, wallet: w, products: prods, addresses, error, starter: STARTER, pendingOrders: open.size, reviewOrders: review.docs.map(d => ({ id: d.id, kind: d.data().kind, amount: centsToUsd(d.data().amountMinor ?? 0), total: fromUnits(d.data().chargeUnits ?? 0), reason: d.data().reviewReason ?? null, merchantId: d.data().merchantId })), chargedFees: centsToUsd(feeMinor), feeCount: fees.size });
+    return Response.json({ settings, wallet: w, products: prods, addresses, error, diag, starter: STARTER, pendingOrders: open.size, reviewOrders: review.docs.map(d => ({ id: d.id, kind: d.data().kind, amount: centsToUsd(d.data().amountMinor ?? 0), total: fromUnits(d.data().chargeUnits ?? 0), reason: d.data().reviewReason ?? null, merchantId: d.data().merchantId })), chargedFees: centsToUsd(feeMinor), feeCount: fees.size });
   } catch (e) { return fail(e); }
 }
 export async function PUT(req: Request) {

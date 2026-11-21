@@ -61,7 +61,8 @@ export const signCanonical = (secret: string, canonical: string) => crypto.creat
 // ---- Appel -----------------------------------------------------------------------------------------------------------------
 export type SpResult = { status: number; data: any; meta?: any; message?: string };
 export async function sp(method: 'GET' | 'POST' | 'PATCH', path: string, o: { query?: Query; body?: unknown; bodyRaw?: string; idem?: string } = {}): Promise<SpResult> {
-  const keyId = process.env.SCARABPAY_KEY_ID, secret = process.env.SCARABPAY_SECRET;
+  const clean = (v?: string) => v?.trim().replace(/^["']|["']$/g, '').trim();   // un secret collé avec espace, retour à la ligne ou guillemets casserait la signature
+  const keyId = clean(process.env.SCARABPAY_KEY_ID), secret = clean(process.env.SCARABPAY_SECRET);
   if (!keyId || !secret) throw new HttpError(503, 'scarab_not_configured');
   const base = SP_BASE(), url = new URL(base + path);
   const query = canonicalQuery(o.query);
@@ -77,6 +78,7 @@ export async function sp(method: 'GET' | 'POST' | 'PATCH', path: string, o: { qu
   const text = await r.text(); let j: any = {}; try { j = text ? JSON.parse(text) : {}; } catch { j = {}; }
   if (r.ok && j.success !== false) return { status: r.status, data: j.data, meta: j.meta, message: j.message };
   if (r.status >= 500 && r.status !== 503) { warn('scarab.error_unknown_outcome', { method, path, status: r.status }); throw new SpUnknown(); }
+  if (r.status >= 300 && r.status < 400) warn('scarab.redirect', { method, path, status: r.status, location: r.headers.get('location') });
   const errs = (j.errors && typeof j.errors === 'object' ? j.errors : {}) as Record<string, string[]>;
   const k = Object.keys(errs)[0], v = k ? String((errs[k] ?? [])[0] ?? '') : '';
   const isCode = !!k && /^[a-z0-9_]+$/.test(v);   // un code stable (insufficient_funds) et non une phrase de validation (« The amount field… »)

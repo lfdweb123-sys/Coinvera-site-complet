@@ -109,3 +109,12 @@ details.faq{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;b
 .note{background:var(--warnsoft);border:1px solid #F3DDA5;color:#7A5410;border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:18px}
 .totop{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:60;width:46px;height:46px;border-radius:50%;border:0;display:grid;place-items:center;background:var(--brand);color:#fff;cursor:pointer;box-shadow:0 8px 24px rgba(10,21,53,.28);opacity:0;visibility:hidden;transform:translateY(12px);transition:opacity .2s,transform .2s,visibility .2s}.totop.show{opacity:1;visibility:visible;transform:none}.totop:hover{filter:brightness(1.1)}.totop:focus-visible{outline:3px solid #fff;outline-offset:2px;box-shadow:0 0 0 5px var(--brand)}
 @media(prefers-reduced-motion:reduce){.totop{transition:none}}
+.cpro{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(14px,2vw,22px)}
+.cpro-i{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:14px;justify-content:space-between;padding:clamp(20px,2.6vw,28px);border-radius:var(--r);background:linear-gradient(135deg,#0A1535 0%,#12256B 100%);color:#fff;box-shadow:var(--sh)}
+.cpro-i.pro{background:linear-gradient(135deg,#0B1220 0%,#2255E8 140%)}
+.cpro-i:after{content:"";position:absolute;right:-60px;top:-60px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.07);pointer-events:none}
+.cpro-i>*{position:relative;z-index:1}.cpro-t{display:flex;align-items:center;gap:12px}.cpro-t h3{font-size:clamp(18px,2vw,22px);color:#fff}
+.cpro-ic{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.12);display:grid;place-items:center;flex:none}
+.cpro-tag{margin-left:auto;font:700 11px Inter,sans-serif;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.16)}
+.cpro-i p{margin:0;color:#C9D5EA;font-size:15px}.cpro-i .btn{width:100%}
+@media(max-width:720px){.cpro{grid-template-columns:minmax(0,1fr)}}

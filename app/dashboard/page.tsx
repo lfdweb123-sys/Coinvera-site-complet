@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, Percent, Wallet, Lock } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, Percent, Wallet, Lock, CreditCard, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useData } from '@/lib/client';
 import { Badge, day, Empty, PageHead, Stat, usd } from '@/components/Bits';
 import DataTable from '@/components/DataTable';
@@ -11,6 +11,13 @@ export default function Overview() {
   const per: Record<string, number> = {}; tx.filter(x => x.status === 'confirmed').forEach(x => { const k = x.createdAt?.slice(0, 10); per[k] = (per[k] ?? 0) + Number(x.amount); });
   const chart = Object.entries(per).sort().map(([d, v]) => ({ d: d.slice(5), v })); const d = b.data;
   return <div className="stack"><PageHead title="Vue d’ensemble" sub="L’activité de votre compte en un coup d’œil."><Link className="btn" href="/dashboard/withdrawals">Retirer</Link><Link className="btn p" href="/dashboard/api">Clés API</Link></PageHead>
+    <section className="cpro" aria-label="Mes cartes">
+      <div className="cpro-i"><div className="cpro-t"><span className="cpro-ic"><CreditCard size={22} /></span><h3>Carte virtuelle</h3></div>
+        <p>Une carte Visa ou Mastercard rechargeable pour payer en ligne, sans compte bancaire.</p>
+        <Link className="btn w" href="/dashboard/cards">Activer ma carte <ArrowRight size={16} /></Link></div>
+      <div className="cpro-i pro"><div className="cpro-t"><span className="cpro-ic"><ShieldCheck size={22} /></span><h3>Carte Pro</h3><span className="cpro-tag">Pro</span></div>
+        <p>Cartes Visa vérifiées, frais fixes affichés avant chaque paiement, jusqu’à 200 cartes.</p>
+        <Link className="btn w" href="/dashboard/carte-pro">J’active ma carte <ArrowRight size={16} /></Link></div></section>
     <div className="g6"><Stat icon={Wallet} label="Solde disponible" value={b.loading ? '…' : usd(d?.available)} /><Stat icon={Lock} label="Solde réservé" value={b.loading ? '…' : usd(d?.reserved)} /><Stat icon={ArrowDownToLine} label="Total reçu" value={b.loading ? '…' : usd(d?.totalReceived)} />
       <Stat icon={ArrowUpFromLine} label="Total retiré" value={b.loading ? '…' : usd(d?.totalWithdrawn)} /><Stat icon={Percent} label="Commissions payées" value={b.loading ? '…' : usd(d?.feesPaid)} /><Stat icon={ArrowLeftRight} label="Transactions" value={t.loading ? '…' : t.data?.total ?? 0} /></div>
     {!t.loading && tx.length === 0 ? <div className="card"><Empty title="Aucune transaction pour le moment" hint="Générez une clé API ou installez le plugin WooCommerce pour recevoir votre premier paiement."><Link className="btn p" href="/dashboard/api">Configurer l’API</Link></Empty></div> : <>

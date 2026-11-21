@@ -13,10 +13,10 @@ export const GET = guard(async (_req, _c, u) => {
   const liveById = new Map(live.map(c => [c.id, c]));
   const items = await db.collection('card_items').where('merchantId', '==', u.uid).get();
   const cards = items.docs.map(d => { const c = d.data(); const l = liveById.get(c.ciCardId);
-    return { id: c.ciCardId, last4: c.last4, status: c.status, nameOnCard: c.nameOnCard, productCode: c.productCode, balance: l?.balance ?? null, pending: l?.pending ?? null, otpWaiting: !!c.otpWaiting, closing: !!c.closeRequestedAt && c.status !== 'closed', refundPending: !!c.closeRequestedAt && !c.closeCredited, issuedAt: c.issuedAt }; })
+    return { id: c.ciCardId, last4: c.last4, status: c.status, nameOnCard: c.nameOnCard, productCode: c.productCode, balance: l?.balance ?? null, pending: l?.pending ?? null, otpWaiting: !!c.otpWaiting, closing: !!c.closeRequestedAt && c.status !== 'closed', refundPending: !!c.closeRequestedAt && !c.settled, advanced: !!c.advanced, issuedAt: c.issuedAt }; })
     .sort((a, b) => String(b.issuedAt ?? '').localeCompare(String(a.issuedAt ?? '')));
   const os = await db.collection('card_orders').where('merchantId', '==', u.uid).get();
   const orders = os.docs.map(d => orderView(d.id, d.data())).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)).slice(0, 20);
   const bal = (await db.doc(`balances/${u.uid}`).get()).data();
-  return Response.json({ maintenance, holder: h ? { registered: !!h.registered, kycStatus: h.kycStatus ?? 'none', firstName: h.firstName ?? null, lastName: h.lastName ?? null, email: h.email } : null, cards, orders, balance: fromUnits(bal?.available ?? 0) });
+  return Response.json({ maintenance, holder: h ? { registered: !!h.registered, kycStatus: h.kycStatus ?? 'none', firstName: h.firstName ?? null, lastName: h.lastName ?? null, email: h.email } : null, cards, orders, balance: fromUnits(bal?.available ?? 0), credit: fromUnits(bal?.card_credit ?? 0) });
 });

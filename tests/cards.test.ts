@@ -31,3 +31,11 @@ describe('échec définitif ou inconnu', () => {
     expect(isDefinitive(new Error('timeout'))).toBe(false);
   });
 });
+import { payView, DEPOSIT_MIN, GRACE_MS, VALID_MS } from '@/lib/cards/pay';
+describe('paiement direct USDT', () => {
+  it('les paiements tardifs sont surveillés 7 jours, bien au-delà de la validité de 60 minutes', () => { expect(GRACE_MS).toBe(7 * 24 * 3600_000); expect(VALID_MS).toBe(3600_000); expect(GRACE_MS).toBeGreaterThan(VALID_MS); expect(DEPOSIT_MIN).toBe(5); });
+  it('le montant affiché est exact (6 décimales TRC20, 18 BEP20) et unique par commande', () => {
+    const v = payView('x', { status: 'awaiting', cur: 'usdttrc20', decimals: 6, address: 'T', expected: '23451234', chargeUnits: 23451234, expiresAt: 1, spec: { kind: 'deposit', amount: '23' } });
+    expect(v.amount).toBe('23.451234'); expect(v.kind).toBe('deposit');
+  });
+});

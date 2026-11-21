@@ -39,11 +39,18 @@ export async function placeOrder(uid: string, spec: Spec, pr: Priced, o: { sourc
   const created = await db.runTransaction(async tx => {
     if ((await tx.get(ref)).exists) return false;
     const bal = await readBal(tx, uid); const fromBal = o.source === 'balance';
-    if (fromBal && bal.available < charge) throw new HttpError(409, 'insufficient_balance');
-    postEntry(tx, `card_reserve_${id}`, uid, 'card_reserve', [{ account: fromBal ? acct(uid, 'available') : 'central:funds', dir: 'debit', amount: charge }, { account: acct(uid, 'card_reserved'), dir: 'credit', amount: charge }], { orderId: id });
-    writeBal(tx, uid, { ...bal, available: bal.available - (fromBal ? charge : 0), card_reserved: (bal.card_reserved ?? 0) + charge });
+    // Le crédit cartes (dépôts USDT, non retirable) est dépensé en premier, puis le solde Coinvera.
+    const creditPart = fromBal ? Math.min(bal.card_credit ?? 0, charge) : 0, availPart = fromBal ? charge - creditPart : 0;
+    if (availPart > bal.available) throw new HttpError(409, 'insufficient_balance');
+    const lines: any[] = [];
+    if (creditPart) lines.push({ account: acct(uid, 'card_credit'), dir: 'debit', amount: creditPart });
+    if (availPart) lines.push({ account: acct(uid, 'available'), dir: 'debit', amount: availPart });
+    if (!fromBal) lines.push({ account: 'central:funds', dir: 'debit', amount: charge });
+    lines.push({ account: acct(uid, 'card_reserved'), dir: 'credit', amount: charge });
+    postEntry(tx, `card_reserve_${id}`, uid, 'card_reserve', lines, { orderId: id });
+    writeBal(tx, uid, { ...bal, available: bal.available - availPart, card_credit: (bal.card_credit ?? 0) - creditPart, card_reserved: (bal.card_reserved ?? 0) + charge });
     tx.create(ref, { merchantId: uid, kind: spec.kind, source: o.source, payOrderId: o.payOrderId ?? null, productCode: spec.productCode ?? null, coreId: CORE(), cardId: spec.cardId ?? null, amount: toUnits(spec.amount), amountStr: Number(spec.amount).toFixed(2), nameOnCard: spec.nameOnCard ?? null,
-      chargeUnits: charge, ciTotalUnits: pr.ciTotalUnits, markupUnits: pr.markupUnits, status: 'reserved', createdAt: FieldValue.serverTimestamp(), createdAtMs: Date.now() });
+      chargeUnits: charge, creditPart, availPart, ciTotalUnits: pr.ciTotalUnits, markupUnits: pr.markupUnits, status: 'reserved', createdAt: FieldValue.serverTimestamp(), createdAtMs: Date.now() });
     return true;
   });
   if (created) info('cards.order_reserved', { orderId: id, merchantId: uid, kind: spec.kind, source: o.source, charge });
@@ -53,7 +60,7 @@ export async function placeOrder(uid: string, spec: Spec, pr: Priced, o: { sourc
 
 // 2) Envoi au prestataire. La clé d'idempotence est dérivée de l'ordre : un rejeu (timeout, cron) ne peut jamais créer deux cartes ni deux recharges.
 export async function dispatch(id: string) {
-  const ref = db.doc(`card_orders/${id}`); const o = (await ref.get()).data(); if (!o || o.status !== 'reserved') return;
+  const ref = db.doc(`card_orders/${id}`); const o = (await ref.get()).data(); if (!o || !(o.status === 'reserved' || (o.status === 'processing' && !o.ciOrderId))) return;
   const h = await requireHolder(o.merchantId); const key = `cv-card-${id}`;
   try {
     if (o.kind === 'issue') {
@@ -71,21 +78,30 @@ export async function dispatch(id: string) {
 }
 
 // 3) Règlement : fonds définitivement dépensés (succès) ou rendus au solde (échec). Idempotent.
-export async function finalize(id: string, ok: boolean, info_: { total?: string; error?: string }) {
+export async function finalize(id: string, ok: boolean, info_: { total?: string; error?: string; cardId?: number | null }) {
   const ref = db.doc(`card_orders/${id}`); let uid = '', kind = '';
   const done = await db.runTransaction(async tx => {
     const o = (await tx.get(ref)).data(); if (!o || o.status === 'confirmed' || o.status === 'failed') return false;
+    const cardId = info_.cardId ?? o.ciCardId ?? o.cardId ?? null; const cref = ok && cardId ? db.doc(`card_items/${cardId}`) : null; const c = cref ? (await tx.get(cref)).data() : null;
     const bal = await readBal(tx, o.merchantId); const charge = o.chargeUnits as number; uid = o.merchantId; kind = o.kind;
+    const fromCredit = o.source === 'crypto' ? charge : (o.creditPart ?? 0);   // part de la charge issue du crédit cartes (non retirable)
     if (ok) {
       const cost = Math.min(charge, info_.total ? toUnits(info_.total) : o.ciTotalUnits);   // coût réel du prestataire ; l'écart avec ce qui a été facturé est notre marge
       const lines: any[] = [{ account: acct(uid, 'card_reserved'), dir: 'debit', amount: charge }, { account: 'central:funds', dir: 'credit', amount: cost }];
       if (charge - cost > 0) lines.push({ account: 'platform:revenue', dir: 'credit', amount: charge - cost });
       postEntry(tx, `card_done_${id}`, uid, 'card_done', lines, { orderId: id });
       writeBal(tx, uid, { ...bal, card_reserved: (bal.card_reserved ?? 0) - charge, card_spent: (bal.card_spent ?? 0) + charge });
-      tx.update(ref, { status: 'confirmed', costUnits: cost, updatedAt: Date.now() });
+      // Suivi de l'origine des fonds de chaque carte : à la fermeture, le remboursement revient dans les mêmes proportions (crédit cartes / solde retirable).
+      if (cref) tx.set(cref, { merchantId: uid, fundedTotal: (c?.fundedTotal ?? 0) + charge, fundedFromCredit: (c?.fundedFromCredit ?? 0) + fromCredit }, { merge: true });
+      tx.update(ref, { status: 'confirmed', costUnits: cost, ...(cardId ? { ciCardId: cardId } : {}), updatedAt: Date.now() });
     } else {
-      postEntry(tx, `card_release_${id}`, uid, 'card_release', [{ account: acct(uid, 'card_reserved'), dir: 'debit', amount: charge }, { account: acct(uid, 'available'), dir: 'credit', amount: charge }], { orderId: id });
-      writeBal(tx, uid, { ...bal, available: bal.available + charge, card_reserved: (bal.card_reserved ?? 0) - charge });
+      // Échec définitif : chaque part revient là où elle a été prise ; un paiement USDT direct revient en crédit cartes.
+      const back = o.source === 'crypto' ? { credit: charge, avail: 0 } : { credit: o.creditPart ?? 0, avail: o.availPart ?? charge };
+      const lines: any[] = [{ account: acct(uid, 'card_reserved'), dir: 'debit', amount: charge }];
+      if (back.credit) lines.push({ account: acct(uid, 'card_credit'), dir: 'credit', amount: back.credit });
+      if (back.avail) lines.push({ account: acct(uid, 'available'), dir: 'credit', amount: back.avail });
+      postEntry(tx, `card_release_${id}`, uid, 'card_release', lines, { orderId: id });
+      writeBal(tx, uid, { ...bal, available: bal.available + back.avail, card_credit: (bal.card_credit ?? 0) + back.credit, card_reserved: (bal.card_reserved ?? 0) - charge });
       tx.update(ref, { status: 'failed', error: info_.error ?? 'failed', updatedAt: Date.now() });
     }
     return true;
@@ -93,19 +109,20 @@ export async function finalize(id: string, ok: boolean, info_: { total?: string;
   if (!done) return false;
   info('cards.order_final', { orderId: id, ok, error: info_.error });
   if (ok) { if (kind === 'issue') await syncCards(uid).catch(() => {}); await notify(uid, kind === 'issue' ? 'Carte virtuelle prête' : 'Carte rechargée', 'Votre opération a été confirmée.'); }
-  else await notify(uid, 'Opération carte échouée', 'Les fonds ont été remis sur votre solde.');
+  else await notify(uid, 'Opération carte échouée', 'Les fonds ont été remis sur votre solde ou votre crédit cartes.');
   return true;
 }
 
 // 4) Rapprochement : le prestataire est la source de vérité (les webhooks ne sont que des signaux).
 export async function reconcile(id: string) {
-  const ref = db.doc(`card_orders/${id}`); let o = (await ref.get()).data(); if (!o) return null;
-  if (o.status === 'reserved' && Date.now() - (o.createdAtMs ?? 0) > 60_000) await dispatch(id).catch(() => {});
+  const ref = db.doc(`card_orders/${id}`); let o = (await ref.get()).data(); if (!o) return null; const age = Date.now() - (o.createdAtMs ?? 0);
+  if (o.status === 'reserved' && age > 60_000) await dispatch(id).catch(() => {});
+  else if (o.status === 'processing' && !o.ciOrderId && age > 120_000) await dispatch(id).catch(() => {});   // rejeu idempotent : récupère l'ordre déjà créé chez le prestataire
   else if (o.status === 'processing' && o.ciOrderId) {
     const r = (await ci('GET', `/v1/cards/orders/${o.ciOrderId}`)).data;
-    if (r.status === 'confirmed') await finalize(id, true, { total: r.total });
+    if (r.status === 'confirmed') await finalize(id, true, { total: r.total, cardId: r.card_id ?? null });
     else if (r.status === 'failed' || r.status === 'reversed') await finalize(id, false, { error: r.provider_status ?? r.error ?? 'failed' });
-    else if (r.status !== o.ciStatus) await ref.update({ ciStatus: r.status });
+    else if (r.status !== o.ciStatus) await ref.update({ ciStatus: r.status, ...(r.card_id ? { ciCardId: r.card_id } : {}) });
   }
   o = (await ref.get()).data(); return o ?? null;
 }

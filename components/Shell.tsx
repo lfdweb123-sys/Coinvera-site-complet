@@ -17,7 +17,7 @@ export type NavGroup = { title: string; items: NavItem[] };
 export default function Shell({ groups, admin, quick, children }: { groups: NavGroup[]; admin?: boolean; quick: string[]; children: React.ReactNode }) {
   const path = usePathname(), r = useRouter(); const pending = usePending();
   const [u, setU] = useState<User | null>(null), [me, setMe] = useState<any>(null), [col, setCol] = useState(false), [mob, setMob] = useState(false), [menu, setMenu] = useState(false), [bell, setBell] = useState(false), [notes, setNotes] = useState<any[]>([]), [settled, setSettled] = useState('');
-  const [opened, setOpened] = useState<Record<string, boolean>>({}), [mc, setMc] = useState(''), [mErr, setMErr] = useState(''), [mBusy, setMBusy] = useState(false);
+  const [opened, setOpened] = useState<Record<string, boolean>>({ 'Vue d’ensemble': true, 'Compte': true }), [mc, setMc] = useState(''), [mErr, setMErr] = useState(''), [mBusy, setMBusy] = useState(false);
   const refMenu = useRef<HTMLDivElement>(null), refBell = useRef<HTMLDivElement>(null);
   useEffect(() => onAuthStateChanged(auth, async x => {
     if (!x) { r.replace('/login'); return; }

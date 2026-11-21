@@ -1,18 +1,20 @@
 import crypto from 'node:crypto';
 import { db } from './firebase-admin';
-// Notifie le site du marchand (signature HMAC-SHA256 dans X-Coinvera-Signature). Echec = journalise, jamais bloquant.
+import { webhookUrlsOf } from './webhook-urls';
+export { safeUrl } from './webhook-urls';
+// Notifie les sites du marchand (signature HMAC-SHA256 dans X-Coinvera-Signature, même secret pour toutes les URL).
+// Livraison en parallèle vers chaque URL : une URL lente ou en échec ne retarde ni ne bloque les autres. Echec = journalise, jamais bloquant.
 export async function notifyMerchant(merchantId: string, type: string, data: object) {
   const s = (await db.doc(`merchant_settings/${merchantId}`).get()).data();
-  if (!s?.webhookUrl || !s.webhookSecret) return;
+  const urls = webhookUrlsOf(s);
+  if (!urls.length || !s?.webhookSecret) return;
   const body = JSON.stringify({ type, data, createdAt: Date.now() });
   const sig = crypto.createHmac('sha256', s.webhookSecret).update(body).digest('hex');
-  let status = 0;
-  try { status = (await fetch(s.webhookUrl, { method: 'POST', body, redirect: 'error', signal: AbortSignal.timeout(8000),
-    headers: { 'Content-Type': 'application/json', 'X-Coinvera-Signature': sig } })).status; } catch {}
-  await db.collection('webhook_events').add({ merchantId, type, status, createdAt: new Date() });
-}
-export function safeUrl(u: string) {   // anti-SSRF basique : https obligatoire, pas d'IP ni de nom interne
-  const x = new URL(u);
-  if (x.protocol !== 'https:' || /^(localhost|.*\.local|.*\.internal)$/i.test(x.hostname) || /^[\d.]+$/.test(x.hostname) || x.hostname.includes(':')) throw new Error('unsafe_url');
-  return x.toString();
+  await Promise.allSettled(urls.map(async url => {
+    let status = 0;
+    try { status = (await fetch(url, { method: 'POST', body, redirect: 'error', signal: AbortSignal.timeout(8000),
+      headers: { 'Content-Type': 'application/json', 'X-Coinvera-Signature': sig } })).status; } catch {}
+    let host = ''; try { host = new URL(url).host; } catch {}
+    await db.collection('webhook_events').add({ merchantId, type, status, host, createdAt: new Date() });
+  }));
 }

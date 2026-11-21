@@ -14,4 +14,6 @@ if (is_array($o) && !empty($o['delete_on_uninstall'])) {
   $wpdb->query('DROP TABLE IF EXISTS ' . $wpdb->prefix . 'cvd_donations');
   delete_option('cvd_settings');
   delete_option('cvd_db_version');
+  delete_option('cvd_hook_url');
+  delete_transient('cvd_hook_try');
 }

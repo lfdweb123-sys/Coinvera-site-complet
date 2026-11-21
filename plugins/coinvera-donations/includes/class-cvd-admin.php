@@ -8,8 +8,9 @@ final class CVD_Admin {
   const NOTICES = [
     'saved' => ['success', 'Réglages enregistrés.'], 'lic_ok' => ['success', 'Licence Coinvera activée pour ce site.'],
     'lic_bad' => ['error', 'Licence non valide, ou limite d’activations atteinte pour cette licence.'], 'lic_net' => ['warning', 'Impossible de joindre le serveur de licences. Réessayez.'],
-    'hook_ok' => ['success', 'Webhook configuré. Les dons seront confirmés plus vite (la vérification périodique reste active).'],
-    'hook_bad' => ['error', 'Webhook non configuré : vérifiez vos clés API (une clé de production activée est requise) et que le site est en HTTPS.'],
+    'hook_ok' => ['success', 'Webhook configuré automatiquement : les dons seront confirmés immédiatement (la vérification périodique reste active en secours).'],
+    'hook_full' => ['warning', 'Webhook non configuré : la limite de 5 URL du compte Coinvera est atteinte. Retirez-en une dans Coinvera → Webhooks. En attendant, les dons sont confirmés toutes les 5 minutes.'],
+    'hook_bad' => ['warning', 'Webhook non configuré : vérifiez vos clés API (une clé de production activée est requise) et que le site est en HTTPS. En attendant, les dons sont confirmés toutes les 5 minutes.'],
     'checked' => ['success', 'Don vérifié auprès de Coinvera.'],
   ];
 
@@ -18,6 +19,7 @@ final class CVD_Admin {
     add_action('admin_notices', [__CLASS__, 'notices']);
     add_action('admin_post_cvd_save_settings', [__CLASS__, 'save_settings']);
     add_action('admin_post_cvd_register_webhook', [__CLASS__, 'register_webhook']);
+    add_action('admin_init', [__CLASS__, 'maybe_auto_webhook']);
     add_action('admin_post_cvd_check', [__CLASS__, 'check_one']);
     add_action('admin_post_cvd_export', [__CLASS__, 'export']);
     add_filter('plugin_action_links_' . CVD_SLUG, function ($l) { array_unshift($l, '<a href="' . esc_url(admin_url('admin.php?page=cvd-settings')) . '">Réglages</a>'); return $l; });
@@ -34,8 +36,8 @@ final class CVD_Admin {
 
   public static function notices() {
     $screen = get_current_screen(); if (!$screen || strpos((string) $screen->id, 'cvd') === false) return;
-    $n = isset($_GET['cvd_n']) ? sanitize_key(wp_unslash($_GET['cvd_n'])) : '';   // jamais de texte libre : code → message fixe
-    if (isset(self::NOTICES[$n])) printf('<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr(self::NOTICES[$n][0]), esc_html(self::NOTICES[$n][1]));
+    $codes = isset($_GET['cvd_n']) ? explode(',', sanitize_text_field(wp_unslash($_GET['cvd_n']))) : [];   // jamais de texte libre : codes → messages fixes
+    foreach (array_slice($codes, 0, 3) as $n) { $n = sanitize_key($n); if (isset(self::NOTICES[$n])) printf('<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr(self::NOTICES[$n][0]), esc_html(self::NOTICES[$n][1])); }
     if (!CVD_Settings::ready()) echo '<div class="notice notice-warning"><p>Renseignez votre licence et vos clés API dans <a href="' . esc_url(admin_url('admin.php?page=cvd-settings')) . '">Réglages</a> pour activer les dons.</p></div>';
     elseif (!CVD_API::licensed()) echo '<div class="notice notice-error"><p>La licence Coinvera n’est pas valide pour ce site : les formulaires de don sont désactivés.</p></div>';
   }
@@ -64,11 +66,14 @@ final class CVD_Admin {
     printf('<tr><th>Désinstallation</th><td><label><input type="checkbox" name="delete_on_uninstall" value="1"%s> Supprimer tous les dons et réglages à la suppression du plugin</label></td></tr></table>', checked($o['delete_on_uninstall'], 1, false));
     submit_button('Enregistrer'); echo '</form>';
 
-    echo '<hr><h2>Webhook (facultatif)</h2><p>Sans webhook, les dons sont confirmés par une vérification automatique toutes les 5 minutes. Le webhook accélère la confirmation.</p>';
-    echo '<p><strong>Attention :</strong> Coinvera n’enregistre qu’<u>une seule</u> URL de webhook par compte. L’activer ici remplace celle d’un autre site ou plugin (par ex. WooCommerce) ; dans ce cas, gardez la vérification automatique.</p>';
-    echo '<p>URL : <code>' . esc_html(rest_url('coinvera-donations/v1/webhook')) . '</code> — état : ' . (CVD_Settings::webhook_secret() !== '' ? '<strong>configuré</strong>' : 'non configuré') . '</p>';
-    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="cvd_register_webhook">'; wp_nonce_field('cvd_webhook');
-    submit_button('Configurer le webhook sur ce site', 'secondary', 'submit', false); echo '</form>';
+    $hook_ok = CVD_Settings::webhook_secret() !== '' && get_option('cvd_hook_url') === rest_url('coinvera-donations/v1/webhook');
+    echo '<hr><h2>Webhook (automatique)</h2><p>Le webhook est enregistré automatiquement chez Coinvera quand vous sauvegardez les réglages, comme pour le plugin WooCommerce, et s’ajoute à ceux de vos autres sites ou plugins sans les remplacer (5 URL maximum par compte). Il confirme les dons immédiatement ; en secours, une vérification automatique tourne toutes les 5 minutes.</p>';
+    if (CVD_Woo::mode_on()) echo '<p>Inutile en mode WooCommerce : la commande fait foi.</p>';
+    else {
+      echo '<p>URL : <code>' . esc_html(rest_url('coinvera-donations/v1/webhook')) . '</code> — état : ' . ($hook_ok ? '<strong>configuré</strong>' : 'non configuré (vérification toutes les 5 minutes)') . '</p>';
+      echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="cvd_register_webhook">'; wp_nonce_field('cvd_webhook');
+      submit_button($hook_ok ? 'Reconfigurer le webhook' : 'Configurer le webhook maintenant', 'secondary', 'submit', false); echo '</form>';
+    }
 
     echo '<hr><h2>Utilisation</h2><ul style="list-style:disc;margin-left:20px"><li><code>[coinvera_campaign id="12"]</code> — cagnotte complète : description, progression, formulaire et donateurs.</li><li><code>[coinvera_donate]</code> — formulaire de don libre (ajoutez <code>id="12"</code> pour une cagnotte).</li><li><code>[coinvera_progress id="12"]</code> et <code>[coinvera_donors id="12" limit="10"]</code> — barre de progression et liste des donateurs séparées.</li></ul></div>';
   }
@@ -87,19 +92,40 @@ final class CVD_Admin {
     $secret = $t('secret', 120); if ($secret !== '') $new['secret_enc'] = CVD_Settings::encrypt($secret);
     CVD_Settings::update($new); delete_transient('cvd_license_ok');
     if ($new['checkout_mode'] === 'woocommerce') CVD_Woo::product_id();   // crée le produit « Don » masqué
-    $code = 'saved';
+    $codes = [];
     if (strlen($new['license_key']) >= 10) {
       $r = CVD_API::license('activate');
-      $code = is_wp_error($r) ? 'lic_net' : (!empty($r['valid']) ? 'lic_ok' : 'lic_bad');
+      $codes[] = is_wp_error($r) ? 'lic_net' : (!empty($r['valid']) ? 'lic_ok' : 'lic_bad');
     }
-    self::back('cvd-settings', $code);
+    // Webhook automatique, comme le plugin WooCommerce : enregistré à chaque sauvegarde (direct uniquement : en mode WooCommerce, la commande fait foi).
+    if (!CVD_Woo::mode_on() && CVD_Settings::configured()) { delete_transient('cvd_hook_try'); $codes[] = self::register_webhook_now(); }
+    self::back('cvd-settings', $codes ? implode(',', $codes) : 'saved');
+  }
+
+  /** Ajoute l'URL de ce site à la liste des webhooks du compte Coinvera (sans remplacer celles des autres sites ou plugins) et garde le secret. Retourne un code de notice. */
+  public static function register_webhook_now() {
+    $url = rest_url('coinvera-donations/v1/webhook');
+    $r = CVD_API::register_webhook($url);
+    if (!is_wp_error($r) && $r['code'] === 200 && !empty($r['data']['secret']) && is_string($r['data']['secret'])) {
+      CVD_Settings::update(['webhook_secret_enc' => CVD_Settings::encrypt($r['data']['secret'])]); update_option('cvd_hook_url', $url, false); return 'hook_ok';
+    }
+    return (!is_wp_error($r) && $r['code'] === 409) ? 'hook_full' : 'hook_bad';
+  }
+
+  /** Installations existantes (sans webhook) : à l'ouverture d'une page du plugin, une tentative toutes les 6 h au plus. Aucune requête sur les autres pages d'administration. */
+  public static function maybe_auto_webhook() {
+    $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+    if (strpos($page, 'cvd-') !== 0 || wp_doing_ajax() || wp_doing_cron() || !current_user_can(apply_filters('cvd_capability', self::CAP))) return;
+    if (CVD_Woo::mode_on() || !CVD_Settings::configured()) return;
+    if (CVD_Settings::webhook_secret() !== '' && get_option('cvd_hook_url') === rest_url('coinvera-donations/v1/webhook')) return;   // déjà enregistré pour cette adresse
+    if (get_transient('cvd_hook_try')) return;
+    set_transient('cvd_hook_try', 1, 6 * HOUR_IN_SECONDS);
+    self::register_webhook_now();
   }
 
   public static function register_webhook() {
     self::guard(); check_admin_referer('cvd_webhook');
-    $r = CVD_API::register_webhook(rest_url('coinvera-donations/v1/webhook'));
-    if (!is_wp_error($r) && $r['code'] === 200 && !empty($r['data']['secret']) && is_string($r['data']['secret'])) { CVD_Settings::update(['webhook_secret_enc' => CVD_Settings::encrypt($r['data']['secret'])]); self::back('cvd-settings', 'hook_ok'); }
-    self::back('cvd-settings', 'hook_bad');
+    self::back('cvd-settings', CVD_Woo::mode_on() || !CVD_Settings::configured() ? 'hook_bad' : self::register_webhook_now());
   }
 
   // ---------- Liste des dons ----------

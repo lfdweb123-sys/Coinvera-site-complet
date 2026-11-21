@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Coinvera Donations
  * Description: Dons et cagnottes par carte via Coinvera, avec confirmation vérifiée côté serveur. Fonctionne seul ou avec WooCommerce. Utilise la même licence que le plugin WooCommerce.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Text Domain: coinvera-donations
@@ -10,7 +10,7 @@
  */
 if (!defined('ABSPATH')) exit;
 
-define('CVD_VERSION', '1.1.0');
+define('CVD_VERSION', '1.2.0');
 define('CVD_FILE', __FILE__);
 define('CVD_DIR', plugin_dir_path(__FILE__));
 define('CVD_URL', plugin_dir_url(__FILE__));

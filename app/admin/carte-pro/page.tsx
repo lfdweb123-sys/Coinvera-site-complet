@@ -13,8 +13,8 @@ export default function CartePro() {
   return <div className="stack" style={{ maxWidth: 820 }}>
     <h1>Carte Pro</h1>
     <div className="card stack"><h2 style={{ margin: 0 }}>Portefeuille du programme</h2>
-      {data?.error && <p className="err" role="alert">Prestataire injoignable ou non configuré ({data.error}){data.diag ? <> — cause : <b>{data.diag}</b></> : null}.</p>}
-      {w && <div className="kv"><div>Solde disponible <b>{usd(w.availableMinor / 100)}</b></div><div>Mode de vérification <b>{w.mode}</b></div>{w.plan && <div>Offre <b>{typeof w.plan === 'string' ? w.plan : JSON.stringify(w.plan)}</b></div>}</div>}
+      {data?.error && <p className="err" role="alert">Prestataire injoignable ou non configuré ({data.error}).</p>}
+      {w && <div className="kv"><div>Solde disponible <b>{usd(w.availableMinor / 100)}</b></div><div>Clé <b>{w.mode === 'live' ? 'Production' : 'Test'}</b> · vérification <b>{w.verification}</b></div>{w.plan && <div>Offre <b>{w.plan.name ?? '—'}</b>{w.plan.monthly_fee_minor ? ` (${usd(w.plan.monthly_fee_minor / 100)}/mois)` : ''} · cartes actives <b>{w.plan.live_cards_held ?? 0}/{w.plan.card_limit ?? '—'}</b></div>}</div>}
       {data?.addresses?.map((a: any, i: number) => <div key={i}><small>{a.network ?? a.asset ?? ''} :</small> <code style={{ wordBreak: 'break-all' }}>{a.address}</code></div>)}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}><select className="in" aria-label="Réseau" style={{ width: 'auto' }} value={net} onChange={e => setNet(e.target.value)}>{NETS.map(n => <option key={n}>{n}</option>)}</select>
         <button className="btn" onClick={async () => { setDm(''); try { await api('/api/admin/scarab', { method: 'POST', body: JSON.stringify({ action: 'deposit-address', network: net }) }); reload(); } catch (x) { setDm(msg(x)); } }}>Créer une adresse de dépôt</button><span className="mut">{dm}</span></div>

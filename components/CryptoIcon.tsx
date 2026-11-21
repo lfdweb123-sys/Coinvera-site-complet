@@ -6,6 +6,7 @@ const C: Record<string, [string, React.ReactNode]> = {
   Ethereum: ['#627EEA', <path key="a" d="M0-8l5 8-5 3-5-3zM0 4l5-3.500L0 8-5.500.5z" fill="#fff" />],
   Solana: ['#111827', <g key="a" fill="#9945FF"><path d="M-7-5h11l3 2.500H-4zM-7 1h11l3-2.500H-4zM-7 6h11l3-2.500H-4z" /></g>],
   BNB: ['#F3BA2F', <path key="a" d="M0-8l3 3-3 3-3-3zM-6-2l3 3-3 3-3-3zM6-2l3 3-3 3-3-3zM0 4l3 3-3 3-3-3z" transform="scale(.75)" fill="#fff" />],
+  Monero: ['#F26822', <path key="a" d="M-7 5V-4l7 7 7-7v9M-7 5h3M7 5h-3" fill="none" stroke="#fff" strokeWidth="2.200" strokeLinecap="round" strokeLinejoin="round" />],
   Litecoin: ['#345D9D', <path key="a" d="M-3-7l-2.500 9.500 8-2.500M-5.500 2.500l-1 3.500h10" fill="none" stroke="#fff" strokeWidth="2.200" strokeLinecap="round" />] };
 export default function CryptoIcon({ sym, size = 40 }: { sym: string; size?: number }) {
   const [bg, g] = C[sym] ?? ['#64748B', null];

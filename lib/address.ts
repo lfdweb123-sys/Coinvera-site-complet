@@ -19,6 +19,23 @@ export function validEvm(a: string) {
   const h = Buffer.from(keccak_256(Buffer.from(b.toLowerCase()))).toString('hex');
   return [...b].every((c, i) => /\d/.test(c) || (parseInt(h[i], 16) >= 8 ? c === c.toUpperCase() : c === c.toLowerCase()));
 }
-export const NETWORKS: Record<string, { label: string; std: string; hint: string }> = {
-  TRX: { label: 'TRON', std: 'TRC20', hint: 'L’adresse commence par T' }, ETH: { label: 'Ethereum', std: 'ERC20', hint: 'L’adresse commence par 0x' }, BSC: { label: 'BNB Smart Chain', std: 'BEP20', hint: 'L’adresse commence par 0x' } };
-export const validAddress = (chain: string, a: string) => chain === 'TRX' ? validTron(a) : chain === 'ETH' || chain === 'BSC' ? validEvm(a) : false;
+import { OPT } from './payout-options';
+function b58check(a: string, versions: number[]) { const d = b58(a); if (!d || d.length !== 25 || !versions.includes(d[0])) return false; return Buffer.from(sha256(sha256(d.subarray(0, 21))).subarray(0, 4)).equals(d.subarray(21)); }
+// Bech32 / Bech32m (BIP-173 / BIP-350) : somme de controle complete
+const CH = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+function polymod(v: number[]) { let c = 1; const G = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]; for (const x of v) { const b = c >>> 25; c = ((c & 0x1ffffff) << 5) ^ x; for (let i = 0; i < 5; i++) if ((b >>> i) & 1) c ^= G[i]; } return c >>> 0; }
+function bech32(a: string, hrp: string) {
+  const l = a.toLowerCase(); if (a !== l && a !== a.toUpperCase()) return false; const p = l.lastIndexOf('1'); if (p < 1 || l.slice(0, p) !== hrp || l.length < 14 || l.length > 90) return false;
+  const data: number[] = []; for (const c of l.slice(p + 1)) { const i = CH.indexOf(c); if (i < 0) return false; data.push(i); }
+  const pm = polymod([...[...hrp].map(c => c.charCodeAt(0) >> 5), 0, ...[...hrp].map(c => c.charCodeAt(0) & 31), ...data]);
+  return data[0] === 0 ? pm === 1 : data[0] <= 16 && pm === 0x2bc830a3;
+}
+export const validBtc = (a: string) => b58check(a, [0x00, 0x05]) || bech32(a, 'bc');
+export const validLtc = (a: string) => b58check(a, [0x30, 0x32, 0x05]) || bech32(a, 'ltc');
+export const validSol = (a: string) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a) && b58(a)?.length === 32;
+export const validXmr = (a: string) => /^[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}$/.test(a);
+// id = identifiant d'option de retrait (voir payout-options.ts)
+export function validAddress(id: string, a: string) {
+  const o = OPT[id]; if (!o) return false;
+  switch (o.kind) { case 'tron': return validTron(a); case 'evm': return validEvm(a); case 'btc': return validBtc(a); case 'ltc': return validLtc(a); case 'sol': return validSol(a); case 'xmr': return validXmr(a); }
+}

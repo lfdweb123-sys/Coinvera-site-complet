@@ -5,6 +5,8 @@ import { postEntry, readBal, writeBal } from '@/lib/ledger';
 import { fromUnits, toUnits } from '@/lib/money';
 import { notify } from '@/lib/audit';
 import { requestWithdrawal } from '@/lib/withdraw';
+import { OPT } from '@/lib/payout-options';
+import { priceUsd } from '@/lib/price';
 import { info, warn, error } from '@/lib/log';
 async function finish(id: string, ok: boolean, extra: object) {
   await db.runTransaction(async tx => {
@@ -39,8 +41,15 @@ export async function GET(req: Request) {
     const claimed = await db.runTransaction(async tx => { const s = await tx.get(d.ref); if (s.data()!.status !== 'queued') return false; tx.update(d.ref, { status: 'processing' }); return true; });
     if (!claimed) continue;
     const w = d.data(); info('cron.sending', { withdrawalId: d.id, chain: w.chain });
+    // Stablecoins : 1 USD = 1 unité. Coins volatils (BTC, ETH, LTC, XMR, SOL) : conversion au cours du moment de l'envoi.
+    let amount = fromUnits(w.sendUnits ?? w.amountUnits); const cg = OPT[w.option ?? w.chain]?.cg;
+    if (cg) {
+      try { amount = (Math.floor((Number(amount) / (await priceUsd(cg))) * 1e8) / 1e8).toFixed(8); }
+      catch (e) { warn('cron.quote_unavailable', { withdrawalId: d.id, message: (e as Error).message }); await d.ref.update({ status: 'queued' }); continue; }   // aucun envoi : on retentera au prochain passage
+    }
+    amount = amount.includes('.') ? amount.replace(/0+$/, '').replace(/\.$/, '') : amount;
     try {
-      const r = await createWithdrawal({ coin: w.coin, chain: w.chain, address: w.address, amount: fromUnits(w.sendUnits ?? w.amountUnits).replace(/\.?0+$/, ''), requestId: d.id });
+      const r = await createWithdrawal({ coin: w.coin, chain: w.chain, address: w.address, amount, requestId: d.id });
       if (r.retCode === 0) await d.ref.update({ status: 'broadcasted', bybitId: String(r.result.id) });
       else await finish(d.id, false, { error: `bybit_${r.retCode}` });       // refus explicite = echec confirme
     } catch (e) { error('cron.send_unknown_state', { withdrawalId: d.id, message: (e as Error).message }); await d.ref.update({ status: 'needs_review' }); }               // timeout : etat inconnu, on NE libere PAS les fonds

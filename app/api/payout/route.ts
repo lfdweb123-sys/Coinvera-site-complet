@@ -2,8 +2,9 @@ import { z } from 'zod';
 import { db } from '@/lib/firebase-admin';
 import { fail, HttpError, requireUser } from '@/lib/auth';
 import { validAddress } from '@/lib/address';
+import { OPT } from '@/lib/payout-options';
 const TH = [50, 100, 250, 500, 1000];
-const Body = z.object({ chain: z.enum(['TRX', 'ETH', 'BSC']), address: z.string().max(120), autoPayout: z.boolean(), threshold: z.number().refine(n => TH.includes(n)) });
+const Body = z.object({ chain: z.string().refine(c => c in OPT), address: z.string().max(120), autoPayout: z.boolean(), threshold: z.number().refine(n => TH.includes(n)) });
 export async function GET(req: Request) {
   try { const u = await requireUser(req); const s = (await db.doc(`merchant_settings/${u.uid}`).get()).data() ?? {};
     return Response.json({ chain: s.payoutChain ?? 'TRX', address: s.payoutAddress ?? '', autoPayout: !!s.autoPayout, threshold: s.payoutThreshold ?? 50 });

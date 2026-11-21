@@ -3,14 +3,14 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { Activity, ArrowLeftRight, BadgeCheck, Bell, BookOpen, CreditCard, FileBarChart, HelpCircle, KeyRound, LayoutDashboard, LifeBuoy, Link2, LogOut, Menu, PanelLeft, ScrollText, Settings, ShieldCheck, Store, Tag, Users, Wallet, Webhook, ChevronDown, Lock, Landmark, UserCog, Ellipsis, Coins } from 'lucide-react';
+import { ArrowLeftRight, BadgeCheck, Bell, CreditCard, FileBarChart, HelpCircle, KeyRound, LayoutDashboard, LifeBuoy, Link2, LogOut, Menu, PanelLeft, ScrollText, Settings, ShieldCheck, Store, Tag, Users, Wallet, Webhook, ChevronDown, Lock, Landmark, UserCog, Ellipsis, Coins } from 'lucide-react';
 import { api, auth, msg, usePending } from '@/lib/client';
 import { LogoMark } from '@/components/Illustrations';
 import { PageLoader } from '@/components/Loader';
 import AuthShell from '@/components/AuthShell';
 import IdleLogout from '@/components/IdleLogout';
 import OtpInput from '@/components/OtpInput';
-import { DOCS, HELP, STATUS } from '@/lib/site';
+import { HELP } from '@/lib/site';
 const ICONS: Record<string, any> = { dash: LayoutDashboard, tx: ArrowLeftRight, pay: CreditCard, link: Link2, wd: Landmark, bal: Wallet, key: KeyRound, shop: Store, hook: Webhook, rep: FileBarChart, help: LifeBuoy, set: UserCog, users: Users, shield: ShieldCheck, log: ScrollText, bell: Bell, tag: Tag, badge: BadgeCheck, coin: Coins };
 export type NavItem = { href: string; label: string; icon: string; superOnly?: boolean };
 export type NavGroup = { title: string; items: NavItem[] };
@@ -45,8 +45,7 @@ export default function Shell({ groups, admin, quick, children }: { groups: NavG
     <nav className={'side' + (col ? ' col' : '') + (mob ? ' mob' : '')} aria-label="Navigation principale">
       <Link href="/" className="logo"><LogoMark s={32} /><span>{admin ? 'Coinvera Admin' : 'Coinvera'}</span></Link>
       <div className="scroll">{groups.map(g => <div key={g.title}><div className="grp">{g.title}</div>{g.items.map(n => { const I = ICONS[n.icon] ?? LayoutDashboard; return <Link key={n.href} href={n.href} className={'it' + (on(n.href) ? ' on' : '')} title={n.label} aria-current={on(n.href) ? 'page' : undefined}><I size={19} /><span className="t">{n.label}</span></Link>; })}</div>)}</div>
-      <div className="bot"><a href={DOCS} target="_blank" rel="noreferrer" title="Documentation API"><BookOpen size={18} /><span className="t">Documentation API</span></a><a href={HELP} target="_blank" rel="noreferrer" title="Centre d’aide"><HelpCircle size={18} /><span className="t">Centre d’aide</span></a><a href={STATUS} target="_blank" rel="noreferrer" title="État des services"><Activity size={18} /><span className="t">État des services</span></a>
-        <button onClick={out} title="Déconnexion"><LogOut size={18} /><span className="t">Déconnexion</span></button><p>© {new Date().getFullYear()} COINVERA</p></div>
+      <div className="bot"><button onClick={out} title="Déconnexion"><LogOut size={18} /><span className="t">Déconnexion</span></button><p>© {new Date().getFullYear()} COINVERA</p></div>
     </nav>
     <div className={'main' + (col ? ' col' : '')}>
       <header className="top">

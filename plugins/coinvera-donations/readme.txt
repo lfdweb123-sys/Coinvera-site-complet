@@ -1,9 +1,9 @@
 === Coinvera Donations ===
 Requires at least: 5.8
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 
-Dons et cagnottes par carte via Coinvera, sur WordPress (sans WooCommerce).
+Dons et cagnottes par carte via Coinvera, sur WordPress : seul ou avec WooCommerce.
 
 == Description ==
 * Cagnottes avec objectif, date limite, montant minimum et montants suggérés.
@@ -11,6 +11,7 @@ Dons et cagnottes par carte via Coinvera, sur WordPress (sans WooCommerce).
 * Paiement par carte hébergé par Coinvera : aucune donnée de carte ne transite par votre site.
 * Un don n'est compté qu'après relecture du paiement auprès de l'API Coinvera (statut, mode réel, montant, référence).
 * Liste des dons, export CSV, e-mails de notification et de remerciement, outils RGPD de WordPress.
+* Mode WooCommerce : le don passe par le panier et la passerelle de votre choix, et est compté quand la commande est payée (compatible HPOS et blocs).
 * Même licence que le plugin WooCommerce Coinvera.
 
 == Installation ==
@@ -25,5 +26,8 @@ Dons et cagnottes par carte via Coinvera, sur WordPress (sans WooCommerce).
 [coinvera_donors id="12" limit="10"] — derniers donateurs.
 
 == Changelog ==
+= 1.1.0 =
+Mode WooCommerce : dons au panier, comptés à la commande payée, retirés si remboursée ou annulée.
+
 = 1.0.0 =
 Première version.

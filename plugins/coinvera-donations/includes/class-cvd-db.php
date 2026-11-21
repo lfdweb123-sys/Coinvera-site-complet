@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) exit;
  * failed, expired, review (montant ou référence incohérents : à vérifier à la main, non compté).
  */
 final class CVD_DB {
-  const VER = '1';
+  const VER = '2';
 
   public static function table() { global $wpdb; return $wpdb->prefix . 'cvd_donations'; }
 
@@ -26,7 +26,9 @@ final class CVD_DB {
       mode varchar(8) NOT NULL DEFAULT '',
       created_at datetime NOT NULL,
       confirmed_at datetime DEFAULT NULL,
+      order_id bigint(20) unsigned DEFAULT NULL,
       PRIMARY KEY  (id),
+      UNIQUE KEY order_id (order_id),
       KEY campaign_status (campaign_id,status),
       KEY status_created (status,created_at),
       KEY donor_email (donor_email)
@@ -42,6 +44,18 @@ final class CVD_DB {
       'message' => (string) $d['message'], 'anonymous' => empty($d['anonymous']) ? 0 : 1, 'status' => 'pending', 'created_at' => CVD_Util::now(),
     ], ['%d', '%d', '%s', '%s', '%s', '%d', '%s', '%s']);
     return $ok ? (int) $wpdb->insert_id : 0;
+  }
+  /** Don issu d'une commande WooCommerce payée. INSERT IGNORE + clé unique sur order_id : une commande ne crée jamais deux dons. Retourne l'id du don, ou 0 s'il existait déjà. */
+  public static function insert_order($order_id, array $d) {
+    global $wpdb; $now = CVD_Util::now();
+    $n = $wpdb->query($wpdb->prepare('INSERT IGNORE INTO ' . self::table() . " (campaign_id, amount_cents, donor_name, donor_email, message, anonymous, status, mode, order_id, created_at, confirmed_at) VALUES (%d, %d, %s, %s, %s, %d, 'confirmed', 'woo', %d, %s, %s)",
+      (int) $d['campaign_id'], (int) $d['amount_cents'], (string) $d['donor_name'], (string) $d['donor_email'], (string) $d['message'], empty($d['anonymous']) ? 0 : 1, (int) $order_id, $now, $now));
+    return ((int) $n === 1) ? (int) $wpdb->insert_id : 0;
+  }
+  /** Commande annulée, échouée ou remboursée : le don n'est plus compté. */
+  public static function mark_refunded($order_id) {
+    global $wpdb;
+    return (int) $wpdb->query($wpdb->prepare('UPDATE ' . self::table() . " SET status = 'refunded' WHERE order_id = %d AND status = 'confirmed'", (int) $order_id));
   }
   public static function get($id) { global $wpdb; return $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . self::table() . ' WHERE id = %d', (int) $id)); }
 

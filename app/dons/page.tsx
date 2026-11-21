@@ -6,18 +6,19 @@ import CtaLink from '@/components/Cta';
 import { CardLogos } from '@/components/Logos';
 import { getSettings } from '@/lib/settings';
 export const revalidate = 300;
-export const metadata = { title: 'Plugin de dons WordPress', description: 'Collectez des dons et gérez des cagnottes sur WordPress avec Coinvera : paiement par carte sécurisé, objectif et progression, confirmation vérifiée côté serveur. Même licence que le plugin WooCommerce.', alternates: { canonical: '/dons' } };
+export const metadata = { title: 'Plugin de dons WordPress', description: 'Collectez des dons et gérez des cagnottes sur WordPress, seul ou avec WooCommerce : paiement par carte sécurisé, objectif et progression, confirmation vérifiée côté serveur. Même licence que le plugin WooCommerce.', alternates: { canonical: '/dons' } };
 const F = [
   [Target, 'Cagnottes avec objectif', 'Objectif, date limite, don minimum et montants suggérés. Barre de progression et compte à rebours intégrés.'],
   [CreditCard, 'Paiement par carte sécurisé', 'Page de paiement hébergée par Coinvera : aucune donnée de carte ne transite par votre site.'],
   [ShieldCheck, 'Dons vérifiés côté serveur', 'Un don n’est compté qu’après relecture du paiement auprès de l’API : jamais sur un simple retour du navigateur.'],
   [Users, 'Donateurs et dons anonymes', 'Mur des derniers donateurs, message personnalisé, option « don anonyme » pour chaque donateur.'],
   [FileDown, 'Suivi et export', 'Liste des dons filtrable, export CSV, e-mail de notification et de remerciement automatiques.'],
-  [Heart, 'Sans WooCommerce', 'Un plugin WordPress autonome : formulaire de don libre ou cagnotte, à placer partout avec un shortcode.'],
+  [Heart, 'Seul ou avec WooCommerce', 'Deux modes au choix : paiement direct par carte, ou via le panier et les passerelles de votre boutique WooCommerce (compatible HPOS et blocs).'],
 ] as const;
 const STEPS = [['Créez votre compte et activez-le', 'Un seul paiement unique : la licence du plugin est incluse.'], ['Installez le fichier ZIP dans WordPress', 'Extensions → Ajouter → Téléverser, puis activez.'], ['Saisissez votre licence et vos clés API', 'Dons Coinvera → Réglages. Les clés secrètes sont stockées chiffrées.'], ['Créez une cagnotte et collez son shortcode', 'Les dons sont confirmés automatiquement et apparaissent dans la liste.']];
 const FAQ = [
-  ['Faut-il WooCommerce ?', 'Non. Le plugin de dons est autonome et fonctionne sur n’importe quel site WordPress (5.8 et plus, PHP 7.4 et plus).'],
+  ['Faut-il WooCommerce ?', 'Non, mais il est pris en charge. Sans WooCommerce, le don est payé directement par carte via Coinvera. Avec WooCommerce, le don passe par le panier et la passerelle de votre choix (Coinvera inclus). WordPress 5.8 et plus, PHP 7.4 et plus.'],
+  ['Comment fonctionne le mode WooCommerce ?', 'Le formulaire ajoute un produit « Don » masqué au panier. Le don est compté dans la cagnotte quand la commande est en cours ou terminée, et retiré si elle est annulée, échouée ou remboursée. La boutique doit être en USD.'],
   ['Faut-il une deuxième licence ?', 'Non. C’est la même licence que le plugin WooCommerce, incluse dans l’activation de votre compte. Elle s’active par site : les deux plugins peuvent cohabiter sur le même site.'],
   ['Dans quelle devise sont les dons ?', 'En dollars américains (USD), de 1 $ à 50 000 $ par don.'],
   ['Les dons de test sont-ils comptés ?', 'Non. Pendant vos essais gratuits, les paiements de test sont signalés comme tels et ne sont jamais ajoutés au total de la cagnotte.'],
@@ -29,7 +30,7 @@ const CODE = `[coinvera_campaign id="12"]            cagnotte complète
 [coinvera_progress id="12"]            barre de progression
 [coinvera_donors id="12" limit="10"]   derniers donateurs`;
 export default async function P() { const s = await getSettings();
-  return <><Header /><PageHero v={1} eyebrow="Plugin de dons" title="Collectez des dons et gérez vos cagnottes sur WordPress" sub="Un plugin autonome : cagnottes avec objectif, paiement par carte sécurisé et dons comptés uniquement après confirmation côté serveur." />
+  return <><Header /><PageHero v={1} eyebrow="Plugin de dons" title="Collectez des dons et gérez vos cagnottes sur WordPress" sub="Cagnottes avec objectif, paiement par carte sécurisé et dons comptés uniquement après confirmation. Fonctionne seul ou avec WooCommerce." />
     <main className="sec"><div className="wrap stack">
       <div className="g3">{F.map(([I, t, d]) => <div className="card feat" key={t}><div className="ic"><I size={22} /></div><h3>{t}</h3><p>{d}</p></div>)}</div>
       <div className="split"><div className="g2" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>{STEPS.map(([t, d], i) => <div className="step" key={t}><i>{i + 1}</i><h3 style={{ fontSize: 17 }}>{t}</h3><p className="mut" style={{ margin: 0 }}>{d}</p></div>)}</div>

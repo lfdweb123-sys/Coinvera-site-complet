@@ -4,7 +4,7 @@ if (!defined('ABSPATH')) exit;
 /** Administration : liste des dons, réglages, licence, export CSV. Toutes les actions exigent une capacité et un nonce. */
 final class CVD_Admin {
   const CAP = 'manage_options';
-  const STATUS = ['pending' => 'En attente', 'confirmed' => 'Confirmé', 'test' => 'Test (non compté)', 'failed' => 'Échoué', 'expired' => 'Expiré', 'review' => 'À vérifier'];
+  const STATUS = ['pending' => 'En attente', 'confirmed' => 'Confirmé', 'test' => 'Test (non compté)', 'failed' => 'Échoué', 'expired' => 'Expiré', 'review' => 'À vérifier', 'refunded' => 'Remboursé / annulé'];
   const NOTICES = [
     'saved' => ['success', 'Réglages enregistrés.'], 'lic_ok' => ['success', 'Licence Coinvera activée pour ce site.'],
     'lic_bad' => ['error', 'Licence non valide, ou limite d’activations atteinte pour cette licence.'], 'lic_net' => ['warning', 'Impossible de joindre le serveur de licences. Réessayez.'],
@@ -36,7 +36,7 @@ final class CVD_Admin {
     $screen = get_current_screen(); if (!$screen || strpos((string) $screen->id, 'cvd') === false) return;
     $n = isset($_GET['cvd_n']) ? sanitize_key(wp_unslash($_GET['cvd_n'])) : '';   // jamais de texte libre : code → message fixe
     if (isset(self::NOTICES[$n])) printf('<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr(self::NOTICES[$n][0]), esc_html(self::NOTICES[$n][1]));
-    if (!CVD_Settings::configured()) echo '<div class="notice notice-warning"><p>Renseignez votre licence et vos clés API dans <a href="' . esc_url(admin_url('admin.php?page=cvd-settings')) . '">Réglages</a> pour activer les dons.</p></div>';
+    if (!CVD_Settings::ready()) echo '<div class="notice notice-warning"><p>Renseignez votre licence et vos clés API dans <a href="' . esc_url(admin_url('admin.php?page=cvd-settings')) . '">Réglages</a> pour activer les dons.</p></div>';
     elseif (!CVD_API::licensed()) echo '<div class="notice notice-error"><p>La licence Coinvera n’est pas valide pour ce site : les formulaires de don sont désactivés.</p></div>';
   }
 
@@ -52,6 +52,11 @@ final class CVD_Admin {
     printf('<tr><th><label for="secret">Clé API secrète</label></th><td><input type="password" id="secret" name="secret" class="regular-text" value="" autocomplete="new-password">%s<p class="description">Stockée chiffrée, jamais réaffichée.</p></td></tr>', $has($o['secret_enc']));
     printf('<tr><th><label for="api_base">URL de l’API</label></th><td><input type="url" id="api_base" name="api_base" class="regular-text" value="%s"></td></tr></table>', esc_attr($o['api_base']));
     echo '<h2>Dons</h2><table class="form-table" role="presentation">';
+    if (CVD_Woo::present()) {
+      $woo_ok = function_exists('get_woocommerce_currency') && get_woocommerce_currency() === 'USD';
+      printf('<tr><th><label for="checkout_mode">Mode de paiement des dons</label></th><td><select id="checkout_mode" name="checkout_mode"><option value="coinvera"%s>Direct : carte via Coinvera</option><option value="woocommerce"%s>Via WooCommerce : panier et passerelles de la boutique</option></select><p class="description">En mode WooCommerce, le don passe par le panier et la passerelle de votre choix (y compris Coinvera) ; il est compté quand la commande est « en cours » ou « terminée », et retiré si elle est annulée, échouée ou remboursée. Les clés API ci-dessus ne sont alors pas nécessaires.</p>%s</td></tr>',
+        selected($o['checkout_mode'], 'coinvera', false), selected($o['checkout_mode'], 'woocommerce', false), $woo_ok ? '' : '<p class="description" style="color:#b32d2e"><strong>Devise de la boutique : seule l’USD est prise en charge pour les dons.</strong> Tant qu’elle n’est pas en USD, le mode WooCommerce reste inactif.</p>');
+    }
     printf('<tr><th><label for="min_amount">Don minimum (USD)</label></th><td><input type="text" id="min_amount" name="min_amount" class="small-text" value="%s"> <p class="description">1 USD minimum (limite de l’API).</p></td></tr>', esc_attr($o['min_amount']));
     printf('<tr><th><label for="suggested">Montants suggérés (USD)</label></th><td><input type="text" id="suggested" name="suggested" class="regular-text" value="%s"></td></tr>', esc_attr($o['suggested']));
     printf('<tr><th>Options</th><td><label><input type="checkbox" name="show_donors" value="1"%s> Afficher les derniers donateurs par défaut</label><br><label><input type="checkbox" name="receipt_donor" value="1"%s> Envoyer un e-mail de remerciement au donateur (s’il a laissé son e-mail)</label><br><label><input type="checkbox" name="notify_admin" value="1"%s> M’avertir par e-mail à chaque don confirmé</label></td></tr>', checked($o['show_donors'], 1, false), checked($o['receipt_donor'], 1, false), checked($o['notify_admin'], 1, false));
@@ -77,9 +82,11 @@ final class CVD_Admin {
       'min_amount' => (($c = CVD_Util::to_cents($t('min_amount', 10))) && $c >= 100) ? (string) ($c / 100) : '1',
       'show_donors' => empty($p['show_donors']) ? 0 : 1, 'receipt_donor' => empty($p['receipt_donor']) ? 0 : 1, 'notify_admin' => empty($p['notify_admin']) ? 0 : 1, 'delete_on_uninstall' => empty($p['delete_on_uninstall']) ? 0 : 1,
       'notify_email' => sanitize_email($t('notify_email', 190)),
+      'checkout_mode' => (isset($p['checkout_mode']) && $p['checkout_mode'] === 'woocommerce' && CVD_Woo::present()) ? 'woocommerce' : 'coinvera',
     ];
     $secret = $t('secret', 120); if ($secret !== '') $new['secret_enc'] = CVD_Settings::encrypt($secret);
     CVD_Settings::update($new); delete_transient('cvd_license_ok');
+    if ($new['checkout_mode'] === 'woocommerce') CVD_Woo::product_id();   // crée le produit « Don » masqué
     $code = 'saved';
     if (strlen($new['license_key']) >= 10) {
       $r = CVD_API::license('activate');
@@ -118,7 +125,7 @@ final class CVD_Admin {
       printf('<tr><td>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>',
         $r->id, esc_html(get_date_from_gmt($r->created_at, 'd/m/Y H:i')), esc_html($titles[(int) $r->campaign_id] ?? 'Cagnotte supprimée'), esc_html(CVD_Util::money($r->amount_cents)),
         esc_html($r->donor_name !== '' ? $r->donor_name : '—'), $r->donor_email !== '' ? '<br><small>' . esc_html($r->donor_email) . '</small>' : '', esc_html(mb_substr($r->message, 0, 80)),
-        esc_html(self::STATUS[$r->status] ?? $r->status), esc_html($r->mode !== '' ? $r->mode : '—'), $act);
+        esc_html(self::STATUS[$r->status] ?? $r->status), esc_html($r->order_id ? 'WooCommerce #' . (int) $r->order_id : ($r->mode !== '' ? $r->mode : '—')), $act);
     }
     echo '</tbody></table>';
     $pages = (int) ceil($res['total'] / $per);
@@ -140,7 +147,7 @@ final class CVD_Admin {
     for ($p = 1; $p <= 200; $p++) {   // 200 x 500 = 100 000 lignes maximum
       $res = CVD_DB::search($status, -1, $p, 500); if (!$res['rows']) break;
       foreach ($res['rows'] as $r) fputcsv($out, [$r->id, get_date_from_gmt($r->created_at, 'Y-m-d H:i:s'), $r->campaign_id ? CVD_Util::csv_cell(get_the_title((int) $r->campaign_id)) : 'Don libre', number_format($r->amount_cents / 100, 2, '.', ''),
-        CVD_Util::csv_cell($r->donor_name), CVD_Util::csv_cell($r->donor_email), CVD_Util::csv_cell($r->message), $r->anonymous ? 'oui' : 'non', $r->status, $r->mode]);
+        CVD_Util::csv_cell($r->donor_name), CVD_Util::csv_cell($r->donor_email), CVD_Util::csv_cell($r->message), $r->anonymous ? 'oui' : 'non', $r->status, $r->order_id ? 'woocommerce #' . (int) $r->order_id : $r->mode]);
     }
     fclose($out); exit;
   }

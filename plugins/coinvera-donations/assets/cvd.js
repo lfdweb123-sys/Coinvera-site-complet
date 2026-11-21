@@ -25,6 +25,7 @@
         msg.textContent = '';
         var a = amount.value.trim();
         if (!/^\d{1,6}([.,]\d{1,2})?$/.test(a)) { msg.textContent = cfg.i18n.amount || ''; amount.focus(); return; }
+        if (form.getAttribute('data-mode') === 'woo') { btn.disabled = true; form.submit(); return; }   // mode WooCommerce : envoi classique vers le panier
         btn.disabled = true;
         var anon = form.querySelector('[name="anonymous"]');
         var body = {

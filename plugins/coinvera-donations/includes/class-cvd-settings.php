@@ -6,7 +6,7 @@ final class CVD_Settings {
 
   public static function defaults() {
     return ['api_base' => 'https://api.coinvera.me', 'public_key' => '', 'secret_enc' => '', 'webhook_secret_enc' => '', 'license_key' => '',
-      'suggested' => '5,10,25,50', 'min_amount' => '1', 'show_donors' => 1, 'notify_admin' => 1, 'notify_email' => '', 'receipt_donor' => 1, 'delete_on_uninstall' => 0];
+      'suggested' => '5,10,25,50', 'min_amount' => '1', 'show_donors' => 1, 'notify_admin' => 1, 'notify_email' => '', 'receipt_donor' => 1, 'delete_on_uninstall' => 0, 'checkout_mode' => 'coinvera'];
   }
   public static function all() { $o = get_option(self::OPT, []); return wp_parse_args(is_array($o) ? $o : [], self::defaults()); }
   public static function get($k) { $a = self::all(); return $a[$k] ?? null; }
@@ -31,5 +31,8 @@ final class CVD_Settings {
   }
   public static function secret() { return self::decrypt(self::get('secret_enc')); }
   public static function webhook_secret() { return self::decrypt(self::get('webhook_secret_enc')); }
+  public static function license_set() { return strlen((string) self::get('license_key')) >= 10; }
+  /** Prêt à recevoir des dons : en mode WooCommerce seule la licence est requise (le paiement passe par la passerelle WooCommerce). */
+  public static function ready() { return CVD_Woo::mode_on() ? self::license_set() : self::configured(); }
   public static function configured() { return self::get('public_key') !== '' && self::secret() !== '' && strlen((string) self::get('license_key')) >= 10; }
 }

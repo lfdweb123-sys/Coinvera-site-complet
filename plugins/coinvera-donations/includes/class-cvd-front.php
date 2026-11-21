@@ -64,14 +64,16 @@ final class CVD_Front {
     $c = $cid ? CVD_Campaigns::get($cid) : null;
     if ($cid && !$c) return '';
     if ($c && !CVD_Campaigns::is_open($c)) return '<p class="cvd-closed">Cette cagnotte est terminée. Merci à tous les donateurs !</p>';
-    if (!CVD_Settings::configured() || !CVD_API::licensed())
+    if (!CVD_Settings::ready() || !CVD_API::licensed())
       return current_user_can('manage_options') ? '<p class="cvd-closed">[Administrateur] Dons indisponibles : vérifiez la licence et les clés API dans <a href="' . esc_url(admin_url('admin.php?page=cvd-settings')) . '">Dons Coinvera → Réglages</a>.</p>' : '<p class="cvd-closed">Les dons sont momentanément indisponibles.</p>';
     $min = $c && $c['min'] ? $c['min'] : (CVD_Util::to_cents(CVD_Settings::get('min_amount')) ?: 100);
     $list = CVD_Util::parse_amounts($a['amounts'] !== '' ? $a['amounts'] : ($c && $c['suggested'] !== '' ? $c['suggested'] : (string) CVD_Settings::get('suggested')));
-    $uid = 'cvd' . wp_unique_id();
+    $uid = 'cvd' . wp_unique_id(); $woo = CVD_Woo::mode_on();
+    $e = isset($_GET['cvd_err']) ? sanitize_key(wp_unslash($_GET['cvd_err'])) : ''; $err = self::ERRORS[$e] ?? '';   // code → message fixe, jamais de texte libre
     ob_start(); ?>
-    <div class="cvd-wrap"><?php if ($a['title'] !== '') echo '<h3 class="cvd-title">' . esc_html($a['title']) . '</h3>'; ?>
-    <form class="cvd-form" method="post" action="#" novalidate data-campaign="<?php echo (int) $cid; ?>" data-min="<?php echo (int) $min; ?>">
+    <div class="cvd-wrap" id="cvd"><?php if ($a['title'] !== '') echo '<h3 class="cvd-title">' . esc_html($a['title']) . '</h3>'; ?>
+    <form class="cvd-form" method="post" action="<?php echo $woo ? esc_url(admin_url('admin-post.php')) : '#'; ?>" novalidate data-mode="<?php echo $woo ? 'woo' : 'api'; ?>" data-campaign="<?php echo (int) $cid; ?>" data-min="<?php echo (int) $min; ?>">
+      <?php if ($woo) : ?><input type="hidden" name="action" value="cvd_woo_add"><input type="hidden" name="campaign" value="<?php echo (int) $cid; ?>"><?php endif; ?>
       <fieldset class="cvd-amounts"><legend>Montant du don (USD)</legend>
         <?php foreach ($list as $i => $cents) : ?>
           <label class="cvd-chip"><input type="radio" name="preset" value="<?php echo esc_attr($cents / 100); ?>"><span><?php echo esc_html(CVD_Util::money($cents)); ?></span></label>
@@ -81,52 +83,61 @@ final class CVD_Front {
         <p class="cvd-hint">Minimum <?php echo esc_html(CVD_Util::money($min)); ?>.</p>
       </fieldset>
       <p><label for="<?php echo esc_attr($uid); ?>-name">Nom (optionnel)</label><input type="text" id="<?php echo esc_attr($uid); ?>-name" name="name" maxlength="120" autocomplete="name"></p>
-      <p><label for="<?php echo esc_attr($uid); ?>-email">E-mail (optionnel, pour le reçu)</label><input type="email" id="<?php echo esc_attr($uid); ?>-email" name="email" maxlength="190" autocomplete="email"></p>
+      <?php if (!$woo) : ?><p><label for="<?php echo esc_attr($uid); ?>-email">E-mail (optionnel, pour le reçu)</label><input type="email" id="<?php echo esc_attr($uid); ?>-email" name="email" maxlength="190" autocomplete="email"></p><?php endif; ?>
       <p><label for="<?php echo esc_attr($uid); ?>-msg">Message (optionnel)</label><textarea id="<?php echo esc_attr($uid); ?>-msg" name="message" rows="2" maxlength="500"></textarea></p>
       <p class="cvd-check"><label><input type="checkbox" name="anonymous" value="1"> Don anonyme (mon nom n’apparaît pas sur le site)</label></p>
       <div class="cvd-hp" aria-hidden="true"><label>Ne pas remplir<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
       <button type="submit" class="cvd-btn"><?php echo esc_html($a['button']); ?></button>
-      <p class="cvd-msg" role="alert" aria-live="polite"></p>
-      <p class="cvd-secure">Paiement sécurisé par carte, traité par Coinvera.</p>
+      <p class="cvd-msg" role="alert" aria-live="polite"><?php echo esc_html($err); ?></p>
+      <p class="cvd-secure"><?php echo $woo ? 'Vous serez dirigé vers la page de paiement de la boutique.' : 'Paiement sécurisé par carte, traité par Coinvera.'; ?></p>
     </form>
-    <noscript><p class="cvd-closed">JavaScript est nécessaire pour effectuer un don.</p></noscript></div>
+    <?php if (!$woo) : ?><noscript><p class="cvd-closed">JavaScript est nécessaire pour effectuer un don.</p></noscript><?php endif; ?></div>
     <?php return ob_get_clean();
   }
 
-  // ---------- Création d'un don ----------
-  public static function routes() {
-    register_rest_route('coinvera-donations/v1', '/donate', ['methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => [__CLASS__, 'donate']]);   // public volontairement : anonyme, protégé par les contrôles ci-dessous
-  }
+  // ---------- Validation commune (mode direct et mode WooCommerce) ----------
+  const ERRORS = ['cvd_off' => 'Les dons sont momentanément indisponibles.', 'cvd_rate' => 'Trop de tentatives. Réessayez dans quelques minutes.', 'cvd_amount' => 'Montant invalide.',
+    'cvd_campaign' => 'Cette cagnotte n’accepte plus de dons.', 'cvd_email' => 'Adresse e-mail invalide.', 'cvd_origin' => 'Requête refusée.', 'cvd_bad' => 'Requête refusée.', 'cvd_cart' => 'Le don n’a pas pu être ajouté au panier.'];
 
   private static function err($code, $msg, $status) { return new WP_Error($code, $msg, ['status' => $status]); }
 
-  public static function donate(WP_REST_Request $req) {
-    nocache_headers();
+  /** Contrôle l'origine, le champ piège, le débit, la licence puis chaque champ. Retourne un tableau nettoyé ou un WP_Error. */
+  public static function validate(array $p, $src) {
     // 1. Origine : la requête doit venir de ce site (si le navigateur l'indique).
-    $src = (string) ($req->get_header('origin') ?: $req->get_header('referer'));
     if ($src !== '' && strtolower((string) wp_parse_url($src, PHP_URL_HOST)) !== strtolower((string) wp_parse_url(home_url(), PHP_URL_HOST))) return self::err('cvd_origin', 'Requête refusée.', 403);
-    $p = $req->get_json_params(); if (!is_array($p)) $p = $req->get_body_params();
     // 2. Champ piège : un robot le remplit, un humain ne le voit pas.
     if (!empty($p['website'])) return self::err('cvd_bad', 'Requête refusée.', 400);
-    // 3. Limites de débit par adresse IP et globale (chaque don crée un paiement chez Coinvera).
-    $ip = CVD_Util::ip();
-    if (!CVD_Util::hit('ip:' . $ip, 6, 10 * MINUTE_IN_SECONDS) || !CVD_Util::hit('all', 120, HOUR_IN_SECONDS)) return self::err('cvd_rate', 'Trop de tentatives. Réessayez dans quelques minutes.', 429);
-    if (!CVD_Settings::configured() || !CVD_API::licensed()) return self::err('cvd_off', 'Les dons sont momentanément indisponibles.', 503);
-
+    // 3. Limites de débit par adresse IP et globale (en mode direct, chaque don crée un paiement chez Coinvera).
+    if (!CVD_Util::hit('ip:' . CVD_Util::ip(), 6, 10 * MINUTE_IN_SECONDS) || !CVD_Util::hit('all', 120, HOUR_IN_SECONDS)) return self::err('cvd_rate', 'Trop de tentatives. Réessayez dans quelques minutes.', 429);
+    if (!CVD_Settings::ready() || !CVD_API::licensed()) return self::err('cvd_off', 'Les dons sont momentanément indisponibles.', 503);
     // 4. Validation stricte, côté serveur uniquement.
-    $cid = isset($p['campaign']) ? absint($p['campaign']) : 0; $c = null;
+    $cid = isset($p['campaign']) && is_scalar($p['campaign']) ? absint($p['campaign']) : 0; $c = null;
     if ($cid) { $c = CVD_Campaigns::get($cid); if (!$c || !CVD_Campaigns::is_open($c)) return self::err('cvd_campaign', 'Cette cagnotte n’accepte plus de dons.', 422); }
-    $cents = CVD_Util::to_cents(isset($p['amount']) ? (is_scalar($p['amount']) ? (string) $p['amount'] : '') : '');
-    $min = $c && $c['min'] ? $c['min'] : (CVD_Util::to_cents(CVD_Settings::get('min_amount')) ?: 100);
-    if ($cents === null || $cents < max(100, $min)) return self::err('cvd_amount', 'Montant invalide (minimum ' . CVD_Util::money(max(100, $min)) . ').', 422);
+    $cents = CVD_Util::to_cents(isset($p['amount']) && is_scalar($p['amount']) ? (string) $p['amount'] : '');
+    $min = max(100, $c && $c['min'] ? $c['min'] : (CVD_Util::to_cents(CVD_Settings::get('min_amount')) ?: 100));
+    if ($cents === null || $cents < $min) return self::err('cvd_amount', 'Montant invalide (minimum ' . CVD_Util::money($min) . ').', 422);
     $name = isset($p['name']) && is_scalar($p['name']) ? mb_substr(sanitize_text_field((string) $p['name']), 0, 120) : '';
     $mail = isset($p['email']) && is_scalar($p['email']) ? sanitize_email((string) $p['email']) : '';
     if (!empty($p['email']) && (!is_email($mail) || strlen($mail) > 190)) return self::err('cvd_email', 'Adresse e-mail invalide.', 422);
     $msg = isset($p['message']) && is_scalar($p['message']) ? mb_substr(sanitize_textarea_field((string) $p['message']), 0, 500) : '';
-    $anon = !empty($p['anonymous']);
+    return ['c' => $c, 'cid' => $cid, 'cents' => $cents, 'name' => $name, 'mail' => $mail, 'msg' => $msg, 'anon' => !empty($p['anonymous'])];
+  }
 
-    // 5. Enregistrement puis création du paiement. Le don reste "pending" tant que Coinvera ne l'a pas confirmé.
-    $id = CVD_DB::insert(['campaign_id' => $cid, 'amount_cents' => $cents, 'donor_name' => $name, 'donor_email' => $mail, 'message' => $msg, 'anonymous' => $anon]);
+  // ---------- Création d'un don (mode direct : paiement par carte via l'API Coinvera) ----------
+  public static function routes() {
+    register_rest_route('coinvera-donations/v1', '/donate', ['methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => [__CLASS__, 'donate']]);   // public volontairement : anonyme, protégé par validate()
+  }
+
+  public static function donate(WP_REST_Request $req) {
+    nocache_headers();
+    if (CVD_Woo::mode_on()) return self::err('cvd_off', 'Les dons passent par la boutique.', 409);
+    $p = $req->get_json_params(); if (!is_array($p)) $p = $req->get_body_params();
+    $v = self::validate($p, (string) ($req->get_header('origin') ?: $req->get_header('referer')));
+    if (is_wp_error($v)) return $v;
+    $c = $v['c']; $cents = $v['cents']; $mail = $v['mail'];
+
+    // Enregistrement puis création du paiement. Le don reste "pending" tant que Coinvera ne l'a pas confirmé.
+    $id = CVD_DB::insert(['campaign_id' => $v['cid'], 'amount_cents' => $cents, 'donor_name' => $v['name'], 'donor_email' => $mail, 'message' => $v['msg'], 'anonymous' => $v['anon']]);
     if (!$id) return self::err('cvd_db', 'Le don n’a pas pu être enregistré.', 500);
     $title = 'Don — ' . ($c ? $c['title'] : get_bloginfo('name'));
     $res = CVD_API::create_payment($cents, CVD_Util::one_line($title, 110), $mail, 'cvd:' . $id, 'cvd-' . $id . '-' . wp_hash($id . home_url()));

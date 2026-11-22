@@ -11,7 +11,7 @@ const LISTS: Record<string, Guard> = {
   transactions: () => null,
   withdrawals: d => TERMINAL_WD.includes(d.status) ? null : 'withdrawal_in_progress',
   balances: d => (d.available ?? 0) === 0 && (d.reserved ?? 0) === 0 ? null : 'balance_not_zero',
-  api_keys: () => null, api_activations: () => null, notifications: () => null, audit_logs: () => null, woocommerce_licenses: () => null, support_tickets: () => null, webhook_events: () => null,
+  api_keys: () => null, api_activations: () => null, notifications: () => null, audit_logs: () => null, woocommerce_licenses: () => null, support_tickets: () => null, webhook_events: () => null, connections: () => null,
   crypto_orders: d => DONE_ORDER.includes(d.status) ? null : 'order_in_progress',
   merchants: () => null,   // contrôle du solde dans removeMerchant (document séparé)
 };

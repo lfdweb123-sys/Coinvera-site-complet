@@ -24,7 +24,7 @@ async function verify(req: Request, o: { mfa: boolean; verified: boolean }) {
   let mfaOk = true;
   if (prof.twoFactor) mfaOk = (await db.doc(`mfa_sessions/${dec.uid}`).get()).data()?.authTime === dec.auth_time;
   if (o.mfa && !mfaOk) { warn('auth.mfa_required', { uid: dec.uid }); throw new HttpError(403, 'mfa_required'); }
-  return { uid: dec.uid, role, merchant: prof, authTime: dec.auth_time as number, emailVerified: !!dec.email_verified, mfaOk, email: dec.email as string };
+  return { uid: dec.uid, role, provider: (dec.firebase as any)?.sign_in_provider as string | undefined, merchant: prof, authTime: dec.auth_time as number, emailVerified: !!dec.email_verified, mfaOk, email: dec.email as string };
 }
 export const requireUser = (req: Request) => verify(req, { mfa: true, verified: true });
 export const requireUserBasic = (req: Request) => verify(req, { mfa: false, verified: false });

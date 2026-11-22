@@ -31,7 +31,7 @@ final class CVD_API {
     $key = (string) CVD_Settings::get('license_key');
     if (strlen($key) < 10) return new WP_Error('cvd_no_license', 'Aucune clé de licence.');
     $r = wp_remote_post(self::base() . '/license/' . $action, ['timeout' => 15, 'redirection' => 0, 'headers' => ['Content-Type' => 'application/json'],
-      'body' => wp_json_encode(['licenseKey' => $key, 'siteUrl' => home_url()])]);
+      'body' => wp_json_encode(['licenseKey' => $key, 'siteUrl' => home_url(), 'plugin' => 'donations'])]);
     if (is_wp_error($r)) return $r;
     $d = json_decode(wp_remote_retrieve_body($r), true);
     return is_array($d) ? $d : [];

@@ -1,13 +1,15 @@
-import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '@/lib/firebase-admin';
 import { fail, HttpError } from '@/lib/auth';
 import { bad, lic } from '@/lib/license';
+import { activateSlots } from '@/lib/license-slots';
 export async function POST(req: Request) {
-  try { const { ref, site } = await lic(req);
+  try { const { ref, site, plugin } = await lic(req);
     const out = await db.runTransaction(async tx => {
       const d = (await tx.get(ref)).data()!;
       if (d.status !== 'active') throw new HttpError(403, 'license_inactive');
-      if (!d.sites.includes(site)) { if (d.sites.length >= d.maxActivations) throw new HttpError(409, 'activation_limit_reached'); tx.update(ref, { sites: FieldValue.arrayUnion(site) }); }
+      const next = activateSlots(d.sites ?? [], d.slots ?? [], site, plugin);   // un site compte pour UNE activation, quel que soit le nombre de plugins
+      if (next.addedSite && (d.sites ?? []).length >= d.maxActivations) throw new HttpError(409, 'activation_limit_reached');
+      tx.update(ref, { sites: next.sites, slots: next.slots });
       return { valid: true, merchantId: d.merchantId };
     });
     return Response.json(out);

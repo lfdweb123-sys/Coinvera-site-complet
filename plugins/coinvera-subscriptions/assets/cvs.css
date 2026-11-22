@@ -1,0 +1,4 @@
+.cvs-box{border:1px solid #dcdcde;border-radius:10px;padding:18px;margin:16px 0;max-width:480px}.cvs-price{font-size:1.3em;font-weight:700;margin:.2em 0}
+.cvs-box input[type=text],.cvs-box input[type=email]{width:100%;box-sizing:border-box;padding:8px}.cvs-hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.cvs-btn{display:inline-block;padding:10px 16px;border:0;border-radius:8px;background:#1d4ed8;color:#fff;font-weight:700;cursor:pointer;text-decoration:none}.cvs-btn:disabled{opacity:.6}
+.cvs-msg{color:#b91c1c}.cvs-note{font-size:.85em;color:#646970}.cvs-link{background:none;border:0;color:#b32d2e;text-decoration:underline;cursor:pointer;padding:0}

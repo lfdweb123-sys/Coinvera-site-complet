@@ -1,7 +1,7 @@
 === Coinvera Donations ===
 Requires at least: 5.8
 Requires PHP: 7.4
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 
 Dons et cagnottes par carte via Coinvera, sur WordPress : seul ou avec WooCommerce.
 
@@ -27,6 +27,9 @@ Dons et cagnottes par carte via Coinvera, sur WordPress : seul ou avec WooCommer
 [coinvera_donors id="12" limit="10"] — derniers donateurs.
 
 == Changelog ==
+= 1.2.1 =
+Licence : le plugin indique son nom au serveur, pour que la désactivation d'un plugin ne libère pas le site tant qu'un autre plugin Coinvera l'utilise.
+
 = 1.2.0 =
 Webhook automatique : enregistré à la sauvegarde des réglages, ajouté à ceux du compte sans les remplacer (5 URL maximum).
 

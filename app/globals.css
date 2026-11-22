@@ -125,3 +125,17 @@ details.faq{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;b
 .side .gi.shut{display:none}.side .gi{padding:2px 0 6px}
 .side.col .gh{display:none}.side.col .gi.shut{display:block}
 @media(max-width:1000px){.side.col .gh{display:flex}.side.col .gi.shut{display:none}}
+/* ---- Fenêtres modales : centrées, marges égales sur les 4 côtés, défilement interne, mobile / tablette / ordinateur ---- */
+.modal{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:clamp(12px,3vw,40px);background:rgba(10,21,53,.55);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);overflow-y:auto;overscroll-behavior:contain;animation:mfade .16s ease-out}
+.mbox{position:relative;width:100%;max-width:520px;margin:auto;background:#fff;border:1px solid rgba(15,23,42,.06);border-radius:20px;padding:clamp(20px,2.6vw,32px);box-shadow:0 24px 64px rgba(10,21,53,.32),0 2px 6px rgba(10,21,53,.08);max-height:calc(100vh - 2*clamp(12px,3vw,40px));max-height:calc(100dvh - 2*clamp(12px,3vw,40px));overflow-y:auto;overscroll-behavior:contain;animation:mrise .2s cubic-bezier(.2,.8,.2,1)}
+.mbox h2,.mbox h3{letter-spacing:-.03em}.mbox h2{font-size:clamp(20px,2.2vw,24px)}
+.mbox .stack{display:grid;gap:12px}.mbox form.mbox{display:block}
+.mh{display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:calc(-1 * clamp(20px,2.6vw,32px));z-index:2;margin:calc(-1 * clamp(20px,2.6vw,32px)) calc(-1 * clamp(20px,2.6vw,32px)) 16px;padding:clamp(16px,2vw,22px) clamp(20px,2.6vw,32px) 14px;background:#fff;border-bottom:1px solid var(--line);border-radius:20px 20px 0 0}
+.mh h2{margin:0}.mx{display:inline-grid;place-items:center;flex:none;width:38px;height:38px;padding:0;border-radius:10px;border:1px solid #D5DCE8;background:#fff;color:var(--ink2);cursor:pointer;transition:.15s}.mx:hover{background:var(--soft);color:var(--ink)}.mx:focus-visible{outline:3px solid rgba(34,85,232,.35);outline-offset:2px}
+body:has(.modal){overflow:hidden}
+@keyframes mfade{from{opacity:0}to{opacity:1}}@keyframes mrise{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.modal,.mbox{animation:none}}
+@media(min-width:1100px){.mbox{max-width:560px}}
+@media(max-width:560px){.mbox{border-radius:18px}.mbox .btn{width:100%}.mbox [style*="justify-content: flex-end"]{flex-direction:column-reverse}.mbox [style*="justify-content: flex-end"] .btn{width:100%}.mh{border-radius:18px 18px 0 0}.mh .btn,.mh .mx{width:38px}}
+.pop{max-width:calc(100vw - 24px)}
+@media(max-width:560px){.pop{position:fixed;left:12px;right:12px;top:64px;width:auto!important;min-width:0}}

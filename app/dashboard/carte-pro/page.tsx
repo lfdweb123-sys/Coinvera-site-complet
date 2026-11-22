@@ -27,7 +27,10 @@ async function shrink(f: File): Promise<string> {
   const b = await createImageBitmap(f), k = Math.min(1, 1600 / Math.max(b.width, b.height)), c = document.createElement('canvas'); c.width = Math.round(b.width * k); c.height = Math.round(b.height * k);
   c.getContext('2d')!.drawImage(b, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.82).split(',')[1];
 }
-const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => <div className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={onClose}><div className="mbox" onClick={e => e.stopPropagation()} style={{ maxWidth: 560, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><h2 style={{ margin: 0 }}>{title}</h2><button className="btn" aria-label="Fermer" onClick={onClose}><X size={16} /></button></div>{children}</div></div>;
+const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => {
+  useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [onClose]);
+  return <div className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.target === e.currentTarget && onClose()}><div className="mbox" style={{ maxWidth: 560 }}><div className="mh"><h2>{title}</h2><button className="mx" aria-label="Fermer" onClick={onClose}><X size={18} /></button></div>{children}</div></div>;
+};
 const Err = ({ m }: { m: string }) => m ? <p className="err" role="alert">{m}</p> : null;
 const fieldsMsg = (e: any) => e?.fields ? Object.entries(e.fields).map(([k, v]: any) => `${FIELD_LABEL[k] ?? k} : ${v?.[0] === 'underage' ? 'vous devez avoir 18 ans' : 'invalide ou manquant'}`).join(' · ') : '';
 function usePoll(url: string | null, done: (d: any) => boolean, every = 5000) {

@@ -8,7 +8,10 @@ import { PageHead, usd, day, Empty } from '@/components/Bits';
 const ST: Record<string, string> = { issuing: 'En création', active: 'Active', frozen: 'Gelée', suspended: 'Suspendue', closed: 'Fermée', expired: 'Expirée' };
 const OS: Record<string, string> = { reserved: 'En cours', processing: 'En cours', confirmed: 'Terminée', failed: 'Échouée' };
 const AMT = /^\d{1,6}(\.\d{1,2})?$/;
-const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => <div className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={onClose}><div className="mbox" onClick={e => e.stopPropagation()} style={{ maxWidth: 520, width: '100%' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><h2 style={{ margin: 0 }}>{title}</h2><button className="btn" aria-label="Fermer" onClick={onClose}><X size={16} /></button></div>{children}</div></div>;
+const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => {
+  useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [onClose]);
+  return <div className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.target === e.currentTarget && onClose()}><div className="mbox" style={{ maxWidth: 520 }}><div className="mh"><h2>{title}</h2><button className="mx" aria-label="Fermer" onClick={onClose}><X size={18} /></button></div>{children}</div></div>;
+};
 const Err = ({ m }: { m: string }) => m ? <p className="err" role="alert">{m}</p> : null;
 function usePoll(url: string | null, done: (d: any) => boolean, every = 5000) {
   const [d, setD] = useState<any>(null);

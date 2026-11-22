@@ -11,7 +11,7 @@ import { resolveOrder } from '@/lib/scarab/orders';
 import { resolveWithdrawal } from '@/lib/scarab/withdraw';
 const Body = z.object({ enabled: z.boolean(), issueFlat: z.number().min(0).max(MARGIN_MAX.flat), issueBps: z.number().int().min(0).max(MARGIN_MAX.bps), loadFlat: z.number().min(0).max(MARGIN_MAX.flat), loadBps: z.number().int().min(0).max(MARGIN_MAX.bps), hidden: z.array(z.string().length(26)).max(50) }).partial();
 const SAMPLES = [1000, 5000, 10000, 20000, 50000];
-// Réglages Carte Pro + état du portefeuille du programme (celui qui paie réellement chaque carte chez ScarabPay) + marge réelle par produit au plan actuel.
+// Réglages Virtuals cards pro + état du portefeuille du programme (celui qui paie réellement chaque carte chez ScarabPay) + marge réelle par produit au plan actuel.
 export async function GET(req: Request) {
   try {
     await requireAdmin(req); const settings = await scarabSettings(); const pr = pricingOf(settings); let w: any = null, prods: any[] = [], addresses: any[] = [], error: string | null = null;

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import QRCode from 'qrcode';
-import { CopyBtn, CopyRow } from '@/components/CopyBtn';
+import { CopyRow } from '@/components/CopyBtn';
 import { CreditCard, Eye, Plus, Snowflake, Trash2, X, ShieldCheck, KeyRound } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
@@ -11,7 +11,7 @@ const OS: Record<string, string> = { reserved: 'En cours', processing: 'En cours
 const AMT = /^\d{1,6}(\.\d{1,2})?$/;
 const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => {
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [onClose]);
-  return <div className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.target === e.currentTarget && onClose()}><div className="mbox" style={{ maxWidth: 520 }}><div className="mh"><h2>{title}</h2><button className="mx" aria-label="Fermer" onClick={onClose}><X size={18} /></button></div>{children}</div></div>;
+  return <div className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.target === e.currentTarget && onClose()}><div className="mbox wide"><div className="mh"><h2>{title}</h2><button className="mx" aria-label="Fermer" onClick={onClose}><X size={18} /></button></div>{children}</div></div>;
 };
 const Err = ({ m }: { m: string }) => m ? <p className="err" role="alert">{m}</p> : null;
 function usePoll(url: string | null, done: (d: any) => boolean, every = 5000) {
@@ -34,7 +34,7 @@ function PayDirect({ spec, onOrder, deposit, onDone }: { spec: any; onOrder?: (i
   const list = cur.data?.currencies ?? [];
   if (!po) return <div className="stack"><label htmlFor="pc">Réseau de paiement (USDT)</label>
     <select id="pc" className="in" value={c} onChange={x => setC(x.target.value)}><option value="">Choisir…</option>{list.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
-    {!cur.loading && !list.length && <p className="mut">Le paiement direct n’est pas disponible pour le moment.</p>}<Err m={e} />
+    {!cur.loading && !list.length && <p className="err" role="alert">Paiement direct indisponible : {msg({ message: cur.data?.problem ?? 'no_deposit_address' })}{cur.data?.problem && cur.data.problem !== 'no_deposit_address' ? ` (code : ${cur.data.problem})` : ''}</p>}<Err m={e} />
     <button className="btn p" disabled={!c} onClick={async () => { setE(''); try { setPo(await api(deposit ? '/api/cards/deposits' : '/api/cards/pay-orders', { method: 'POST', body: JSON.stringify({ ...spec, cur: c }) })); } catch (x) { setE(msg(x)); } }}>Afficher l’adresse de paiement</button></div>;
   if (p.status === 'late_credited') return <p className="okm" role="status">Paiement reçu après l’expiration : {usd(p.amountUsd)} ont été crédités sur votre crédit cartes. Vous pouvez recommencer votre commande.</p>;
   if (p.status === 'fulfilled' && deposit) return <p className="okm" role="status">Paiement reçu : {usd(p.amountUsd)} ont été crédités sur votre crédit cartes.</p>;
@@ -69,12 +69,12 @@ function Checkout({ kind, product, card, kyc, minAmount, onClose, onDone, onDepo
       <label htmlFor="am">{kind === 'issue' ? 'Solde d’ouverture' : 'Montant à charger'} (USD){kind === 'issue' && <> — minimum {usd(product.minOpening)}</>}</label>
       <input id="am" className="in" inputMode="decimal" value={amount} onChange={x => setAmount(x.target.value)} />
       {kind === 'issue' && <><label htmlFor="nm">Nom sur la carte (facultatif)</label><input id="nm" className="in" maxLength={26} value={name} onChange={x => setName(x.target.value)} placeholder="JEAN DUPONT" /></>}
-      {q && <div className="kv"><div>Montant sur la carte <b>{usd(q.amount)}</b></div><div>Frais (service et réseau){q.dynamic === false ? ' — estimation' : ''} <b>{usd(q.fees)}</b></div><div className="tot">Total à payer <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}><b>{usd(q.total)}</b><CopyBtn value={String(q.total)} /></span></div><div className="mut">Crédit cartes : {usd(q.credit)} · solde Coinvera : {usd(q.balance)}</div></div>}
+      {q && <div className="kv"><div>Montant sur la carte <b>{usd(q.amount)}</b></div><div>Frais (service et réseau){q.dynamic === false ? ' — estimation' : ''} <b>{usd(q.fees)}</b></div><div className="tot">Total à payer <b>{usd(q.total)}</b></div><div className="mut">Crédit cartes : {usd(q.credit)} · solde Coinvera : {usd(q.balance)}</div></div>}
       <Err m={e} />
-      {q && (q.covers && mode === '' ? <><button className="btn p" disabled={busy} onClick={async () => { setBusy(true); setE(''); try { setOrderId((await api('/api/cards/orders', { method: 'POST', body: JSON.stringify(spec) })).id); } catch (x) { setE(msg(x)); } setBusy(false); }}>Payer {usd(q.total)} avec mon solde</button>
-        <button className="btn" onClick={() => setMode('direct')}>Ou payer directement en USDT</button></> :
+      {q && (q.covers && mode === '' ? <><div className="btns"><button className="btn p" disabled={busy} onClick={async () => { setBusy(true); setE(''); try { setOrderId((await api('/api/cards/orders', { method: 'POST', body: JSON.stringify(spec) })).id); } catch (x) { setE(msg(x)); } setBusy(false); }}>Payer {usd(q.total)} avec mon solde</button>
+        <button className="btn" onClick={() => setMode('direct')}>Ou payer directement en USDT</button></div></> :
         <>{!q.covers && <p role="status">Solde insuffisant : il vous manque <b>{usd(q.missing)}</b>. Rechargez votre crédit cartes en USDT, ou payez directement cette commande en USDT.</p>}
-          {!q.covers && mode === '' && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button className="btn p" onClick={() => onDeposit?.(Math.max(5, Math.ceil(Number(q.missing))))}>Recharger mon crédit cartes</button><button className="btn" onClick={() => setMode('direct')}>Payer cette commande en USDT</button><Link className="btn" href="/dashboard/payments">Encaisser des paiements</Link></div>}
+          {!q.covers && mode === '' && <div className="btns"><button className="btn p" onClick={() => onDeposit?.(Math.max(5, Math.ceil(Number(q.missing))))}>Recharger mon crédit cartes</button><button className="btn" onClick={() => setMode('direct')}>Payer cette commande en USDT</button></div>}
           {mode === 'direct' && <PayDirect spec={spec} onOrder={setOrderId} />}</>)}
     </div>}</Modal>;
 }
@@ -84,7 +84,7 @@ function CardModal({ c, onClose, onChange }: { c: any; onClose: () => void; onCh
   return <Modal title={`Carte •••• ${c.last4 ?? ''}`} onClose={onClose}><div className="stack">
     {d && <div className="kv"><div>Statut <b>{ST[d.status] ?? d.status}</b></div><div>Solde disponible <b>{usd(d.balance)}</b></div>{d.expire && <div>Expire <b>{d.expire}</b></div>}</div>}
     <Err m={e || det.error} />
-    {d?.status === 'active' || d?.status === 'frozen' ? <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+    {d?.status === 'active' || d?.status === 'frozen' ? <div className="btns">
       <button className="btn" disabled={busy} onClick={() => run(async () => { const r = await api(`/api/cards/${c.id}/reveal`, { method: 'POST' }); setUrl(r.revealUrl ?? ''); })}><Eye size={15} /> Voir la carte</button>
       <button className="btn" disabled={busy} onClick={() => run(async () => { await api(`/api/cards/${c.id}/freeze`, { method: 'POST', body: JSON.stringify({ action: d.status === 'frozen' ? 'unfreeze' : 'freeze' }) }); det.reload(); onChange(); })}><Snowflake size={15} /> {d.status === 'frozen' ? 'Dégeler' : 'Geler'}</button>
       <button className="btn" disabled={busy} onClick={() => run(async () => setOtp(await api(`/api/cards/${c.id}/otp`)))}><KeyRound size={15} /> Code de vérification{c.otpWaiting ? ' •' : ''}</button></div> : null}

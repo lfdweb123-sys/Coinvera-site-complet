@@ -1,7 +1,7 @@
-// Prix fixes de la Carte Pro.
+// Prix fixes de la Virtuals cards pro.
 //
 // Principe : le prix facturé au client NE DÉPEND PAS de ton offre ScarabPay. Il vaut toujours
-//   tarif Starter (le plus cher des quatre plans) + ta marge (Admin > Carte Pro).
+//   tarif Starter (le plus cher des quatre plans) + ta marge (Admin > Virtuals cards pro).
 // Starter étant le plan le plus cher, passer à Growth, Scale ou Pro ne peut que baisser ton coût réel : ton gain par opération ne peut qu'augmenter.
 // Garde-fou en plus : à chaque opération, le coût réel de ton plan actuel est relu (GET /products) ; si le prix facturé était un jour
 // inférieur à ce coût (ScarabPay change ses tarifs), l'opération est refusée au lieu de te faire perdre de l'argent.

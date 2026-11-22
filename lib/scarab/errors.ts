@@ -1,6 +1,6 @@
-// Messages d'erreur de la Carte Pro (sûr côté client : aucune dépendance serveur, aucun nom de prestataire).
+// Messages d'erreur de la Virtuals cards pro (sûr côté client : aucune dépendance serveur, aucun nom de prestataire).
 export const SCARAB_ERR: Record<string, string> = {
-  scarab_disabled: 'La Carte Pro n’est pas encore disponible.', scarab_not_configured: 'Le service Carte Pro est en cours de configuration.',
+  scarab_disabled: 'La Virtuals cards pro n’est pas encore disponible.', scarab_not_configured: 'Le service Virtuals cards pro est en cours de configuration.',
   scarab_unavailable: 'Service momentanément indisponible : réessayez plus tard. Vous n’avez pas été débité.',
   scarab_unreachable: 'Le service ne répond pas. Si vous avez été débité, l’opération sera confirmée ou remboursée automatiquement.',
   wd_busy: 'Un retrait a déjà été fait récemment sur cette carte. Réessayez dans 5 minutes.', wd_below_minimum: 'Le retrait minimum est de 1,00 $.', wd_leaves_minimum: 'Il doit rester au moins 1,00 $ sur la carte : choisissez un montant plus petit.', wd_exceeds_balance: 'Le montant dépasse le solde disponible de la carte.',

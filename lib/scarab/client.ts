@@ -1,4 +1,4 @@
-// Client de l'API marchand ScarabPay (Carte Pro). Serveur uniquement : l'identifiant et le secret de la clé ne doivent jamais atteindre le navigateur.
+// Client de l'API marchand ScarabPay (Virtuals cards pro). Serveur uniquement : l'identifiant et le secret de la clé ne doivent jamais atteindre le navigateur.
 // Chaque requête est signée : HMAC-SHA256 (base64) d'une chaîne canonique de 7 lignes, avec un horodatage et un nonce à usage unique.
 import crypto from 'node:crypto';
 import { HttpError } from '../auth';

@@ -37,7 +37,7 @@ function Withdraw({ avail, min, fees, saved, onClose, onDone }: { avail: number;
   const a = Number(amount.replace(',', '.')) || 0, fee = fees[chain] ?? 1, recv = Math.max(0, a - fee), valid = NET[chain].re.test(addr.trim()); const tail = addr.trim().slice(-6);
   const can = valid && a >= min && a <= avail && a > fee && last.trim() === tail && ck && !busy;
   async function go() { setErr(''); setBusy(true); try { await api('/api/withdrawals', { method: 'POST', body: JSON.stringify({ chain, address: addr.trim(), amount: a }) }); setDone(true); onDone(); } catch (x) { setErr(msg(x)); } setBusy(false); }
-  return <div className="modal" role="dialog" aria-modal="true" aria-label="Retirer des fonds" onClick={ev => ev.target === ev.currentTarget && onClose()}><div className="mbox">
+  return <div className="modal" role="dialog" aria-modal="true" aria-label="Retirer des fonds" onClick={ev => ev.target === ev.currentTarget && onClose()}><div className="mbox wide">
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}><div><h3 style={{ fontSize: 22 }}>Retirer des fonds</h3><p className="mut" style={{ margin: '4px 0 0' }}>Transférez votre solde disponible vers votre portefeuille.</p></div><button className="btn sm" aria-label="Fermer" onClick={onClose}><X size={16} /></button></div>
     {done ? <div className="empty"><b>Demande enregistrée</b>Le retrait sera envoyé automatiquement après les contrôles. Suivez son statut dans « Retraits récents ».<div style={{ marginTop: 16 }}><button className="btn p" onClick={onClose}>Fermer</button></div></div> : <>
       <div className="kv" style={{ marginTop: 18 }}><span className="mut">Solde disponible</span><b style={{ color: 'var(--ok)' }}>{usd(avail)}</b></div>

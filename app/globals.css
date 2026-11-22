@@ -135,7 +135,10 @@ details.faq{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;b
 body:has(.modal){overflow:hidden}
 @keyframes mfade{from{opacity:0}to{opacity:1}}@keyframes mrise{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.modal,.mbox{animation:none}}
-@media(min-width:1100px){.mbox{max-width:560px}}
+@media(min-width:1100px){.mbox{max-width:560px}.mbox.wide{max-width:880px}}
+@media(min-width:700px) and (max-width:1099px){.mbox.wide{max-width:680px}}
+.btns{display:flex;flex-wrap:wrap;gap:8px}.mbox .btns .btn{width:auto;flex:0 0 auto}
+@media(max-width:700px){.btns{flex-direction:column}.mbox .btns .btn{width:100%}}
 @media(max-width:560px){.mbox{border-radius:18px}.mbox .btn{width:100%}.mbox [style*="justify-content: flex-end"]{flex-direction:column-reverse}.mbox [style*="justify-content: flex-end"] .btn{width:100%}.mh{border-radius:18px 18px 0 0}.mh .btn,.mh .mx{width:38px}}
 .pop{max-width:calc(100vw - 24px)}
 @media(max-width:560px){.pop{position:fixed;left:12px;right:12px;top:64px;width:auto!important;min-width:0}}

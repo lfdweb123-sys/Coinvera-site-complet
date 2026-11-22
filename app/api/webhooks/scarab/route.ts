@@ -1,7 +1,7 @@
 import { db } from '@/lib/firebase-admin';
 import { warn } from '@/lib/log';
 import { handleEvent, verifyWebhook } from '@/lib/scarab/webhook';
-// Webhook dédié à la Carte Pro (distinct de tout autre webhook de la plateforme). À enregistrer dans le portail ScarabPay (/portal/webhooks) :
+// Webhook dédié à la Virtuals cards pro (distinct de tout autre webhook de la plateforme). À enregistrer dans le portail ScarabPay (/portal/webhooks) :
 // URL https://www.coinvera.me/api/webhooks/scarab ; le secret de signature (affiché une seule fois) va dans SCARABPAY_WEBHOOK_SECRET.
 // Ordre : corps brut -> signature -> déduplication (X-ScarabPay-Delivery) -> traitement -> 200. Le code de vérification (card.activation_code) n'est jamais relivré : pas de relecture possible.
 export async function POST(req: Request) {

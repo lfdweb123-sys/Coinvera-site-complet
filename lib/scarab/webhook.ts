@@ -66,9 +66,9 @@ export async function handleEvent(type: string, d: any) {
     case 'card.withdrawn': await onWithdrawn(cid, d); break;
     case 'card.withdrawal_failed': await onWithdrawalFailed(cid, d); break;
     case 'card.terminated': await creditTermination(cid, Number(d.refunded_amount_minor ?? 0)); break;
-    case 'card.activation_code': if (d.activation_code) { await relayCode(uid, cid, d); await notify(uid, 'Code de vérification disponible', `Ouvrez votre Carte Pro •••• ${d.last4 ?? ''} pour l’afficher. Il expire dans quelques minutes.`); } break;
+    case 'card.activation_code': if (d.activation_code) { await relayCode(uid, cid, d); await notify(uid, 'Code de vérification disponible', `Ouvrez votre Virtuals cards pro •••• ${d.last4 ?? ''} pour l’afficher. Il expire dans quelques minutes.`); } break;
     case 'card.transaction.declined':
-      await notify(uid, 'Paiement refusé', 'Un paiement a été refusé sur votre Carte Pro. Gardez la carte approvisionnée : après plusieurs refus pour solde insuffisant, la carte est fermée.'); await refreshCard(uid, cid).catch(() => {}); break;
+      await notify(uid, 'Paiement refusé', 'Un paiement a été refusé sur votre Virtuals cards pro. Gardez la carte approvisionnée : après plusieurs refus pour solde insuffisant, la carte est fermée.'); await refreshCard(uid, cid).catch(() => {}); break;
     case 'card.fee_charged': await db.collection('scarab_fees').add({ merchantId: uid, cardId: cid, kind: d.kind ?? null, amountMinor: Number(d.amount_minor ?? 0), violationCount: d.violation_count ?? null, cardTerminated: !!d.card_terminated, at: Date.now() }); break;   // facturé à NOTRE portefeuille : suivi dans l'admin
     case 'card.transaction': await cardRef(cid).set({ balanceMinor: Number.isFinite(Number(d.card_balance_minor)) ? Number(d.card_balance_minor) : null, updatedAt: Date.now() }, { merge: true }); break;
   }

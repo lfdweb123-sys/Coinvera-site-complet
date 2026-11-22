@@ -12,7 +12,7 @@ export default function CartePro() {
   const resolve = async (orderId: string, decision: 'confirm' | 'refund') => { if (!(await ask({ title: decision === 'confirm' ? 'Confirmer la carte ?' : 'Rembourser l’utilisateur ?', message: decision === 'confirm' ? 'La carte existe et les fonds sont dépensés.' : 'Les fonds retournent sur son solde Coinvera.', danger: decision === 'refund' }))) return; try { await api('/api/admin/scarab', { method: 'POST', body: JSON.stringify({ action: 'resolve', orderId, decision }) }); reload(); } catch (x) { setM(msg(x)); } };
   const w = data?.wallet;
   return <div className="stack" style={{ maxWidth: 820 }}>
-    <h1>Carte Pro</h1>
+    <h1>Virtuals cards pro</h1>
     <div className="card stack"><h2 style={{ margin: 0 }}>Portefeuille du programme</h2>
       {data?.error && <p className="err" role="alert">Prestataire injoignable ou non configuré ({data.error}).</p>}
       {w && <div className="kv"><div>Solde disponible <b>{usd(w.availableMinor / 100)}</b></div><div>Clé <b>{w.mode === 'live' ? 'Production' : 'Test'}</b> · vérification <b>{w.verification}</b></div>{w.plan && <div>Offre <b>{w.plan.name ?? '—'}</b>{w.plan.monthly_fee_minor ? ` (${usd(w.plan.monthly_fee_minor / 100)}/mois)` : ''} · cartes actives <b>{w.plan.live_cards_held ?? 0}/{w.plan.card_limit ?? '—'}</b></div>}</div>}
@@ -32,7 +32,7 @@ export default function CartePro() {
           <button className="btn" onClick={async () => { if (!(await ask({ title: 'Clore sans crédit ?', message: 'Aucun montant ne sera ajouté au solde de l’utilisateur.', danger: true }))) return; try { await api('/api/admin/scarab', { method: 'POST', body: JSON.stringify({ action: 'wd-resolve', id: o.id, netMinor: null }) }); reload(); } catch (x) { setM(msg(x)); } }}>Clore sans crédit</button></div></div>)}</div>}
     <form className="card stack" onSubmit={async e => { e.preventDefault(); setM(''); try { await api('/api/admin/scarab', { method: 'PUT', body: JSON.stringify({ enabled: !!v.enabled, issueFlat: Number(v.issueFlat ?? 0), issueBps: Number(v.issueBps ?? 0), loadFlat: Number(v.loadFlat ?? 0), loadBps: Number(v.loadBps ?? 0), hidden: v.hidden ?? [] }) }); setM('Enregistré et historisé dans le journal d’audit.'); reload(); } catch (x) { setM(msg(x)); } }}>
       <h2 style={{ margin: 0 }}>Activation et marge</h2>
-      <label><input type="checkbox" checked={!!v.enabled} onChange={e => setV({ ...v, enabled: e.target.checked })} /> Carte Pro activée pour les utilisateurs</label>
+      <label><input type="checkbox" checked={!!v.enabled} onChange={e => setV({ ...v, enabled: e.target.checked })} /> Virtuals cards pro activée pour les utilisateurs</label>
       {F.map(([k, l]) => <div key={k}><label htmlFor={k}>{l}</label><input id={k} className="in" inputMode="decimal" value={v[k] ?? ''} onChange={e => setV({ ...v, [k]: e.target.value })} /></div>)}
       <p className="mut">Prix garanti : le prix client est calculé sur le tarif Starter (le plus cher de toutes les offres) + votre marge. Si vous changez d’offre, vos coûts baissent et la marge ne peut que croître. Une commande est refusée si son prix passait sous le coût réel.</p>
       {!!data?.products?.length && <><h3 style={{ marginBottom: 0 }}>Produits</h3>{data.products.map((p: any) => <div key={p.id} className="card stack"><label><input type="checkbox" checked={!(v.hidden ?? []).includes(p.id)} onChange={() => toggleHidden(p.id)} /> <b>{p.name}</b> ({p.category}) visible</label>

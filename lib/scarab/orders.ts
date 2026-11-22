@@ -130,8 +130,8 @@ export async function finalize(id: string, ok: boolean, f: { error?: string; fee
   });
   if (!done) return false;
   info('scarab.order_final', { orderId: id, ok, error: f.error });
-  if (ok) await notify(uid, kind === 'issue' ? 'Carte Pro prête' : 'Carte Pro rechargée', 'Votre opération a été confirmée.');
-  else await notify(uid, 'Opération Carte Pro échouée', 'Les fonds ont été remis sur votre solde.');
+  if (ok) await notify(uid, kind === 'issue' ? 'Virtuals cards pro prête' : 'Virtuals cards pro rechargée', 'Votre opération a été confirmée.');
+  else await notify(uid, 'Opération Virtuals cards pro échouée', 'Les fonds ont été remis sur votre solde.');
   return true;
 }
 async function toReview(id: string, reason: string) {

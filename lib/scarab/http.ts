@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { fail, HttpError, requireUser } from '../auth';
 import { scarabSettings } from './settings';
 export type U = Awaited<ReturnType<typeof requireUser>>;
-// Enveloppe commune des routes Carte Pro : utilisateur marchand authentifié, service activé, erreurs normalisées (avec le détail par champ des erreurs de validation).
+// Enveloppe commune des routes Virtuals cards pro : utilisateur marchand authentifié, service activé, erreurs normalisées (avec le détail par champ des erreurs de validation).
 export const guard = (fn: (req: Request, ctx: any, u: U) => Promise<Response>, o: { allowDisabled?: boolean } = {}) => async (req: Request, ctx: any) => {
   try {
     const u = await requireUser(req); if (u.role !== 'merchant') throw new HttpError(403, 'forbidden');

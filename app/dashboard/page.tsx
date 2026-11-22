@@ -12,10 +12,10 @@ export default function Overview() {
   const chart = Object.entries(per).sort().map(([d, v]) => ({ d: d.slice(5), v })); const d = b.data;
   return <div className="stack"><PageHead title="Vue d’ensemble" sub="L’activité de votre compte en un coup d’œil."><Link className="btn" href="/dashboard/withdrawals">Retirer</Link><Link className="btn p" href="/dashboard/api">Clés API</Link></PageHead>
     <section className="cpro" aria-label="Mes cartes">
-      <div className="cpro-i"><div className="cpro-t"><span className="cpro-ic"><CreditCard size={22} /></span><h3>Carte Standard</h3></div>
+      <div className="cpro-i"><div className="cpro-t"><span className="cpro-ic"><CreditCard size={22} /></span><h3>Virtuals cards standard</h3></div>
         <p>Carte virtuelle Visa ou Mastercard rechargeable pour payer en ligne, sans compte bancaire.</p>
         <Link className="btn w" href="/dashboard/cards">Activer ma carte <ArrowRight size={16} /></Link></div>
-      <div className="cpro-i pro"><div className="cpro-t"><span className="cpro-ic"><ShieldCheck size={22} /></span><h3>Carte Pro</h3><span className="cpro-tag">Pro</span></div>
+      <div className="cpro-i pro"><div className="cpro-t"><span className="cpro-ic"><ShieldCheck size={22} /></span><h3>Virtuals cards pro</h3><span className="cpro-tag">Pro</span></div>
         <p>Carte virtuelle Visa vérifiée, avec des frais fixes affichés avant chaque paiement.</p>
         <Link className="btn w" href="/dashboard/carte-pro">J’active ma carte <ArrowRight size={16} /></Link></div></section>
     <div className="g6"><Stat icon={Wallet} label="Solde disponible" value={b.loading ? '…' : usd(d?.available)} /><Stat icon={Lock} label="Solde réservé" value={b.loading ? '…' : usd(d?.reserved)} /><Stat icon={ArrowDownToLine} label="Total reçu" value={b.loading ? '…' : usd(d?.totalReceived)} />

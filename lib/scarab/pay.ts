@@ -7,7 +7,7 @@ import { byId, fmt, Cur } from '../cryptos';
 import { spx } from './client';
 import { scanIncoming } from '../chains';
 import { quote, placeOrder, Spec, Quote } from './orders';
-// Paiement direct de la Carte Pro en USDT : adresse + montant unique, collection à part (scarab_pay_orders). Une fois le paiement confirmé,
+// Paiement direct de la Virtuals cards pro en USDT : adresse + montant unique, collection à part (scarab_pay_orders). Une fois le paiement confirmé,
 // l'USDT reçu entre directement dans la réservation de l'ordre (placeOrder, source = crypto). Même mécanique que les cartes existantes, sans la partager.
 export const SCARAB_PAY = ['usdttrc20', 'usdtbsc'];
 // Adresses de dépôt PERMANENTES du compte chez le prestataire (une par réseau, GET /deposit-addresses) : l'USDT de l'utilisateur arrive directement dans le portefeuille qui finance les cartes.

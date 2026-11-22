@@ -2,11 +2,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import QRCode from 'qrcode';
-import { CopyBtn, CopyRow } from '@/components/CopyBtn';
+import { CopyRow } from '@/components/CopyBtn';
 import { CreditCard, Eye, Plus, Snowflake, Trash2, X, ShieldCheck, KeyRound, Wallet } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
-// Carte Pro : cartes Visa émises via ScarabPay, entièrement séparées des cartes virtuelles (/dashboard/cards). Le nom du prestataire n'apparaît jamais à l'écran.
+// Virtuals cards pro : cartes Visa émises via ScarabPay, entièrement séparées des cartes virtuelles (/dashboard/cards). Le nom du prestataire n'apparaît jamais à l'écran.
 const ST: Record<string, string> = { pending: 'En création', active: 'Active', frozen: 'Gelée', terminated: 'Fermée', expired: 'Expirée', failed: 'Échouée' };
 const OS: Record<string, string> = { reserved: 'En cours', processing: 'En cours', confirmed: 'Terminée', failed: 'Échouée' };
 const KYC: Record<string, string> = { unsubmitted: 'Vérification en cours de lancement', review: 'Dossier en cours d’examen', pending: 'Vérification finale en cours', approved: 'Identité vérifiée', rejected: 'Vérification refusée' };
@@ -30,7 +30,7 @@ async function shrink(f: File): Promise<string> {
 }
 const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => {
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [onClose]);
-  return <div className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.target === e.currentTarget && onClose()}><div className="mbox" style={{ maxWidth: 560 }}><div className="mh"><h2>{title}</h2><button className="mx" aria-label="Fermer" onClick={onClose}><X size={18} /></button></div>{children}</div></div>;
+  return <div className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.target === e.currentTarget && onClose()}><div className="mbox wide"><div className="mh"><h2>{title}</h2><button className="mx" aria-label="Fermer" onClick={onClose}><X size={18} /></button></div>{children}</div></div>;
 };
 const Err = ({ m }: { m: string }) => m ? <p className="err" role="alert">{m}</p> : null;
 const fieldsMsg = (e: any) => e?.fields ? Object.entries(e.fields).map(([k, v]: any) => `${FIELD_LABEL[k] ?? k} : ${v?.[0] === 'underage' ? 'vous devez avoir 18 ans' : 'invalide ou manquant'}`).join(' · ') : '';
@@ -76,14 +76,14 @@ function IdentityForm({ email, fix, onClose, onDone }: { email?: string; fix?: b
 }
 function Identity({ cust, email, onChange }: { cust: any; email?: string; onChange: () => void }) {
   const [open, setOpen] = useState<'' | 'new' | 'fix'>(''), [e, setE] = useState(''), [busy, setBusy] = useState(false);
-  if (!cust?.registered && !cust?.creating) return <div className="card stack" style={{ maxWidth: 560 }}><h2 style={{ margin: 0 }}>Vérifier mon identité</h2><p className="mut">Avant votre première Carte Pro, une vérification d’identité (une seule fois) est obligatoire. Prévoyez votre pièce d’identité et son numéro.</p>
+  if (!cust?.registered && !cust?.creating) return <div className="card stack" style={{ maxWidth: 560 }}><h2 style={{ margin: 0 }}>Vérifier mon identité</h2><p className="mut">Avant votre première Virtuals cards pro, une vérification d’identité (une seule fois) est obligatoire. Prévoyez votre pièce d’identité et son numéro.</p>
     <button className="btn p" onClick={() => setOpen('new')}>Commencer la vérification</button>{open && <IdentityForm email={email} onClose={() => setOpen('')} onDone={onChange} />}</div>;
   const k = cust.kycStatus;
   return <div className="card stack" style={{ maxWidth: 560 }}><h2 style={{ margin: 0 }}>{KYC[cust.creating ? 'unsubmitted' : k] ?? 'Vérification'}</h2>
     {k === 'rejected' ? <><p className="err">{cust.failureReason ? `Motif : ${cust.failureReason}` : 'Votre dossier a été refusé.'}</p><p className="mut">Corrigez les informations indiquées, puis relancez la vérification.</p><Err m={e} />
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button className="btn p" onClick={() => setOpen('fix')}>Corriger mes informations</button>
+      <div className="btns"><button className="btn p" onClick={() => setOpen('fix')}>Corriger mes informations</button>
         <button className="btn" disabled={busy} onClick={async () => { setE(''); setBusy(true); try { await call('/api/scarab/customer', { method: 'PUT', body: '{}' }); onChange(); } catch (x) { setE(msg(x)); } setBusy(false); }}>Relancer sans modifier</button></div></> :
-      <p className="mut" role="status">{k === 'approved' ? 'Vous pouvez créer votre Carte Pro.' : 'Vous serez prévenu dès que votre identité est vérifiée. Cela prend de quelques minutes à quelques heures.'}</p>}
+      <p className="mut" role="status">{k === 'approved' ? 'Vous pouvez créer votre Virtuals cards pro.' : 'Vous serez prévenu dès que votre identité est vérifiée. Cela prend de quelques minutes à quelques heures.'}</p>}
     {cust.verificationUrl && k !== 'approved' && <a className="btn p" href={cust.verificationUrl} target="_blank" rel="noopener noreferrer">Terminer la vérification (selfie)</a>}
     {open === 'fix' && <IdentityForm fix email={email} onClose={() => setOpen('')} onDone={onChange} />}</div>;
 }
@@ -104,7 +104,7 @@ function PayDirect({ spec, onOrder }: { spec: any; onOrder: (id: string) => void
   const list = cur.data?.currencies ?? [];
   if (!po) return <div className="stack"><label htmlFor="pc">Réseau de paiement (USDT)</label>
     <select id="pc" className="in" value={c} onChange={x => setC(x.target.value)}><option value="">Choisir…</option>{list.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
-    {!cur.loading && !list.length && <p className="mut">Le paiement direct n’est pas disponible pour le moment.</p>}<Err m={e} />
+    {!cur.loading && !list.length && <p className="err" role="alert">Paiement direct indisponible : {msg({ message: cur.data?.problem ?? 'no_deposit_address' })}{cur.data?.problem && cur.data.problem !== 'no_deposit_address' ? ` (code : ${cur.data.problem})` : ''}</p>}<Err m={e} />
     <button className="btn p" disabled={!c} onClick={async () => { setE(''); try { setPo(await api('/api/scarab/pay-orders', { method: 'POST', body: JSON.stringify({ ...spec, cur: c }) })); } catch (x) { setE(msg(x)); } }}>Afficher l’adresse de paiement</button></div>;
   if (p.status === 'expired') return <p className="err">Cette demande de paiement a expiré. Si vous avez déjà envoyé des fonds, contactez le support avec l’identifiant de transaction.</p>;
   if (p.status === 'failed') return <><Err m={msg({ message: p.error })} /><p className="mut">Votre paiement a été reçu : le montant a été crédité sur votre solde.</p></>;
@@ -125,12 +125,12 @@ function Checkout({ kind, product, card, mode, minAmount, onClose, onDone }: any
       <input id="am" className="in" inputMode="decimal" value={amount} onChange={x => setAmount(x.target.value)} />
       {kind === 'issue' && <><label htmlFor="nm">Nom sur la carte{mode === 'platform' ? '' : ' (facultatif)'}</label><input id="nm" className="in" maxLength={50} value={name} onChange={x => setName(x.target.value)} placeholder="JEAN DUPONT" /></>}
       {kind === 'topup' && <p className="mut">Deux recharges d’une même carte doivent être espacées d’environ 2 minutes.</p>}
-      {q && <div className="kv"><div>Montant sur la carte <b>{usd(q.amount)}</b></div><div>Frais <b>{usd(q.fees)}</b></div><div className="tot">Total à payer <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}><b>{usd(q.total)}</b><CopyBtn value={String(q.total)} /></span></div><div className="mut">Votre solde : {usd(q.balance)}</div></div>}
+      {q && <div className="kv"><div>Montant sur la carte <b>{usd(q.amount)}</b></div><div>Frais <b>{usd(q.fees)}</b></div><div className="tot">Total à payer <b>{usd(q.total)}</b></div><div className="mut">Votre solde : {usd(q.balance)}</div></div>}
       <Err m={e} />
-      {q && (q.covers && !pay ? <><button className="btn p" disabled={busy} onClick={async () => { setBusy(true); setE(''); try { setOrderId((await api('/api/scarab/orders', { method: 'POST', body: JSON.stringify(spec) })).id); } catch (x) { setE(msg(x)); } setBusy(false); }}>Payer {usd(q.total)} avec mon solde</button>
-        <button className="btn" onClick={() => setPay(true)}>Ou payer directement en USDT</button></> :
+      {q && (q.covers && !pay ? <><div className="btns"><button className="btn p" disabled={busy} onClick={async () => { setBusy(true); setE(''); try { setOrderId((await api('/api/scarab/orders', { method: 'POST', body: JSON.stringify(spec) })).id); } catch (x) { setE(msg(x)); } setBusy(false); }}>Payer {usd(q.total)} avec mon solde</button>
+        <button className="btn" onClick={() => setPay(true)}>Ou payer directement en USDT</button></div></> :
         <>{!q.covers && <p role="status">Solde insuffisant : il vous manque <b>{usd(q.missing)}</b>. Rechargez votre solde (en encaissant des paiements) ou payez directement en USDT.</p>}
-          {!q.covers && !pay && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Link className="btn" href="/dashboard/payments">Créer un lien de paiement</Link><button className="btn p" onClick={() => setPay(true)}>Payer directement en USDT</button></div>}
+          {!q.covers && !pay && <div className="btns"><Link className="btn" href="/dashboard/payments">Créer un lien de paiement</Link><button className="btn p" onClick={() => setPay(true)}>Payer directement en USDT</button></div>}
           {pay && <PayDirect spec={spec} onOrder={setOrderId} />}</>)}
     </div>}</Modal>;
 }
@@ -143,11 +143,11 @@ function CardModal({ c, onClose, onChange }: { c: any; onClose: () => void; onCh
   const run = async (f: () => Promise<any>) => { setE(''); setBusy(true); try { await f(); } catch (x) { setE(msg(x)); } setBusy(false); };
   useEffect(() => { if (!shown || shown.type !== 'details') return; const t = setTimeout(() => setShown(null), 60_000); return () => clearTimeout(t); }, [shown]);   // numéro et code ne restent jamais affichés plus d'une minute
   const live = d.status === 'active' || d.status === 'frozen';
-  return <Modal title={`Carte Pro •••• ${d.last4 ?? ''}`} onClose={() => { setShown(null); setOtp(null); onClose(); }}><div className="stack">
+  return <Modal title={`Virtuals cards pro •••• ${d.last4 ?? ''}`} onClose={() => { setShown(null); setOtp(null); onClose(); }}><div className="stack">
     <div className="kv"><div>Statut <b>{ST[d.status] ?? d.status}</b></div><div>Solde disponible <b>{usd(d.balance)}</b></div>{d.expiry && <div>Expire <b>{d.expiry}</b></div>}</div>
     {d.declineCount > 0 && <p className="mut">{d.declineCount} paiement(s) refusé(s) pour solde insuffisant : à partir du 2ᵉ refus des frais s’appliquent et la carte est fermée au 3ᵉ. Gardez-la approvisionnée.</p>}
     <Err m={e || det.error} />
-    {live && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+    {live && <div className="btns">
       {d.status === 'active' && <button className="btn" disabled={busy} onClick={() => run(async () => setShown(await act('details')))}><Eye size={15} /> Voir la carte</button>}
       <button className="btn" disabled={busy} onClick={() => run(async () => { await act(d.status === 'frozen' ? 'unfreeze' : 'freeze'); det.reload(); onChange(); })}><Snowflake size={15} /> {d.status === 'frozen' ? 'Dégeler' : 'Geler'}</button>
       <button className="btn" disabled={busy} onClick={() => run(async () => setOtp(await act('code')))}><KeyRound size={15} /> Code de vérification{d.codeWaiting ? ' •' : ''}</button></div>}
@@ -155,7 +155,7 @@ function CardModal({ c, onClose, onChange }: { c: any; onClose: () => void; onCh
       <label htmlFor="wda" style={{ margin: 0 }}>Montant à retirer (USD)</label><input id="wda" className="in" inputMode="decimal" value={wd} onChange={x => setWd(x.target.value)} placeholder="ex. 25" />
       <p className="mut" style={{ margin: 0, fontSize: 13 }}>Minimum 1,00 $ et au moins 1,00 $ doit rester sur la carte{d.balance != null ? <> (maximum {usd(Math.max(0, Number(d.balance) - 1))})</> : null}. Un retrait toutes les 5 minutes par carte. Des frais du prestataire sont déduits : vous recevez le montant net, ajouté à votre solde dès que le réseau carte confirme.</p>
       {wdMsg && <p className="okm" role="status" style={{ margin: 0 }}>{wdMsg}</p>}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button className="btn p" disabled={busy || !/^\d{1,6}(\.\d{1,2})?$/.test(wd) || Number(wd) < 1} onClick={() => run(async () => { const r = await act('withdraw', { amount: wd }); setWdMsg(r.status === 'confirmed' ? 'Retrait confirmé.' : 'Retrait demandé : le montant net sera ajouté à votre solde dès confirmation.'); setWd(null); det.reload(); onChange(); })}>Confirmer le retrait</button><button className="btn" onClick={() => setWd(null)}>Annuler</button></div></div>)}
+      <div className="btns"><button className="btn p" disabled={busy || !/^\d{1,6}(\.\d{1,2})?$/.test(wd) || Number(wd) < 1} onClick={() => run(async () => { const r = await act('withdraw', { amount: wd }); setWdMsg(r.status === 'confirmed' ? 'Retrait confirmé.' : 'Retrait demandé : le montant net sera ajouté à votre solde dès confirmation.'); setWd(null); det.reload(); onChange(); })}>Confirmer le retrait</button><button className="btn" onClick={() => setWd(null)}>Annuler</button></div></div>)}
     {wd == null && wdMsg && <p className="okm" role="status" style={{ margin: 0 }}>{wdMsg}</p>}
     {shown?.type === 'secure_view' && /^https:\/\//.test(shown.url ?? '') && <iframe src={shown.url} title="Détails de la carte" referrerPolicy="no-referrer" allow="clipboard-write" style={{ display: 'block', width: '100%', maxWidth: 400, aspectRatio: '1.589/1', border: 0, borderRadius: 14, colorScheme: 'light' }} />}
     {shown?.type === 'details' && <div className="kv" role="status"><div>Numéro <b style={{ letterSpacing: 1 }}>{String(shown.pan ?? '').replace(/(\d{4})(?=\d)/g, '$1 ')}</b></div><div>Expiration <b>{shown.expiry}</b></div><div>Code de sécurité <b>{shown.cvv}</b></div><div>Titulaire <b>{shown.name}</b></div>
@@ -178,21 +178,21 @@ export default function CartePro() {
   const d = useData('/api/scarab'); const [m, setM] = useState<any>(null); const reload = d.reload; const pr = useData('/api/scarab/products');
   const timer = useRef<any>(null); useEffect(() => { timer.current = setInterval(() => { if (!document.hidden) reload(); }, 30000); return () => clearInterval(timer.current); }, [reload]);
   const close = useCallback(() => setM(null), []); const x = d.data; const products = pr.data?.products ?? []; const prod = (id: string) => products.find((p: any) => p.id === id);
-  if (d.error && !x) return <><PageHead title="Carte Pro" /><p className="err" role="alert">{d.error}</p></>;
-  if (x && !x.enabled) return <><PageHead title="Carte Pro" sub="Cartes Visa Pro rechargeables." /><Empty title="Bientôt disponible" hint="La Carte Pro n’est pas encore ouverte. Revenez bientôt." /></>;
+  if (d.error && !x) return <><PageHead title="Virtuals cards pro" /><p className="err" role="alert">{d.error}</p></>;
+  if (x && !x.enabled) return <><PageHead title="Virtuals cards pro" sub="Cartes Visa Pro rechargeables." /><Empty title="Bientôt disponible" hint="La Virtuals cards pro n’est pas encore ouverte. Revenez bientôt." /></>;
   const ready = x && !x.unavailable && (x.mode === 'platform' || x.customer?.kycStatus === 'approved');
   return <>
-    <PageHead title="Carte Pro" sub="Cartes Visa rechargeables pour payer en ligne, avec des frais fixes affichés avant chaque paiement.">{ready && <button className="btn p" onClick={() => setM({ t: 'issue' })} disabled={!products.length}><Plus size={16} /> Nouvelle carte</button>}</PageHead>
+    <PageHead title="Virtuals cards pro" sub="Cartes Visa rechargeables pour payer en ligne, avec des frais fixes affichés avant chaque paiement.">{ready && <button className="btn p" onClick={() => setM({ t: 'issue' })} disabled={!products.length}><Plus size={16} /> Nouvelle carte</button>}</PageHead>
     {x?.unavailable && <p className="err" role="status">Création et recharge de cartes momentanément indisponibles. Vos cartes existantes restent utilisables.</p>}
     {x && !x.unavailable && x.mode === 'merchant' && x.customer?.kycStatus !== 'approved' && <Identity cust={x.customer} email={x.email} onChange={reload} />}
     {ready && <>
       <p className="mut">Solde Coinvera : <b>{usd(x.balance)}</b></p>
       {x.cards.length ? <div className="g2">{x.cards.map((c: any) => <button key={c.id} className="card" style={{ textAlign: 'left', cursor: 'pointer' }} onClick={() => setM({ t: 'card', c })}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><CreditCard size={22} /><span className={'badge ' + (c.status === 'active' ? 'ok' : 'info')}>{ST[c.status] ?? c.status}{c.terminating ? ' (fermeture)' : ''}</span></div>
-        <h3 style={{ margin: '12px 0 2px' }}>•••• {c.last4 ?? '····'}</h3><p className="mut" style={{ margin: 0 }}>{c.nameOnCard ?? prod(c.productId)?.name ?? 'Carte Pro'}</p>
+        <h3 style={{ margin: '12px 0 2px' }}>•••• {c.last4 ?? '····'}</h3><p className="mut" style={{ margin: 0 }}>{c.nameOnCard ?? prod(c.productId)?.name ?? 'Virtuals cards pro'}</p>
         <p style={{ margin: '8px 0 0' }}><b>{c.balance != null ? usd(c.balance) : '—'}</b>{c.codeWaiting ? ' · code en attente' : ''}</p>
         {c.status === 'active' && <span className="btn" role="button" tabIndex={0} style={{ marginTop: 8 }} onClick={ev => { ev.stopPropagation(); setM({ t: 'topup', c }); }} onKeyDown={ev => { if (ev.key === 'Enter') { ev.stopPropagation(); setM({ t: 'topup', c }); } }}>Recharger</span>}</button>)}</div>
-        : <Empty title="Aucune carte pour le moment" hint="Créez votre première Carte Pro en quelques instants." />}
+        : <Empty title="Aucune carte pour le moment" hint="Créez votre première Virtuals cards pro en quelques instants." />}
       <h2>Opérations récentes</h2>
       {x.orders.length ? <div className="card stack">{x.orders.map((o: any) => <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{o.kind === 'issue' ? 'Nouvelle carte' : 'Recharge'} · {OS[o.status] ?? o.status}{o.status === 'failed' ? ' (remboursée)' : ''}<br /><small className="mut">{o.createdAt ? day(new Date(o.createdAt).toISOString()) : ''}</small></span><b>{usd(o.total)}</b></div>)}</div> : <p className="mut">Aucune opération.</p>}</>}
     {m?.t === 'issue' && <IssuePicker products={products} mode={x?.mode} onClose={close} onDone={reload} />}

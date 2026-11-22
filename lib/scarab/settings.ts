@@ -1,6 +1,6 @@
 import { db } from '../firebase-admin';
 import type { Pricing } from './pricing';
-// Réglages Carte Pro (collection à part). `enabled` est faux par défaut : rien n'est proposé tant que l'administrateur n'a pas activé le service.
+// Réglages Virtuals cards pro (collection à part). `enabled` est faux par défaut : rien n'est proposé tant que l'administrateur n'a pas activé le service.
 // Marge Coinvera au-dessus du tarif Starter. issue* : à la création (sur le solde d'ouverture). load* : à chaque recharge. Défauts : 2,00 $ + 2,5 % à la création, 0,50 $ + 2,5 % par recharge (modifiables en admin ; 0 = prix coûtant Starter).
 export const SCARAB_DEFAULTS = { enabled: false, issueFlat: 2, issueBps: 250, loadFlat: 0.5, loadBps: 250, hidden: [] as string[] };
 export type ScarabSettings = typeof SCARAB_DEFAULTS;

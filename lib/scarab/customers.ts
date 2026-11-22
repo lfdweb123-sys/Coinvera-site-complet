@@ -93,6 +93,6 @@ export async function resubmitCustomer(uid: string, patch: Record<string, unknow
 export async function onKycEvent(customerId: string, type: string, reason?: string) {
   const m = (await db.doc(`scarab_customer_ids/${customerId}`).get()).data(); if (!m) { warn('scarab.webhook_unknown_customer'); return; }
   await refreshCustomer(m.uid).catch(() => {});
-  if (type === 'customer.kyc.approved') await notify(m.uid, 'Identité vérifiée', 'Vous pouvez maintenant créer votre Carte Pro.');
+  if (type === 'customer.kyc.approved') await notify(m.uid, 'Identité vérifiée', 'Vous pouvez maintenant créer votre Virtuals cards pro.');
   if (type === 'customer.kyc.rejected') await notify(m.uid, 'Vérification d’identité refusée', reason ? `Motif : ${reason}. Corrigez vos informations puis relancez la vérification.` : 'Corrigez vos informations puis relancez la vérification.');
 }

@@ -3,17 +3,29 @@ import { db } from '../firebase-admin';
 import { HttpError } from '../auth';
 import { fromUnits } from '../money';
 import { warn } from '../log';
-import { addrOf, byId, fmt, Cur } from '../cryptos';
+import { byId, fmt, Cur } from '../cryptos';
+import { spx } from './client';
 import { scanIncoming } from '../chains';
 import { quote, placeOrder, Spec, Quote } from './orders';
 // Paiement direct de la Carte Pro en USDT : adresse + montant unique, collection à part (scarab_pay_orders). Une fois le paiement confirmé,
 // l'USDT reçu entre directement dans la réservation de l'ordre (placeOrder, source = crypto). Même mécanique que les cartes existantes, sans la partager.
 export const SCARAB_PAY = ['usdttrc20', 'usdtbsc'];
-export const payCurrencies = () => SCARAB_PAY.map(id => byId(id)).filter((c): c is Cur => !!c && !!addrOf(c)).map(c => ({ id: c.id, name: c.name, net: c.net }));
+// Adresses de dépôt PERMANENTES du compte chez le prestataire (une par réseau, GET /deposit-addresses) : l'USDT de l'utilisateur arrive directement dans le portefeuille qui finance les cartes.
+// Une adresse qui exige un mémo ne peut pas être attribuée automatiquement (un transfert TRC20/BEP20 n'en porte pas) : elle est écartée.
+const NET: Record<string, string> = { usdttrc20: 'trc20', usdtbsc: 'bep20' };
+let cache: { t: number; a: Record<string, string> } | null = null;
+export async function depositAddresses(): Promise<Record<string, string>> {
+  if (cache && Date.now() - cache.t < 60_000) return cache.a;
+  const out: Record<string, string> = {};
+  try { for (const d of ((await spx('GET', '/deposit-addresses')).data ?? []) as any[]) { const id = Object.keys(NET).find(k => NET[k] === String(d.network).toLowerCase()); if (id && String(d.asset).toUpperCase() === 'USDT' && d.address && !d.memo) out[id] = String(d.address); } }
+  catch (e) { warn('scarab.deposit_addresses_failed', { message: (e as Error).message }); return cache?.a ?? {}; }
+  cache = { t: Date.now(), a: out }; return out;
+}
+export const payCurrencies = async () => { const a = await depositAddresses(); return SCARAB_PAY.map(id => byId(id)).filter((c): c is Cur => !!c && !!a[c.id]).map(c => ({ id: c.id, name: c.name, net: c.net })); };
 export const payView = (id: string, o: Record<string, any>) => ({ id, status: o.status, cur: o.cur, net: byId(o.cur)?.net ?? '', address: o.address, amount: fmt(BigInt(o.expected), o.decimals), amountUsd: fromUnits(o.chargeUnits), expiresAt: o.expiresAt, txid: o.txid ?? null, orderId: o.orderId ?? null, error: o.error ?? null });
 
 export async function createPayOrder(uid: string, curId: string, spec: Spec) {
-  const c = byId(curId); if (!c || !SCARAB_PAY.includes(c.id) || !addrOf(c)) throw new HttpError(400, 'currency_unavailable');
+  const c = byId(curId), address = c ? (await depositAddresses())[c.id] : undefined; if (!c || !SCARAB_PAY.includes(c.id) || !address) throw new HttpError(400, 'currency_unavailable');
   const q = await quote(uid, spec);            // revérifie identité, minimum, prix et portefeuille AVANT que l'utilisateur envoie quoi que ce soit
   const k = 10n ** BigInt(c.decimals - 6);     // 1 unité interne (1e-6 USD) = k unités de la monnaie
   const taken = new Set<string>();
@@ -22,7 +34,7 @@ export async function createPayOrder(uid: string, curId: string, spec: Spec) {
   for (let i = 0; i < 30; i++) { const e = BigInt(q.chargeUnits) * k + BigInt(crypto.randomInt(1, 9001)) * k; if (!taken.has(e.toString())) { expected = e; break; } }
   if (!expected) throw new HttpError(503, 'network_unavailable');
   const now = Date.now(); const ref = db.collection('scarab_pay_orders').doc();
-  const o = { merchantId: uid, spec, cur: c.id, decimals: c.decimals, address: addrOf(c), chargeUnits: q.chargeUnits + Number((expected - BigInt(q.chargeUnits) * k) / k), q: { amountMinor: q.amountMinor, feeMinor: q.feeMinor, costFeeMinor: q.costFeeMinor, customerId: q.customerId, productName: q.productName },
+  const o = { merchantId: uid, spec, cur: c.id, decimals: c.decimals, address, chargeUnits: q.chargeUnits + Number((expected - BigInt(q.chargeUnits) * k) / k), q: { amountMinor: q.amountMinor, feeMinor: q.feeMinor, costFeeMinor: q.costFeeMinor, customerId: q.customerId, productName: q.productName },
     expected: expected.toString(), status: 'awaiting', createdAt: now, expiresAt: now + 60 * 60_000 };
   await ref.set(o); return payView(ref.id, o);
 }

@@ -5,7 +5,8 @@ import { fromUnits, toUnits } from '../money';
 import { postEntry, readBal, writeBal } from '../ledger';
 import { notify } from '../audit';
 import { info, warn } from '../log';
-import { addrOf, byId, fmt, Cur } from '../cryptos';
+import { byId, fmt, Cur } from '../cryptos';
+import { programme, grossUp, netOf } from './wallet';
 import { scanIncoming } from '../chains';
 import { quote, placeOrder, Spec } from './orders';
 // Paiements USDT directs (collection à part : card_pay_orders). Deux usages :
@@ -14,19 +15,21 @@ import { quote, placeOrder, Spec } from './orders';
 // Un paiement qui arrive APRÈS l'expiration (ou détecté tardivement) n'est jamais perdu : il est crédité sur le crédit cartes pendant 7 jours.
 export const CARD_PAY = ['usdttrc20', 'usdtbsc'];
 export const DEPOSIT_MIN = 5, DEPOSIT_MAX = 10_000, GRACE_MS = 7 * 24 * 3600_000, VALID_MS = 60 * 60_000;
-export const payCurrencies = () => CARD_PAY.map(id => byId(id)).filter((c): c is Cur => !!c && !!addrOf(c)).map(c => ({ id: c.id, name: c.name, net: c.net }));
+export const payCurrencies = async () => { const { addresses } = await programme(); return CARD_PAY.map(id => byId(id)).filter((c): c is Cur => !!c && !!addresses[c.id]).map(c => ({ id: c.id, name: c.name, net: c.net })); };
 export const payView = (id: string, o: Record<string, any>) => ({ id, status: o.status, kind: o.spec?.kind ?? 'issue', cur: o.cur, net: byId(o.cur)?.net ?? '', address: o.address, amount: fmt(BigInt(o.expected), o.decimals), amountUsd: fromUnits(o.chargeUnits), expiresAt: o.expiresAt, txid: o.txid ?? null, orderId: o.orderId ?? null, error: o.error ?? null });
 
 async function newPayOrder(uid: string, curId: string, spec: Spec | { kind: 'deposit'; amount: string }, base: { chargeUnits: number; ciTotalUnits: number; markupUnits: number }) {
-  const c = byId(curId); if (!c || !CARD_PAY.includes(c.id) || !addrOf(c)) throw new HttpError(400, 'currency_unavailable');
+  const c = byId(curId), prog = await programme(), address = c ? prog.addresses[c.id] : undefined; if (!c || !CARD_PAY.includes(c.id) || !address) throw new HttpError(400, 'currency_unavailable');
+  // Le prestataire retient `recharge_fee_bps` sur chaque dépôt : le montant demandé est majoré pour que le portefeuille reçoive au moins le prix net.
+  const gross = grossUp(base.chargeUnits, prog.bps);
   const k = 10n ** BigInt(c.decimals - 6);     // 1 unité interne (1e-6 USD) = k unités de la monnaie
   const taken = new Set<string>();             // les ordres expirés restent surveillés 7 jours : leur montant ne doit pas être réutilisé (sinon un paiement tardif pourrait être attribué à un autre)
   for (const st of ['awaiting', 'expired']) (await db.collection('card_pay_orders').where('cur', '==', c.id).where('status', '==', st).get()).docs.forEach(d => taken.add(String(d.data().expected)));
   (await db.collection('crypto_orders').where('cur', '==', c.id).where('status', '==', 'awaiting').get()).docs.forEach(d => taken.add(String(d.data().expected)));
-  let off = 0; for (let i = 0; i < 40; i++) { const n = crypto.randomInt(1, 9001); if (!taken.has((BigInt(base.chargeUnits + n) * k).toString())) { off = n; break; } }   // centimes aléatoires (jusqu'à 0,009 $) = identifiant du paiement
+  let off = 0; for (let i = 0; i < 40; i++) { const n = crypto.randomInt(1, 9001); if (!taken.has((BigInt(gross + n) * k).toString())) { off = n; break; } }   // centimes aléatoires (jusqu'à 0,009 $) = identifiant du paiement
   if (!off) throw new HttpError(503, 'network_unavailable');
   const now = Date.now(); const ref = db.collection('card_pay_orders').doc();
-  const o = { merchantId: uid, spec, cur: c.id, decimals: c.decimals, address: addrOf(c), chargeUnits: base.chargeUnits + off, baseChargeUnits: base.chargeUnits, ciTotalUnits: base.ciTotalUnits, markupUnits: base.markupUnits, expected: (BigInt(base.chargeUnits + off) * k).toString(), status: 'awaiting', createdAt: now, expiresAt: now + VALID_MS };
+  const o = { merchantId: uid, spec, cur: c.id, decimals: c.decimals, address, feeBps: prog.bps, chargeUnits: gross + off, baseChargeUnits: base.chargeUnits, ciTotalUnits: base.ciTotalUnits, markupUnits: base.markupUnits, expected: (BigInt(gross + off) * k).toString(), status: 'awaiting', createdAt: now, expiresAt: now + VALID_MS };
   await ref.set(o); return payView(ref.id, o);
 }
 export async function createPayOrder(uid: string, curId: string, spec: Spec) {
@@ -42,7 +45,7 @@ export async function createDepositOrder(uid: string, curId: string, amount: str
 async function creditCardBalance(id: string, from: 'paid' | 'late') {
   const ref = db.doc(`card_pay_orders/${id}`); let uid = '', amt = 0;
   const ok = await db.runTransaction(async tx => {
-    const o = (await tx.get(ref)).data(); if (!o || o.status !== from) return false; const bal = await readBal(tx, o.merchantId); uid = o.merchantId; amt = o.chargeUnits;
+    const o = (await tx.get(ref)).data(); if (!o || o.status !== from) return false; const bal = await readBal(tx, o.merchantId); uid = o.merchantId; amt = netOf(o.chargeUnits, o.feeBps ?? 0);   // crédité : ce que le portefeuille a réellement reçu, frais de dépôt du prestataire déduits
     postEntry(tx, `card_deposit_${id}`, uid, 'card_deposit', [{ account: 'central:funds', dir: 'debit', amount: amt }, { account: `merchant:${uid}:card_credit`, dir: 'credit', amount: amt }], { payOrderId: id, late: from === 'late' });
     writeBal(tx, uid, { ...bal, card_credit: (bal.card_credit ?? 0) + amt }); tx.update(ref, { status: from === 'late' ? 'late_credited' : 'fulfilled', creditedUnits: amt }); return true;
   });
@@ -56,7 +59,8 @@ export async function fulfillPayOrder(id: string) {
   const orderId = `po_${id}`;
   try {
     // L'utilisateur a payé chargeUnits (devis + centimes d'identification) : tout l'excédent est de la marge, jamais rendu au prestataire.
-    await placeOrder(o.merchantId, o.spec, { chargeUnits: o.chargeUnits, ciTotalUnits: o.ciTotalUnits, markupUnits: o.markupUnits + (o.chargeUnits - o.baseChargeUnits) }, { source: 'crypto', fixedId: orderId, payOrderId: id });
+    const net = netOf(o.chargeUnits, o.feeBps ?? 0);   // reçu par le portefeuille, après les frais de dépôt du prestataire
+    await placeOrder(o.merchantId, o.spec, { chargeUnits: net, ciTotalUnits: o.ciTotalUnits, markupUnits: o.markupUnits + (net - o.baseChargeUnits) }, { source: 'crypto', fixedId: orderId, payOrderId: id });
     await ref.update({ status: 'fulfilled', orderId });
   } catch (e) { await ref.update({ status: 'failed', orderId, error: (e as HttpError).code ?? 'error' }); }   // refus définitif : finalize() a remis les fonds reçus en crédit cartes
 }

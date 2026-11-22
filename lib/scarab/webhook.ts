@@ -5,6 +5,7 @@ import { notify } from '../audit';
 import { warn } from '../log';
 import { onKycEvent } from './customers';
 import { cardRef, creditTermination, refreshCard } from './cards';
+import { onWithdrawn, onWithdrawalFailed } from './withdraw';
 import { finalize, openOrdersForCard, reconcileOpenIssues } from './orders';
 
 // Signature : en-tête `t=<secondes>, v1=<hex>` ; v1 = HMAC-SHA256 hexadécimal de « <t>.<corps BRUT> », clé = secret de l'endpoint (texte, tel quel).
@@ -62,6 +63,8 @@ export async function handleEvent(type: string, d: any) {
       await refreshCard(uid, cid).catch(() => {}); break;
     }
     case 'card.frozen': case 'card.unfrozen': case 'card.expired': await refreshCard(uid, cid).catch(() => {}); break;
+    case 'card.withdrawn': await onWithdrawn(cid, d); break;
+    case 'card.withdrawal_failed': await onWithdrawalFailed(cid, d); break;
     case 'card.terminated': await creditTermination(cid, Number(d.refunded_amount_minor ?? 0)); break;
     case 'card.activation_code': if (d.activation_code) { await relayCode(uid, cid, d); await notify(uid, 'Code de vérification disponible', `Ouvrez votre Carte Pro •••• ${d.last4 ?? ''} pour l’afficher. Il expire dans quelques minutes.`); } break;
     case 'card.transaction.declined':

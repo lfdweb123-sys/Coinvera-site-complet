@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import QRCode from 'qrcode';
+import { CopyBtn, CopyRow } from '@/components/CopyBtn';
 import { CreditCard, Eye, Plus, Snowflake, Trash2, X, ShieldCheck, KeyRound } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
@@ -40,9 +41,9 @@ function PayDirect({ spec, onOrder, deposit, onDone }: { spec: any; onOrder?: (i
   if (p.status === 'expired' || p.status === 'closed') return <p className="err" role="status">Cette demande de paiement a expiré. Si vous avez déjà envoyé le montant exact, il sera détecté et crédité automatiquement sur votre crédit cartes (jusqu’à 7 jours) : inutile de renvoyer des fonds.</p>;
   if (p.status === 'failed') return <><Err m={msg({ message: p.error })} /><p className="mut">Votre paiement a été reçu : le montant a été crédité sur votre crédit cartes.</p></>;
   if (p.status === 'paid' || p.status === 'fulfilled') return <p className="mut" role="status">Paiement reçu. {deposit ? 'Crédit en cours…' : 'Création de l’opération en cours…'}</p>;
-  return <div className="stack"><p>Envoyez <b>exactement {p.amount} USDT</b> ({p.net}) à cette adresse. Le montant exact permet d’identifier votre paiement ; il est valable 60 minutes.</p>
-    {qr && <img src={qr} alt="QR code de l’adresse de paiement" width={180} height={180} />}<code style={{ wordBreak: 'break-all' }}>{p.address}</code>
-    <button className="btn" onClick={() => navigator.clipboard?.writeText(p.address)}>Copier l’adresse</button><p className="mut" role="status">En attente du paiement… (vérification automatique)</p></div>;
+  return <div className="stack"><p className="mut" style={{ margin: 0 }}>Envoyez <b>exactement</b> ce montant, sur le réseau indiqué : le montant exact permet d’identifier votre paiement. Valable 60 minutes.</p>
+    <CopyRow label="Montant exact à envoyer (USDT)" value={String(p.amount)} shown={`${p.amount} USDT`} /><CopyRow label="Réseau" value={String(p.net)} /><CopyRow label="Adresse de paiement" value={p.address} mono />
+    {qr && <img src={qr} alt="QR code de l’adresse de paiement" width={160} height={160} style={{ justifySelf: 'center' }} />}<p className="mut" role="status" style={{ margin: 0 }}>En attente du paiement… (vérification automatique)</p></div>;
 }
 function Deposit({ amount: a0, onClose, onDone }: { amount?: number; onClose: () => void; onDone: () => void }) {
   const [a, setA] = useState(String(a0 && a0 >= 5 ? a0 : 20)), [go, setGo] = useState(false); const ok = AMT.test(a) && Number(a) >= 5 && Number(a) <= 10000;
@@ -68,7 +69,7 @@ function Checkout({ kind, product, card, kyc, minAmount, onClose, onDone, onDepo
       <label htmlFor="am">{kind === 'issue' ? 'Solde d’ouverture' : 'Montant à charger'} (USD){kind === 'issue' && <> — minimum {usd(product.minOpening)}</>}</label>
       <input id="am" className="in" inputMode="decimal" value={amount} onChange={x => setAmount(x.target.value)} />
       {kind === 'issue' && <><label htmlFor="nm">Nom sur la carte (facultatif)</label><input id="nm" className="in" maxLength={26} value={name} onChange={x => setName(x.target.value)} placeholder="JEAN DUPONT" /></>}
-      {q && <div className="kv"><div>Montant sur la carte <b>{usd(q.amount)}</b></div><div>Frais (service et réseau){q.dynamic === false ? ' — estimation' : ''} <b>{usd(q.fees)}</b></div><div>Total à payer <b>{usd(q.total)}</b></div><div className="mut">Crédit cartes : {usd(q.credit)} · solde Coinvera : {usd(q.balance)}</div></div>}
+      {q && <div className="kv"><div>Montant sur la carte <b>{usd(q.amount)}</b></div><div>Frais (service et réseau){q.dynamic === false ? ' — estimation' : ''} <b>{usd(q.fees)}</b></div><div className="tot">Total à payer <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}><b>{usd(q.total)}</b><CopyBtn value={String(q.total)} /></span></div><div className="mut">Crédit cartes : {usd(q.credit)} · solde Coinvera : {usd(q.balance)}</div></div>}
       <Err m={e} />
       {q && (q.covers && mode === '' ? <><button className="btn p" disabled={busy} onClick={async () => { setBusy(true); setE(''); try { setOrderId((await api('/api/cards/orders', { method: 'POST', body: JSON.stringify(spec) })).id); } catch (x) { setE(msg(x)); } setBusy(false); }}>Payer {usd(q.total)} avec mon solde</button>
         <button className="btn" onClick={() => setMode('direct')}>Ou payer directement en USDT</button></> :

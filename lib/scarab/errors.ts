@@ -3,6 +3,7 @@ export const SCARAB_ERR: Record<string, string> = {
   scarab_disabled: 'La Carte Pro n’est pas encore disponible.', scarab_not_configured: 'Le service Carte Pro est en cours de configuration.',
   scarab_unavailable: 'Service momentanément indisponible : réessayez plus tard. Vous n’avez pas été débité.',
   scarab_unreachable: 'Le service ne répond pas. Si vous avez été débité, l’opération sera confirmée ou remboursée automatiquement.',
+  wd_busy: 'Un retrait a déjà été fait récemment sur cette carte. Réessayez dans 5 minutes.', wd_below_minimum: 'Le retrait minimum est de 1,00 $.', wd_leaves_minimum: 'Il doit rester au moins 1,00 $ sur la carte : choisissez un montant plus petit.', wd_exceeds_balance: 'Le montant dépasse le solde disponible de la carte.',
   scarab_busy: 'La carte a besoin d’une courte pause entre deux opérations (environ 2 minutes entre deux recharges). Réessayez dans un instant.',
   scarab_price_below_cost: 'Tarif momentanément indisponible. Réessayez plus tard : vous n’avez pas été débité.',
   scarab_customer_exists: 'Votre dossier de vérification existe déjà.', scarab_customer_missing: 'Dossier de vérification introuvable : recommencez la vérification.',

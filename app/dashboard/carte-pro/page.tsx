@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import QRCode from 'qrcode';
-import { CreditCard, Eye, Plus, Snowflake, Trash2, X, ShieldCheck, KeyRound } from 'lucide-react';
+import { CopyBtn, CopyRow } from '@/components/CopyBtn';
+import { CreditCard, Eye, Plus, Snowflake, Trash2, X, ShieldCheck, KeyRound, Wallet } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
 // Carte Pro : cartes Visa émises via ScarabPay, entièrement séparées des cartes virtuelles (/dashboard/cards). Le nom du prestataire n'apparaît jamais à l'écran.
@@ -108,9 +109,9 @@ function PayDirect({ spec, onOrder }: { spec: any; onOrder: (id: string) => void
   if (p.status === 'expired') return <p className="err">Cette demande de paiement a expiré. Si vous avez déjà envoyé des fonds, contactez le support avec l’identifiant de transaction.</p>;
   if (p.status === 'failed') return <><Err m={msg({ message: p.error })} /><p className="mut">Votre paiement a été reçu : le montant a été crédité sur votre solde.</p></>;
   if (p.status === 'paid' || p.status === 'fulfilled') return <p className="mut" role="status">Paiement reçu. Création de l’opération en cours…</p>;
-  return <div className="stack"><p>Envoyez <b>exactement {p.amount} USDT</b> ({p.net}) à cette adresse. Le montant exact permet d’identifier votre paiement ; il est valable 60 minutes.</p>
-    {qr && <img src={qr} alt="QR code de l’adresse de paiement" width={180} height={180} />}<code style={{ wordBreak: 'break-all' }}>{p.address}</code>
-    <button className="btn" onClick={() => navigator.clipboard?.writeText(p.address)}>Copier l’adresse</button><p className="mut" role="status">En attente du paiement… (vérification automatique)</p></div>;
+  return <div className="stack"><p className="mut" style={{ margin: 0 }}>Envoyez <b>exactement</b> ce montant, sur le réseau indiqué : le montant exact permet d’identifier votre paiement. Valable 60 minutes.</p>
+    <CopyRow label="Montant exact à envoyer (USDT)" value={String(p.amount)} shown={`${p.amount} USDT`} /><CopyRow label="Réseau" value={String(p.net)} /><CopyRow label="Adresse de paiement" value={p.address} mono />{p.memo && <CopyRow label="Mémo (obligatoire)" value={String(p.memo)} mono />}
+    {qr && <img src={qr} alt="QR code de l’adresse de paiement" width={160} height={160} style={{ justifySelf: 'center' }} />}<p className="mut" role="status" style={{ margin: 0 }}>En attente du paiement… (vérification automatique)</p></div>;
 }
 function Checkout({ kind, product, card, mode, minAmount, onClose, onDone }: any) {
   const [amount, setAmount] = useState(String(minAmount ?? 5)), [name, setName] = useState(''), [q, setQ] = useState<any>(null), [e, setE] = useState(''), [pay, setPay] = useState(false), [orderId, setOrderId] = useState(''), [busy, setBusy] = useState(false);
@@ -124,7 +125,7 @@ function Checkout({ kind, product, card, mode, minAmount, onClose, onDone }: any
       <input id="am" className="in" inputMode="decimal" value={amount} onChange={x => setAmount(x.target.value)} />
       {kind === 'issue' && <><label htmlFor="nm">Nom sur la carte{mode === 'platform' ? '' : ' (facultatif)'}</label><input id="nm" className="in" maxLength={50} value={name} onChange={x => setName(x.target.value)} placeholder="JEAN DUPONT" /></>}
       {kind === 'topup' && <p className="mut">Deux recharges d’une même carte doivent être espacées d’environ 2 minutes.</p>}
-      {q && <div className="kv"><div>Montant sur la carte <b>{usd(q.amount)}</b></div><div>Frais <b>{usd(q.fees)}</b></div><div>Total à payer <b>{usd(q.total)}</b></div><div className="mut">Votre solde : {usd(q.balance)}</div></div>}
+      {q && <div className="kv"><div>Montant sur la carte <b>{usd(q.amount)}</b></div><div>Frais <b>{usd(q.fees)}</b></div><div className="tot">Total à payer <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}><b>{usd(q.total)}</b><CopyBtn value={String(q.total)} /></span></div><div className="mut">Votre solde : {usd(q.balance)}</div></div>}
       <Err m={e} />
       {q && (q.covers && !pay ? <><button className="btn p" disabled={busy} onClick={async () => { setBusy(true); setE(''); try { setOrderId((await api('/api/scarab/orders', { method: 'POST', body: JSON.stringify(spec) })).id); } catch (x) { setE(msg(x)); } setBusy(false); }}>Payer {usd(q.total)} avec mon solde</button>
         <button className="btn" onClick={() => setPay(true)}>Ou payer directement en USDT</button></> :
@@ -137,6 +138,7 @@ function Checkout({ kind, product, card, mode, minAmount, onClose, onDone }: any
 // ---- Carte -------------------------------------------------------------------------------------------------------------------------------
 function CardModal({ c, onClose, onChange }: { c: any; onClose: () => void; onChange: () => void }) {
   const det = useData(`/api/scarab/cards/${c.id}`), tx = useData(`/api/scarab/cards/${c.id}/transactions`); const [shown, setShown] = useState<any>(null), [e, setE] = useState(''), [otp, setOtp] = useState<any>(null), [term, setTerm] = useState(false), [reason, setReason] = useState('no_longer_needed'), [busy, setBusy] = useState(false);
+  const [wd, setWd] = useState<string | null>(null), [wdMsg, setWdMsg] = useState('');
   const d = det.data?.card ?? c; const act = (action: string, extra: any = {}) => api(`/api/scarab/cards/${c.id}/action`, { method: 'POST', body: JSON.stringify({ action, ...extra }) });
   const run = async (f: () => Promise<any>) => { setE(''); setBusy(true); try { await f(); } catch (x) { setE(msg(x)); } setBusy(false); };
   useEffect(() => { if (!shown || shown.type !== 'details') return; const t = setTimeout(() => setShown(null), 60_000); return () => clearTimeout(t); }, [shown]);   // numéro et code ne restent jamais affichés plus d'une minute
@@ -149,6 +151,12 @@ function CardModal({ c, onClose, onChange }: { c: any; onClose: () => void; onCh
       {d.status === 'active' && <button className="btn" disabled={busy} onClick={() => run(async () => setShown(await act('details')))}><Eye size={15} /> Voir la carte</button>}
       <button className="btn" disabled={busy} onClick={() => run(async () => { await act(d.status === 'frozen' ? 'unfreeze' : 'freeze'); det.reload(); onChange(); })}><Snowflake size={15} /> {d.status === 'frozen' ? 'Dégeler' : 'Geler'}</button>
       <button className="btn" disabled={busy} onClick={() => run(async () => setOtp(await act('code')))}><KeyRound size={15} /> Code de vérification{d.codeWaiting ? ' •' : ''}</button></div>}
+    {live && (wd == null ? <button className="btn" disabled={busy} onClick={() => { setWd(''); setWdMsg(''); }}><Wallet size={15} /> Retirer vers mon solde</button> : <div className="stack" style={{ padding: 16, border: '1px solid var(--line)', borderRadius: 14 }}>
+      <label htmlFor="wda" style={{ margin: 0 }}>Montant à retirer (USD)</label><input id="wda" className="in" inputMode="decimal" value={wd} onChange={x => setWd(x.target.value)} placeholder="ex. 25" />
+      <p className="mut" style={{ margin: 0, fontSize: 13 }}>Minimum 1,00 $ et au moins 1,00 $ doit rester sur la carte{d.balance != null ? <> (maximum {usd(Math.max(0, Number(d.balance) - 1))})</> : null}. Un retrait toutes les 5 minutes par carte. Des frais du prestataire sont déduits : vous recevez le montant net, ajouté à votre solde dès que le réseau carte confirme.</p>
+      {wdMsg && <p className="okm" role="status" style={{ margin: 0 }}>{wdMsg}</p>}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button className="btn p" disabled={busy || !/^\d{1,6}(\.\d{1,2})?$/.test(wd) || Number(wd) < 1} onClick={() => run(async () => { const r = await act('withdraw', { amount: wd }); setWdMsg(r.status === 'confirmed' ? 'Retrait confirmé.' : 'Retrait demandé : le montant net sera ajouté à votre solde dès confirmation.'); setWd(null); det.reload(); onChange(); })}>Confirmer le retrait</button><button className="btn" onClick={() => setWd(null)}>Annuler</button></div></div>)}
+    {wd == null && wdMsg && <p className="okm" role="status" style={{ margin: 0 }}>{wdMsg}</p>}
     {shown?.type === 'secure_view' && /^https:\/\//.test(shown.url ?? '') && <iframe src={shown.url} title="Détails de la carte" referrerPolicy="no-referrer" allow="clipboard-write" style={{ display: 'block', width: '100%', maxWidth: 400, aspectRatio: '1.589/1', border: 0, borderRadius: 14, colorScheme: 'light' }} />}
     {shown?.type === 'details' && <div className="kv" role="status"><div>Numéro <b style={{ letterSpacing: 1 }}>{String(shown.pan ?? '').replace(/(\d{4})(?=\d)/g, '$1 ')}</b></div><div>Expiration <b>{shown.expiry}</b></div><div>Code de sécurité <b>{shown.cvv}</b></div><div>Titulaire <b>{shown.name}</b></div>
       <button className="btn" onClick={() => navigator.clipboard?.writeText(String(shown.pan ?? ''))}>Copier le numéro</button> <button className="btn" onClick={() => setShown(null)}>Masquer</button><small className="mut"> Masqué automatiquement après 1 minute.</small></div>}

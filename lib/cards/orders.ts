@@ -7,6 +7,7 @@ import { notify } from '../audit';
 import { info, warn } from '../log';
 import { ci, CORE, isDefinitive, isRetryable } from './cryptoinfra';
 import { cardSettings, markupOf } from './settings';
+import { refillForOrder } from './refill';
 import { getHolder, requireHolder } from './holder';
 import { syncCards, ownedCard } from './cards';
 import { assertCanIssue, assertCanTopup } from './catalog';
@@ -72,7 +73,8 @@ export async function dispatch(id: string) {
       await ref.update({ status: 'processing', ciOrderId: r.data.id ?? null, ciStatus: r.data.status ?? null, updatedAt: Date.now() });
     }
   } catch (e) {
-    if (isRetryable(e) && Date.now() - (o.createdAtMs ?? 0) < 15 * 60_000) { warn('cards.dispatch_retry', { orderId: id, code: (e as HttpError).code }); return; }   // le cron rejoue (même clé) pendant 15 min, puis l'ordre est remboursé
+    if ((e as HttpError).code === 'rail_unfunded') await refillForOrder(id, o.ciTotalUnits).catch(x => warn('cards.refill_failed', { orderId: id, message: (x as Error).message }));   // portefeuille du programme vide : alimentation automatique depuis Bybit
+    if (isRetryable(e) && Date.now() - (o.createdAtMs ?? 0) < ((e as HttpError).code === 'rail_unfunded' ? 45 : 15) * 60_000) { warn('cards.dispatch_retry', { orderId: id, code: (e as HttpError).code }); return; }   // le cron rejoue (même clé) pendant 15 min, puis l'ordre est remboursé
     if (isDefinitive(e)) { await finalize(id, false, { error: (e as HttpError).code }); throw e; }   // refus net : rien n'a été débité chez eux, on libère
     warn('cards.dispatch_unknown', { orderId: id, message: (e as Error).message });                  // état inconnu : on GARDE la réservation, le cron rejoue avec la même clé
   }

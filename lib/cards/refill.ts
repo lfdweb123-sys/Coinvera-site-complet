@@ -1,5 +1,5 @@
 import { db } from '../firebase-admin';
-import { createWithdrawal } from '../bybit';
+import { createWithdrawal, bybitConfigured } from '../bybit';
 import { toUnits } from '../money';
 import { info, warn, error } from '../log';
 import { cardSettings } from './settings';
@@ -11,7 +11,7 @@ import { programme } from './wallet';
 const dayStart = () => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); return d.getTime(); };
 export async function refillForOrder(orderId: string, ciTotalUnits: number) {
   const s = await cardSettings(); if (!s.refillAuto) return;
-  if (!process.env.BYBIT_API_KEY || !process.env.BYBIT_API_SECRET || !process.env.BYBIT_BASE_URL) { error('cards.refill_not_configured', { orderId, hint: 'Variables BYBIT_* absentes : alimenter le portefeuille du programme à la main' }); return; }
+  if (!bybitConfigured()) { error('cards.refill_not_configured', { orderId, hint: 'BYBIT_RELAY_URL / BYBIT_RELAY_SECRET (ou BYBIT_*) absents : alimenter le portefeuille du programme à la main' }); return; }
   const ref = db.doc(`card_refills/${orderId}`); const ex = (await ref.get()).data();
   if (ex && (ex.status === 'sent' || (ex.status === 'failed' && (ex.attempts ?? 1) >= 3) || Date.now() - (ex.updatedAt ?? 0) < 120_000)) return;
   const prog = await programme(); const address = prog.addresses.usdttrc20;

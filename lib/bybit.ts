@@ -1,7 +1,19 @@
 import crypto from 'node:crypto';
 import { log } from './log';
 // API V5 : signature = HMAC_SHA256(secret, timestamp + apiKey + recvWindow + corps JSON ou query string)
+// Si BYBIT_RELAY_URL est défini, l'appel passe par le relais à IP fixe (tools/bybit-relay) : la clé Bybit n'est alors jamais sur Vercel.
+async function viaRelay(method: 'GET' | 'POST', path: string, payload: Record<string, unknown>) {
+  const secret = process.env.BYBIT_RELAY_SECRET!, ts = Date.now().toString(), body = JSON.stringify({ method, path, payload });
+  const sig = crypto.createHmac('sha256', secret).update(ts + '.' + body).digest('hex');
+  const r = await fetch(process.env.BYBIT_RELAY_URL!.replace(/\/$/, '') + '/bybit', { method: 'POST', body, signal: AbortSignal.timeout(20_000), headers: { 'Content-Type': 'application/json', 'x-relay-ts': ts, 'x-relay-sig': sig } });
+  const j = (await r.json().catch(() => ({}))) as { retCode?: number; retMsg?: string; result?: any; error?: string };
+  if (typeof j.retCode !== 'number') throw new Error('relay_' + (j.error ?? r.status));   // le relais a refusé ou est injoignable : état inconnu, jamais traité comme un refus de Bybit
+  log(j.retCode === 0 ? 'info' : 'warn', 'bybit.response', { path, via: 'relay', retCode: j.retCode, retMsg: j.retMsg });
+  return j as { retCode: number; retMsg: string; result: any };
+}
+export const bybitConfigured = () => !!((process.env.BYBIT_RELAY_URL && process.env.BYBIT_RELAY_SECRET) || (process.env.BYBIT_API_KEY && process.env.BYBIT_API_SECRET && process.env.BYBIT_BASE_URL));
 async function bybit(method: 'GET' | 'POST', path: string, payload: Record<string, unknown>) {
+  if (process.env.BYBIT_RELAY_URL && process.env.BYBIT_RELAY_SECRET) return viaRelay(method, path, payload);
   const ts = Date.now().toString(), rw = '5000', key = process.env.BYBIT_API_KEY!;
   const qs = method === 'GET' ? new URLSearchParams(payload as Record<string, string>).toString() : JSON.stringify(payload);
   const sign = crypto.createHmac('sha256', process.env.BYBIT_API_SECRET!).update(ts + key + rw + qs).digest('hex');

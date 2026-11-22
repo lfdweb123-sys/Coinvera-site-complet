@@ -18,3 +18,13 @@ Le prix client = tarif **Starter** (pire cas, toutes les offres supérieures son
 - Codes de vérification (3-D Secure, Apple/Google Pay) : reçus par webhook, chiffrés, valables quelques minutes, effacés à la première lecture.
 - Résultat incertain (timeout, 500) : fonds conservés et même clé d'idempotence rejouée ; après 20 h → « à trancher » en admin.
 - Non testé en réel : paiement direct USDT, liste des pays acceptés, devise du champ `annual_salary`.
+
+## Paiement direct, adresses et retraits (cartes uniquement)
+- **Adresses de dépôt** : celles de votre compte ScarabPay (`GET /deposit-addresses`, une par réseau). Une adresse avec mémo est écartée. Aucune variable d'environnement n'est utilisée par les cartes. Le reste du site (paiements marchands, retraits marchands) n'est pas touché.
+- **Taux de conversion** : chaque dépôt est crédité avec un `rate` (ex. 0,9999). Le montant demandé à l'utilisateur est majoré du plus bas taux des 20 derniers dépôts crédités (repli 0,999).
+- **Retrait de carte** : `POST /cards/{card}/withdraw` (min 1,00 $, 1,00 $ doit rester, un retrait par carte toutes les 5 min). Le solde de l'utilisateur est crédité du **net** (montant moins frais) à la réception de `card.withdrawn` ; `card.withdrawal_failed` ne crédite rien. Sans nouvelle après 2 h : admin → Carte Pro → « Retraits de carte à vérifier ».
+- Les retraits du portefeuille marchand du prestataire se font uniquement dans leur portail (événements `withdrawal.*` seulement).
+
+## Carte Standard (CryptoInfra)
+- Adresses de dépôt : `GET /v1/cards/wallet` (portefeuille du programme). Montant majoré de `recharge_fee_bps` et, pour USDT TRC20, du network charge (devis réseau en direct, plafonné à 5 $, repli `CARDS_TRC20_CHARGE_USD`, 2 $ par défaut). Le solde carte crédité = ce que le portefeuille a réellement reçu.
+- Pas de retrait de carte chez CryptoInfra (supprimé) : fermer la carte rembourse le portefeuille du programme.

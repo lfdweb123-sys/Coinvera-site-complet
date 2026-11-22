@@ -7,3 +7,10 @@ describe('frais de dépôt', () => {
   });
   it('sans frais, rien ne change', () => { expect(grossUp(5_000_000, 0)).toBe(5_000_000); });
 });
+describe('network charge', () => {
+  it('net après frais % puis charge couvre le prix', () => {
+    const base = 10_000_000, charge = 2_000_000, bps = 100;
+    const g = grossUp(base + charge, bps) + 4321;
+    expect(netOf(g, bps) - charge).toBeGreaterThanOrEqual(base);
+  });
+});

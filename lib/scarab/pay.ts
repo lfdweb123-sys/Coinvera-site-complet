@@ -21,20 +21,28 @@ export async function depositAddresses(): Promise<Record<string, string>> {
   catch (e) { warn('scarab.deposit_addresses_failed', { message: (e as Error).message }); return cache?.a ?? {}; }
   cache = { t: Date.now(), a: out }; return out;
 }
+// Le prestataire convertit chaque dépôt avec un taux (ex. 0,9999) : on prend le plus bas des derniers dépôts crédités (GET /deposits) et on majore le montant demandé d'autant. Repli prudent : 0,9990.
+let rc: { t: number; r: number } | null = null;
+export async function depositRate(): Promise<number> {
+  if (rc && Date.now() - rc.t < 300_000) return rc.r;
+  let r = 0.999;
+  try { const rates = (((await spx('GET', '/deposits', { query: { limit: 20 } })).data ?? []) as any[]).filter(d => ['credited', 'flagged'].includes(d.status)).map(d => Number(d.rate)).filter(x => x > 0.95 && x <= 1); if (rates.length) r = Math.min(...rates); } catch { /* clé de test ou prestataire injoignable : repli */ }
+  rc = { t: Date.now(), r }; return r;
+}
 export const payCurrencies = async () => { const a = await depositAddresses(); return SCARAB_PAY.map(id => byId(id)).filter((c): c is Cur => !!c && !!a[c.id]).map(c => ({ id: c.id, name: c.name, net: c.net })); };
 export const payView = (id: string, o: Record<string, any>) => ({ id, status: o.status, cur: o.cur, net: byId(o.cur)?.net ?? '', address: o.address, amount: fmt(BigInt(o.expected), o.decimals), amountUsd: fromUnits(o.chargeUnits), expiresAt: o.expiresAt, txid: o.txid ?? null, orderId: o.orderId ?? null, error: o.error ?? null });
 
 export async function createPayOrder(uid: string, curId: string, spec: Spec) {
   const c = byId(curId), address = c ? (await depositAddresses())[c.id] : undefined; if (!c || !SCARAB_PAY.includes(c.id) || !address) throw new HttpError(400, 'currency_unavailable');
-  const q = await quote(uid, spec);            // revérifie identité, minimum, prix et portefeuille AVANT que l'utilisateur envoie quoi que ce soit
+  const q = await quote(uid, spec); const rate = await depositRate(), need = Math.ceil(q.chargeUnits / rate);            // revérifie identité, minimum, prix et portefeuille AVANT que l'utilisateur envoie quoi que ce soit
   const k = 10n ** BigInt(c.decimals - 6);     // 1 unité interne (1e-6 USD) = k unités de la monnaie
   const taken = new Set<string>();
   for (const col of ['scarab_pay_orders', 'card_pay_orders', 'crypto_orders']) (await db.collection(col).where('cur', '==', c.id).where('status', '==', 'awaiting').get()).docs.forEach(d => taken.add(String(d.data().expected)));
   let expected = 0n;                           // centimes aléatoires (jusqu'à 0,009 $) : deux commandes en attente n'ont jamais le même montant
-  for (let i = 0; i < 30; i++) { const e = BigInt(q.chargeUnits) * k + BigInt(crypto.randomInt(1, 9001)) * k; if (!taken.has(e.toString())) { expected = e; break; } }
+  for (let i = 0; i < 30; i++) { const e = BigInt(need) * k + BigInt(crypto.randomInt(1, 9001)) * k; if (!taken.has(e.toString())) { expected = e; break; } }
   if (!expected) throw new HttpError(503, 'network_unavailable');
   const now = Date.now(); const ref = db.collection('scarab_pay_orders').doc();
-  const o = { merchantId: uid, spec, cur: c.id, decimals: c.decimals, address, chargeUnits: q.chargeUnits + Number((expected - BigInt(q.chargeUnits) * k) / k), q: { amountMinor: q.amountMinor, feeMinor: q.feeMinor, costFeeMinor: q.costFeeMinor, customerId: q.customerId, productName: q.productName },
+  const o = { merchantId: uid, spec, cur: c.id, decimals: c.decimals, address, chargeUnits: need + Number((expected - BigInt(need) * k) / k), q: { amountMinor: q.amountMinor, feeMinor: q.feeMinor, costFeeMinor: q.costFeeMinor, customerId: q.customerId, productName: q.productName },
     expected: expected.toString(), status: 'awaiting', createdAt: now, expiresAt: now + 60 * 60_000 };
   await ref.set(o); return payView(ref.id, o);
 }

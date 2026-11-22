@@ -7,7 +7,7 @@ import { LogoMark } from '@/components/Illustrations';
 import { CardLogos } from '@/components/Logos';
 import { useAuthUser } from '@/lib/client';
 import { DOCS, HELP, SITE, STATUS } from '@/lib/site';
-const L = [['/features', 'Fonctionnalités'], ['/pricing', 'Tarification'], ['/woocommerce', 'WooCommerce'], ['/dons', 'Dons'], [DOCS, 'Documentation'], ['/contact', 'Contact']];
+const L = [['/features', 'Fonctionnalités'], ['/cartes', 'Cartes'], ['/pricing', 'Tarification'], ['/woocommerce', 'WooCommerce'], ['/dons', 'Dons'], [DOCS, 'Documentation'], ['/contact', 'Contact']];
 // Depuis docs.*, status.* ou helpcenter.*, un lien relatif (/pricing) resterait sur le sous-domaine, où il est réécrit vers la page du sous-domaine :
 // les liens internes du header et du footer pointent donc vers le site principal, page exacte comprise. Sur le site principal (ou en local) ils restent relatifs.
 const SUB = /^(docs|status|helpcenter|api)\./i;
@@ -27,7 +27,7 @@ export function Footer({ base = '' }: { base?: string }) {
   const b = useBase(base); const to = (h: string) => (h.startsWith('/') ? b + h : h);
   return <footer className="foot"><div className="in2"><div className="cols">
     <div><div className="logo" style={{ color: '#fff', marginBottom: 16 }}><LogoMark />Coinvera</div><p style={{ maxWidth: 340 }}>Encaissez par carte, retirez en cryptomonnaie. La plateforme de paiement pensée pour les marchands et les développeurs.</p><div style={{ marginTop: 16 }}><CardLogos /></div></div>
-    <div><h4>Produit</h4><ul><li><Link href={to('/features')}>Fonctionnalités</Link></li><li><Link href={to('/pricing')}>Tarification</Link></li><li><Link href={to('/woocommerce')}>Plugin WooCommerce</Link></li><li><Link href={to('/dons')}>Plugin de dons</Link></li></ul></div>
+    <div><h4>Produit</h4><ul><li><Link href={to('/features')}>Fonctionnalités</Link></li><li><Link href={to('/cartes')}>Cartes virtuelles</Link></li><li><Link href={to('/pricing')}>Tarification</Link></li><li><Link href={to('/woocommerce')}>Plugin WooCommerce</Link></li><li><Link href={to('/dons')}>Plugin de dons</Link></li></ul></div>
     <div><h4>Développeurs</h4><ul><li><a href={DOCS}>Documentation API</a></li><li><a href={HELP}>Centre d’aide</a></li><li><a href={STATUS}>État des services</a></li><li><Link href={to('/register')}>Créer un compte</Link></li></ul></div>
     <div><h4>Entreprise</h4><ul><li><Link href={to('/contact')}>Contact</Link></li><li><a href="mailto:support@coinvera.me">support@coinvera.me</a></li><li><Link href={to('/login')}>Connexion</Link></li></ul></div>
     <div><h4>Légal</h4><ul><li><Link href={to('/terms')}>Conditions d’utilisation</Link></li><li><Link href={to('/privacy')}>Confidentialité</Link></li><li><Link href={to('/refund-policy')}>Remboursement</Link></li></ul></div></div>

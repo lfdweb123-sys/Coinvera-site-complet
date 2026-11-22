@@ -21,12 +21,16 @@ export async function refillForOrder(orderId: string, ciTotalUnits: number) {
   if (amount < need) { error('cards.refill_over_cap', { orderId, need, cap: s.refillMax }); return; }
   const today = (await db.collection('card_refills').where('createdAt', '>=', dayStart()).get()).docs.reduce((t, d) => t + (d.data().status === 'failed' ? 0 : Number(d.data().amount ?? 0)), 0);
   if (today + amount > s.refillDaily) { error('cards.refill_daily_cap', { orderId, today, amount, cap: s.refillDaily }); return; }
+  // Un seul retrait à la fois : tant qu'un retrait est en route (20 min), les autres commandes attendent ; verrou posé dans une transaction (pas de course entre deux requêtes).
+  const lock = db.doc('card_refill_lock/current');
+  const got = await db.runTransaction(async tx => { const l = (await tx.get(lock)).data(); if (l && l.until > Date.now() && l.orderId !== orderId) return false; tx.set(lock, { orderId, until: Date.now() + 20 * 60_000 }); return true; });
+  if (!got) return;
   const attempts = ex ? (ex.status === 'failed' ? (ex.attempts ?? 1) + 1 : ex.attempts ?? 1) : 1;
   const requestId = `cardfund_${orderId}_${attempts}`; const amt = (Math.ceil(amount * 100) / 100).toFixed(2);
   await ref.set({ orderId, amount: Number(amt), address, requestId, attempts, status: 'sending', createdAt: ex?.createdAt ?? Date.now(), updatedAt: Date.now() }, { merge: true });
   try {
     const r = await createWithdrawal({ coin: 'USDT', chain: 'TRX', address, amount: amt, requestId });
     if (r.retCode === 0) { await ref.update({ status: 'sent', bybitId: String(r.result?.id ?? ''), updatedAt: Date.now() }); info('cards.refill_sent', { orderId, amount: amt }); }
-    else { await ref.update({ status: 'failed', error: `bybit_${r.retCode}`, updatedAt: Date.now() }); error('cards.refill_refused', { orderId, retCode: r.retCode, retMsg: r.retMsg }); }
+    else { await ref.update({ status: 'failed', error: `bybit_${r.retCode}`, updatedAt: Date.now() }); await lock.set({ orderId, until: 0 }); error('cards.refill_refused', { orderId, retCode: r.retCode, retMsg: r.retMsg }); }
   } catch (e) { await ref.update({ status: 'unknown', updatedAt: Date.now() }); warn('cards.refill_unknown_state', { orderId, message: (e as Error).message }); }   // même requestId au prochain passage : pas de doublon
 }

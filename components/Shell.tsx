@@ -1,4 +1,5 @@
 'use client';
+import CoinveraAI from '@/components/CoinveraAI';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -52,6 +53,7 @@ export default function Shell({ groups, admin, quick, children }: { groups: NavG
       <header className="top">
         <div style={{ display: 'flex', gap: 8 }}><button className="btn sm burger-d" aria-label="Ouvrir le menu" onClick={() => setMob(true)}><Menu size={18} /></button><button className="btn sm hide-m" aria-label="Réduire la barre latérale" onClick={() => setCol(!col)}><PanelLeft size={18} /></button></div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {!admin && <CoinveraAI />}
           <a className="btn sm" href={HELP} target="_blank" rel="noreferrer" aria-label="Centre d’aide" title="Centre d’aide"><HelpCircle size={18} /></a>
           <div ref={refBell} style={{ position: 'relative' }}><button className="btn sm" aria-label="Notifications" aria-expanded={bell} onClick={() => { setBell(!bell); setMenu(false); }}><Bell size={18} />{notes.length > 0 && <span className="badge info" style={{ padding: '0 7px' }}>{notes.length}</span>}</button>
             {bell && <div className="pop" style={{ width: 'min(320px,86vw)' }}>{notes.length ? notes.map(n => <div key={n.id} style={{ padding: '8px 10px', fontSize: 14 }}><b>{n.title}</b><div className="mut">{n.body}</div></div>) : <div className="empty" style={{ padding: 24 }}>Aucune notification</div>}</div>}</div>

@@ -8,7 +8,7 @@ async function loadAdmin(dec: any): Promise<Record<string, any> | null> {
   const ref = db.doc(`admins/${dec.uid}`); const s = await ref.get(); if (s.exists) return s.data()!;
   const setup = (await db.doc('system/setup').get()).data(); const legacy = await db.doc(`merchants/${dec.uid}`).get();
   if (!legacy.exists && setup?.uid !== dec.uid) return null;
-  const l = legacy.data() ?? {}; const data = { email: dec.email, fullName: l.fullName ?? 'Administrateur', status: 'active', super: setup?.uid === dec.uid, twoFactor: !!l.twoFactor, createdAt: FieldValue.serverTimestamp() };
+  const l = legacy.data() ?? {}; const data = { email: dec.email, fullName: l.fullName ?? 'Administrateur', status: 'active', super: setup?.uid === dec.uid, twoFactor: false, createdAt: FieldValue.serverTimestamp() };
   await ref.set(data);
   if (legacy.exists) { const b = db.batch(); for (const c of ['merchants', 'merchant_settings', 'balances', 'api_activations']) b.delete(db.doc(`${c}/${dec.uid}`)); await b.commit(); }
   info('admin.profile_created', { uid: dec.uid, super: data.super, migrated: legacy.exists }); return data;

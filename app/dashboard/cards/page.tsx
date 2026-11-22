@@ -93,8 +93,24 @@ function CardModal({ c, onClose, onChange }: { c: any; onClose: () => void; onCh
       <button className="btn" disabled={busy} onClick={() => run(async () => setCq(await api(`/api/cards/${c.id}/close`)))}><Trash2 size={15} /> Fermer la carte</button>)}
   </div></Modal>;
 }
+const COUNTRIES = 'BJ,BF,CI,CM,CD,CG,GA,GH,GN,ML,MA,NE,NG,SN,TG,TN,DZ,EG,KE,TZ,UG,RW,ZA,MG,MR,TD,CF,BI,DJ,KM,MU,FR,BE,CH,LU,CA,US,GB,DE,ES,IT,PT,NL'.split(',');
+const NAMES = new Intl.DisplayNames(['fr'], { type: 'region' });
+function Onboard({ onDone }: { onDone: () => void }) {
+  const [f, setF] = useState<Record<string, string>>({ firstName: '', lastName: '', dateOfBirth: '', phone: '', country: 'BJ', address: '', city: '', zipCode: '', state: '' }), [e, setE] = useState(''), [b, setB] = useState(false);
+  const set = (k: string) => (x: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: x.target.value });
+  const ok = ['firstName', 'lastName', 'dateOfBirth', 'phone', 'country', 'address', 'city', 'zipCode'].every(k => f[k].trim());
+  const L = (id: string, label: string, ac: string, extra: any = {}) => <div key={id}><label htmlFor={'ob_' + id}>{label}</label><input id={'ob_' + id} className="in" autoComplete={ac} value={f[id]} onChange={set(id)} {...extra} /></div>;
+  return <form className="card stack" style={{ maxWidth: 560 }} onSubmit={async ev => { ev.preventDefault(); setE(''); setB(true); try { await api('/api/cards/holder', { method: 'POST', body: JSON.stringify({ ...f, phone: f.phone.replace(/[\s.-]/g, ''), state: f.state.trim() || undefined }) }); onDone(); } catch (x) { setE(msg(x)); } setB(false); }}>
+    <h2 style={{ margin: 0 }}>Créer mon compte carte</h2>
+    <p className="mut">L’émetteur de la carte exige votre identité complète, telle qu’elle figure sur votre pièce d’identité. Ces informations lui sont transmises directement et ne sont pas conservées par Coinvera.</p>
+    {L('firstName', 'Prénom', 'given-name')}{L('lastName', 'Nom', 'family-name')}{L('dateOfBirth', 'Date de naissance', 'bday', { type: 'date', max: new Date().toISOString().slice(0, 10) })}
+    {L('phone', 'Téléphone avec indicatif international (ex. +22997000000)', 'tel', { type: 'tel', inputMode: 'tel', placeholder: '+22997000000' })}
+    <div><label htmlFor="ob_country">Pays de résidence</label><select id="ob_country" className="in" autoComplete="country" value={f.country} onChange={set('country')}>{COUNTRIES.map(c => <option key={c} value={c}>{NAMES.of(c) ?? c}</option>)}</select></div>
+    {L('address', 'Adresse', 'street-address')}{L('city', 'Ville', 'address-level2')}{L('state', 'Région / État (facultatif)', 'address-level1')}{L('zipCode', 'Code postal', 'postal-code')}
+    <Err m={e} /><button className="btn p" disabled={b || !ok}>{b ? 'Création…' : 'Continuer'}</button></form>;
+}
 export default function Cards() {
-  const d = useData('/api/cards'), pr = useData('/api/cards/products'); const [m, setM] = useState<any>(null), [names, setNames] = useState({ firstName: '', lastName: '' }), [e, setE] = useState(''), [busy, setBusy] = useState(false); const reload = d.reload;
+  const d = useData('/api/cards'), pr = useData('/api/cards/products'); const [m, setM] = useState<any>(null); const reload = d.reload;
   const timer = useRef<any>(null); useEffect(() => { timer.current = setInterval(() => { if (!document.hidden) reload(); }, 30000); return () => clearInterval(timer.current); }, [reload]);
   const h = d.data?.holder; const products = pr.data?.products ?? []; const prod = (code: string) => products.find((p: any) => p.code === code);
   const close = useCallback(() => setM(null), []);
@@ -102,10 +118,7 @@ export default function Cards() {
   return <>
     <PageHead title="Cartes virtuelles" sub="Payez en ligne avec une carte rechargée depuis votre solde ou en USDT.">{h?.registered && <button className="btn p" onClick={() => setM({ t: 'issue' })} disabled={d.data?.maintenance || !products.length}><Plus size={16} /> Nouvelle carte</button>}</PageHead>
     {d.data?.maintenance && <p className="err" role="status">Création et recharge de cartes en maintenance. Vos cartes existantes restent utilisables.</p>}
-    {d.data && !h?.registered && <div className="card stack" style={{ maxWidth: 520 }}><h2 style={{ margin: 0 }}>Créer mon compte carte</h2><p className="mut">Indiquez votre nom tel qu’il figure sur votre pièce d’identité.</p>
-      <label htmlFor="fn">Prénom</label><input id="fn" className="in" autoComplete="given-name" value={names.firstName} onChange={x => setNames({ ...names, firstName: x.target.value })} />
-      <label htmlFor="ln">Nom</label><input id="ln" className="in" autoComplete="family-name" value={names.lastName} onChange={x => setNames({ ...names, lastName: x.target.value })} /><Err m={e} />
-      <button className="btn p" disabled={busy || !names.firstName.trim() || !names.lastName.trim()} onClick={async () => { setE(''); setBusy(true); try { await api('/api/cards/holder', { method: 'POST', body: JSON.stringify(names) }); reload(); } catch (x) { setE(msg(x)); } setBusy(false); }}>Continuer</button></div>}
+    {d.data && !h?.registered && <Onboard onDone={reload} />}
     {h?.registered && <>
       <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}><span>Crédit cartes <b>{usd(d.data?.credit)}</b> · solde Coinvera <b>{usd(d.data?.balance)}</b><br /><small className="mut">Les frais d’émission et de recharge sont affichés avant chaque paiement. Le crédit cartes est dépensé en premier.</small></span><button className="btn" onClick={() => setM({ t: 'deposit' })}>Recharger mon crédit cartes</button></div>
       {d.data.cards.length ? <div className="g2">{d.data.cards.map((c: any) => <button key={c.id} className="card" style={{ textAlign: 'left', cursor: 'pointer' }} onClick={() => setM({ t: 'card', c })}>

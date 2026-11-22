@@ -50,3 +50,12 @@ describe('messages d’erreur cartes', () => {
     for (const c of ['unauthorized', 'account_paused', 'account_suspended', 'email_unverified', 'project_paused', 'project_suspended', 'user_not_found', 'holder_not_found', 'user_id_taken', 'kyc_not_approved', 'provider_rejected', 'cards_maintenance', 'rail_unfunded', 'email_taken', 'daily_limit_reached', 'card_state', 'card_issuing', 'invalid_amount', 'validation_error', 'internal_error']) expect(CARD_ERR[c], c).toBeTruthy();
   });
 });
+import { Identity, adult } from '@/lib/cards/identity';
+describe('identité du titulaire', () => {
+  const ok = { firstName: 'Jean', lastName: 'Dupont', dateOfBirth: '1990-05-17', phone: '+22997000000', country: 'bj', address: '12 rue des Cocotiers', city: 'Cotonou', zipCode: '01BP123' };
+  it('accepte une identité complète (pays mis en majuscules) et refuse téléphone sans indicatif, pays invalide ou champ manquant', () => {
+    expect(Identity.parse(ok).country).toBe('BJ');
+    expect(Identity.safeParse({ ...ok, phone: '0097000000' }).success).toBe(false); expect(Identity.safeParse({ ...ok, country: 'BEN' }).success).toBe(false); expect(Identity.safeParse({ ...ok, city: '' }).success).toBe(false);
+  });
+  it('majorité calculée au jour près', () => { const now = new Date('2026-11-22T00:00:00Z'); expect(adult('2008-11-22', now)).toBe(true); expect(adult('2008-11-23', now)).toBe(false); expect(adult('2026-02-30', now)).toBe(false); });
+});

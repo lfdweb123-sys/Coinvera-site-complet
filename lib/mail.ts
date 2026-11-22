@@ -2,7 +2,7 @@ import { esc } from './brevo';
 import { SITE } from './site';
 // E-mails transactionnels : mise en page en tableaux, styles en ligne uniquement (compatibles avec tous les clients mail), largeur fluide.
 const F = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-function shell(preheader: string, title: string, inner: string) {
+function shell(preheader: string, title: string, inner: string, note?: string) {
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(title)}</title></head>
 <body style="margin:0;padding:0;background:#F3F6FB;-webkit-text-size-adjust:100%;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;font-size:1px;line-height:1px;">${esc(preheader)}&#8199;&zwnj;&#8199;&zwnj;&#8199;&zwnj;</div>
@@ -11,7 +11,7 @@ function shell(preheader: string, title: string, inner: string) {
 <tr><td style="background:#0A1535;border-radius:16px 16px 0 0;padding:26px 32px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#2255E8;border-radius:10px;width:36px;height:36px;text-align:center;font-family:${F};font-size:20px;font-weight:700;color:#FFFFFF;line-height:36px;">C</td><td style="padding-left:12px;font-family:${F};font-size:22px;font-weight:700;color:#FFFFFF;letter-spacing:-0.5px;">Coinvera</td></tr></table></td></tr>
 <tr><td style="padding:36px 32px 12px 32px;font-family:${F};color:#0B1220;">${inner}</td></tr>
 <tr><td style="padding:8px 32px 30px 32px;font-family:${F};font-size:12px;line-height:18px;color:#64748B;border-top:1px solid #E5EAF2;">
-<p style="margin:18px 0 6px 0;">Cet e-mail vous a été envoyé par Coinvera LLC car une action a été demandée sur votre compte. Ne communiquez jamais ce code : notre équipe ne vous le demandera jamais.</p>
+<p style="margin:18px 0 6px 0;">${note ?? `Cet e-mail vous a été envoyé par Coinvera LLC car une action a été demandée sur votre compte. Ne communiquez jamais ce code : notre équipe ne vous le demandera jamais.`}</p>
 <p style="margin:0;">© ${new Date().getFullYear()} Coinvera LLC · <a href="${SITE}" style="color:#2255E8;text-decoration:none;">www.coinvera.me</a></p></td></tr></table></td></tr></table></body></html>`;
 }
 export function codeEmail(p: { name: string; code: string; purpose: 'verify' | 'reset' }) {
@@ -25,4 +25,12 @@ export function codeEmail(p: { name: string; code: string; purpose: 'verify' | '
 <p style="margin:22px 0 8px 0;font-size:15px;line-height:22px;color:#334155;">Ce code est valable <b>10 minutes</b>.</p>
 <p style="margin:0 0 20px 0;font-size:14px;line-height:21px;color:#64748B;">Si vous n’êtes pas à l’origine de cette demande, ignorez simplement cet e-mail : votre compte reste protégé.</p>`;
   return { subject: `${p.code} est votre code Coinvera`, html: shell(`Votre code de vérification : ${p.code}`, title, inner) };
+}
+
+// Notification du tableau de bord envoyée aussi par e-mail (texte échappé, jamais de HTML venant des données).
+export function notificationEmail(p: { title: string; body: string }) {
+  const inner = `<h1 style="margin:0 0 14px 0;font-family:${F};font-size:22px;line-height:28px;font-weight:700;color:#0B1220;">${esc(p.title)}</h1>
+<p style="margin:0 0 22px 0;font-size:16px;line-height:24px;color:#334155;">${esc(p.body || 'Consultez votre tableau de bord pour le détail.')}</p>
+<p style="margin:0 0 20px 0;font-size:15px;line-height:22px;"><a href="${SITE}/dashboard" style="color:#2255E8;text-decoration:none;font-weight:600;">Ouvrir mon tableau de bord</a></p>`;
+  return { subject: p.title.slice(0, 150), html: shell(p.title, p.title, inner, 'Cet e-mail reprend une notification de votre tableau de bord Coinvera.') };
 }

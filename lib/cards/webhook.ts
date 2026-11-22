@@ -14,15 +14,16 @@ export function verifySignature(raw: string, given: string, secret: string) {
 // Les webhooks sont des signaux : chaque événement déclenche une relecture à la source, jamais une écriture directe depuis la charge utile.
 export async function handleEvent(event: string, p: any) {
   if (!event.startsWith('card.') && event !== 'deposit.credited') return 'ignored';        // cet endpoint reçoit aussi les paiements du projet : hors périmètre cartes
+  if (event === 'deposit.credited') {
+    // Dépôt reçu sur le portefeuille du programme : signal seulement. Les demandes en attente sur cette adresse sont relues à la source (blockchain, montant exact), une seule fois chacune.
+    const addr = String(p?.address ?? ''); if (!addr) return 'ignored';
+    for (const st of ['awaiting', 'expired']) for (const d of (await db.collection('card_pay_orders').where('address', '==', addr).where('status', '==', st).limit(50).get()).docs)
+      await checkPayOrder(null, d.id).catch(e => warn('cards.webhook_deposit_check_failed', { payOrderId: d.id, message: (e as Error).message }));
+    return 'ok';
+  }
   const ext = String(p?.userExternalId ?? ''); const m = ext ? (await db.doc(`card_holder_ids/${ext}`).get()).data() : null;
   if (!m) { warn('cards.webhook_unknown_user', { event }); return 'unknown_user'; }
   const uid = m.uid as string;
-  if (event === 'deposit.credited') {
-    // Dépôt sur l'adresse personnelle de l'utilisateur : signal seulement. Chaque demande de paiement en attente est relue à la source (blockchain, montant exact) et traitée une seule fois.
-    for (const st of ['awaiting', 'expired']) for (const d of (await db.collection('card_pay_orders').where('merchantId', '==', uid).where('status', '==', st).limit(20).get()).docs)
-      await checkPayOrder(uid, d.id).catch(e => warn('cards.webhook_deposit_check_failed', { payOrderId: d.id, message: (e as Error).message }));
-    return 'ok';
-  }
   switch (event) {
     case 'card.topup': case 'card.withdraw': case 'card.status':
       if (p.orderId != null) await reconcileByCiOrder(Number(p.orderId));

@@ -1,6 +1,6 @@
 // Client de l'API CryptoInfra (cartes). Serveur uniquement : la clé API ne doit jamais atteindre le navigateur.
 import { HttpError } from '../auth';
-import { warn } from '../log';
+import { error, warn } from '../log';
 export const CORE = () => process.env.CARDS_CORE_ID ?? 'core-1';
 // Réponse d'erreur du prestataire (code stable dans `code`, repris tel quel côté interface).
 export class CiError extends HttpError { constructor(status: number, code: string, public details?: unknown) { super(status, code); } }
@@ -19,6 +19,8 @@ export async function ci(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string
   const text = await r.text(); let data: any = {}; try { data = text ? JSON.parse(text) : {}; } catch { data = {}; }
   if (!r.ok) {
     warn('cards.ci_error', { method, path, status: r.status, code: data?.error });
+    if (r.status === 401) { error('cards.ci_key_rejected', { path, hint: 'CRYPTOINFRA_API_KEY refusée : vérifier la clé (ck_live_…) et son environnement' }); throw new CiError(503, 'cards_not_configured'); }
+    if (r.status === 403) error('cards.ci_account_blocked', { path, code: data?.error });
     if (r.status >= 500 && r.status !== 503) throw new CiUnknown();
     throw new CiError(r.status, String(data?.error ?? 'provider_error'), data?.details);
   }

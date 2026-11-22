@@ -44,3 +44,9 @@ describe('paiement direct USDT', () => {
     expect(v.amount).toBe('23.451234'); expect(v.kind).toBe('deposit');
   });
 });
+import { CARD_ERR } from '@/lib/cards/errors';
+describe('messages d’erreur cartes', () => {
+  it('tous les codes CryptoInfra documentés ont un message lisible', () => {
+    for (const c of ['unauthorized', 'account_paused', 'account_suspended', 'email_unverified', 'project_paused', 'project_suspended', 'user_not_found', 'holder_not_found', 'user_id_taken', 'kyc_not_approved', 'provider_rejected', 'cards_maintenance', 'rail_unfunded', 'email_taken', 'daily_limit_reached', 'card_state', 'card_issuing', 'invalid_amount', 'validation_error', 'internal_error']) expect(CARD_ERR[c], c).toBeTruthy();
+  });
+});

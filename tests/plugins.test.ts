@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '..');
 const PLUGINS: { key: PluginKey; slug: string; cst: string; pfx: string }[] = [
   { key: 'donations', slug: 'coinvera-donations', cst: 'CVD_VERSION', pfx: 'cvd' }, { key: 'invoices', slug: 'coinvera-invoices', cst: 'CVI_VERSION', pfx: 'cvi' },
   { key: 'subscriptions', slug: 'coinvera-subscriptions', cst: 'CVS_VERSION', pfx: 'cvs' }, { key: 'tickets', slug: 'coinvera-tickets', cst: 'CVT_VERSION', pfx: 'cvt' },
+  { key: 'guard', slug: 'coinvera-guard', cst: 'CVG_VERSION', pfx: 'cvg' },
 ];
 describe('registre des plugins', () => {
   it('connaît exactement les plugins testés ci-dessous', () => { expect(Object.keys(PLUGIN_VERSIONS).sort()).toEqual(PLUGINS.map(p => p.key).sort()); });

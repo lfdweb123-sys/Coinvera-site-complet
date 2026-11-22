@@ -6,7 +6,7 @@ import { postEntry, readBal, writeBal } from '../ledger';
 import { notify } from '../audit';
 import { info, warn } from '../log';
 import { byId, fmt, Cur } from '../cryptos';
-import { programme, grossUp, netOf } from './wallet';
+import { payAccount, grossUp, netOf } from './wallet';
 import { scanIncoming } from '../chains';
 import { quote, placeOrder, Spec } from './orders';
 // Paiements USDT directs (collection à part : card_pay_orders). Deux usages :
@@ -15,11 +15,11 @@ import { quote, placeOrder, Spec } from './orders';
 // Un paiement qui arrive APRÈS l'expiration (ou détecté tardivement) n'est jamais perdu : il est crédité sur le crédit cartes pendant 7 jours.
 export const CARD_PAY = ['usdttrc20', 'usdtbsc'];
 export const DEPOSIT_MIN = 5, DEPOSIT_MAX = 10_000, GRACE_MS = 7 * 24 * 3600_000, VALID_MS = 60 * 60_000;
-export const payCurrencies = async () => { const { addresses } = await programme(); return CARD_PAY.map(id => byId(id)).filter((c): c is Cur => !!c && !!addresses[c.id]).map(c => ({ id: c.id, name: c.name, net: c.net })); };
+export const payCurrencies = async (uid: string) => { const { addresses } = await payAccount(uid); return CARD_PAY.map(id => byId(id)).filter((c): c is Cur => !!c && !!addresses[c.id]).map(c => ({ id: c.id, name: c.name, net: c.net })); };
 export const payView = (id: string, o: Record<string, any>) => ({ id, status: o.status, kind: o.spec?.kind ?? 'issue', cur: o.cur, net: byId(o.cur)?.net ?? '', address: o.address, amount: fmt(BigInt(o.expected), o.decimals), amountUsd: fromUnits(o.chargeUnits), expiresAt: o.expiresAt, txid: o.txid ?? null, orderId: o.orderId ?? null, error: o.error ?? null });
 
 async function newPayOrder(uid: string, curId: string, spec: Spec | { kind: 'deposit'; amount: string }, base: { chargeUnits: number; ciTotalUnits: number; markupUnits: number }) {
-  const c = byId(curId), prog = await programme(), address = c ? prog.addresses[c.id] : undefined; if (!c || !CARD_PAY.includes(c.id) || !address) throw new HttpError(400, 'currency_unavailable');
+  const c = byId(curId), prog = await payAccount(uid), address = c ? prog.addresses[c.id] : undefined; if (!c || !CARD_PAY.includes(c.id) || !address) throw new HttpError(400, 'currency_unavailable');
   // Le prestataire retient `recharge_fee_bps` sur chaque dépôt : le montant demandé est majoré pour que le portefeuille reçoive au moins le prix net.
   const gross = grossUp(base.chargeUnits, prog.bps);
   const k = 10n ** BigInt(c.decimals - 6);     // 1 unité interne (1e-6 USD) = k unités de la monnaie

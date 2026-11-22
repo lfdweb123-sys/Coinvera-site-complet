@@ -7,6 +7,9 @@ export class CiError extends HttpError { constructor(status: number, code: strin
 // Aucune réponse exploitable (timeout, 5xx) : l'état de l'opération est INCONNU — ne jamais rembourser sur cette base.
 export class CiUnknown extends HttpError { constructor() { super(502, 'cards_provider_unreachable'); } }
 // Refus définitif : rien n'a été débité côté prestataire (400/409/503 documentés) — la réservation peut être libérée.
+// Refus documentés « rien n'a été débité, réessayez » (carte en cours de création, prestataire ou réseau momentanément indisponibles, maintenance) : on garde la réservation et on rejoue avec la même clé.
+const RETRYABLE = ['card_issuing', 'provider_unavailable', 'rail_unfunded', 'card_coins_not_on_chain', 'cards_maintenance', 'card_rail_unavailable'];
+export const isRetryable = (e: unknown) => e instanceof CiError && RETRYABLE.includes(e.code);
 export const isDefinitive = (e: unknown) => e instanceof CiError && [400, 401, 403, 404, 409, 410, 422, 429, 503].includes(e.status);
 type Q = Record<string, string | number | undefined>;
 export async function ci(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, o: { query?: Q; body?: unknown; timeoutMs?: number } = {}): Promise<{ status: number; data: any }> {

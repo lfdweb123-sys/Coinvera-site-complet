@@ -23,6 +23,7 @@ export async function registerHolder(uid: string, email: string, id: IdentityInp
     try { await holderRef(uid).create(h); } catch { h = await getHolder(uid); }   // deux demandes simultanées : on garde la première
   }
   if (h!.registered) return h!;
+  if (h!.email !== email) { h = { ...h!, email }; await holderRef(uid).update({ email }); }   // l'adresse peut être corrigée tant que le compte carte n'est pas créé (ex. email_taken)
   // Les deux appels sont idempotents côté prestataire : on peut les rejouer jusqu'à réussite. L'identité complète est renvoyée à chaque tentative (jamais stockée).
   await ci('POST', '/v1/users', { body: { external_user_id: h!.externalId } });
   try { await ci('POST', '/v1/cards/holders', { body: { user_id: h!.externalId, email: h!.email, ...toProvider(id) } }); }

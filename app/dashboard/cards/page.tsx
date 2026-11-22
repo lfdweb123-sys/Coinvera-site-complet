@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import QRCode from 'qrcode';
 import { CreditCard, Eye, Plus, Snowflake, Trash2, X, ShieldCheck, KeyRound } from 'lucide-react';
-import { api, msg, useData } from '@/lib/client';
+import { api, auth, msg, useData } from '@/lib/client';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
 const ST: Record<string, string> = { issuing: 'En création', active: 'Active', frozen: 'Gelée', suspended: 'Suspendue', closed: 'Fermée', expired: 'Expirée' };
 const OS: Record<string, string> = { reserved: 'En cours', processing: 'En cours', confirmed: 'Terminée', failed: 'Échouée' };
@@ -96,17 +96,18 @@ function CardModal({ c, onClose, onChange }: { c: any; onClose: () => void; onCh
 const COUNTRIES = 'BJ,BF,CI,CM,CD,CG,GA,GH,GN,ML,MA,NE,NG,SN,TG,TN,DZ,EG,KE,TZ,UG,RW,ZA,MG,MR,TD,CF,BI,DJ,KM,MU,FR,BE,CH,LU,CA,US,GB,DE,ES,IT,PT,NL'.split(',');
 const NAMES = new Intl.DisplayNames(['fr'], { type: 'region' });
 function Onboard({ onDone }: { onDone: () => void }) {
-  const [f, setF] = useState<Record<string, string>>({ firstName: '', lastName: '', dateOfBirth: '', phone: '', country: 'BJ', address: '', city: '', zipCode: '', state: '' }), [e, setE] = useState(''), [b, setB] = useState(false);
-  const set = (k: string) => (x: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: x.target.value });
-  const ok = ['firstName', 'lastName', 'dateOfBirth', 'phone', 'country', 'address', 'city', 'zipCode'].every(k => f[k].trim());
+  const [f, setF] = useState<Record<string, string>>({ firstName: '', lastName: '', dateOfBirth: '', phone: '', country: 'BJ', address: '', city: '', zipCode: '', state: '', email: '' }), [e, setE] = useState(''), [b, setB] = useState(false);
+  const set = (k: string) => (x: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF(p => ({ ...p, [k]: x.target.value }));
+  useEffect(() => { const m = auth.currentUser?.email; if (m) setF(p => p.email ? p : { ...p, email: m }); }, []);
+  const ok = ['firstName', 'lastName', 'email', 'dateOfBirth', 'phone', 'country', 'address', 'city', 'state', 'zipCode'].every(k => f[k].trim());
   const L = (id: string, label: string, ac: string, extra: any = {}) => <div key={id}><label htmlFor={'ob_' + id}>{label}</label><input id={'ob_' + id} className="in" autoComplete={ac} value={f[id]} onChange={set(id)} {...extra} /></div>;
-  return <form className="card stack" style={{ maxWidth: 560 }} onSubmit={async ev => { ev.preventDefault(); setE(''); setB(true); try { await api('/api/cards/holder', { method: 'POST', body: JSON.stringify({ ...f, phone: f.phone.replace(/[\s.-]/g, ''), state: f.state.trim() || undefined }) }); onDone(); } catch (x) { setE(msg(x)); } setB(false); }}>
+  return <form className="card stack" style={{ maxWidth: 560 }} onSubmit={async ev => { ev.preventDefault(); setE(''); setB(true); try { await api('/api/cards/holder', { method: 'POST', body: JSON.stringify({ ...f, phone: f.phone.replace(/[\s.-]/g, ''), state: f.state.trim() }) }); onDone(); } catch (x) { setE(msg(x)); } setB(false); }}>
     <h2 style={{ margin: 0 }}>Créer mon compte carte</h2>
     <p className="mut">L’émetteur de la carte exige votre identité complète, telle qu’elle figure sur votre pièce d’identité. Ces informations lui sont transmises directement et ne sont pas conservées par Coinvera.</p>
-    {L('firstName', 'Prénom', 'given-name')}{L('lastName', 'Nom', 'family-name')}{L('dateOfBirth', 'Date de naissance', 'bday', { type: 'date', max: new Date().toISOString().slice(0, 10) })}
+    {L('firstName', 'Prénom', 'given-name')}{L('lastName', 'Nom', 'family-name')}{L('email', 'Adresse e-mail du compte carte', 'email', { type: 'email', inputMode: 'email' })}{L('dateOfBirth', 'Date de naissance', 'bday', { type: 'date', max: new Date().toISOString().slice(0, 10) })}
     {L('phone', 'Téléphone avec indicatif international (ex. +22997000000)', 'tel', { type: 'tel', inputMode: 'tel', placeholder: '+22997000000' })}
     <div><label htmlFor="ob_country">Pays de résidence</label><select id="ob_country" className="in" autoComplete="country" value={f.country} onChange={set('country')}>{COUNTRIES.map(c => <option key={c} value={c}>{NAMES.of(c) ?? c}</option>)}</select></div>
-    {L('address', 'Adresse', 'street-address')}{L('city', 'Ville', 'address-level2')}{L('state', 'Région / État (facultatif)', 'address-level1')}{L('zipCode', 'Code postal', 'postal-code')}
+    {L('address', 'Adresse', 'street-address')}{L('city', 'Ville', 'address-level2')}{L('state', 'Région / État / Département', 'address-level1')}{L('zipCode', 'Code postal', 'postal-code')}
     <Err m={e} /><button className="btn p" disabled={b || !ok}>{b ? 'Création…' : 'Continuer'}</button></form>;
 }
 export default function Cards() {

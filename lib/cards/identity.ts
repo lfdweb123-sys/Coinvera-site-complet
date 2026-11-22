@@ -10,6 +10,6 @@ export const adult = (dob: string, now = new Date()) => {
 };
 export const Identity = z.object({
   firstName: Name, lastName: Name, dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), phone: z.string().trim().regex(/^\+[1-9]\d{6,14}$/),
-  country: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/), address: Free(128), city: Free(64), zipCode: Free(16), state: z.string().trim().max(64).optional() });
+  country: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/), address: Free(128), city: Free(64), zipCode: Free(16), state: Free(64), email: z.string().trim().toLowerCase().email().max(255).optional() });
 export type IdentityInput = z.infer<typeof Identity>;
-export const toProvider = (i: IdentityInput) => ({ first_name: i.firstName, last_name: i.lastName, phone: i.phone, date_of_birth: i.dateOfBirth, country: i.country, address: i.address, city: i.city, zip_code: i.zipCode, ...(i.state ? { state: i.state } : {}) });
+export const toProvider = (i: IdentityInput) => ({ first_name: i.firstName, last_name: i.lastName, phone: i.phone, date_of_birth: i.dateOfBirth, country: i.country, address: i.address, city: i.city, zip_code: i.zipCode, state: i.state });

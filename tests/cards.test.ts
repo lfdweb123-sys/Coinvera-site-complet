@@ -52,10 +52,10 @@ describe('messages d’erreur cartes', () => {
 });
 import { Identity, adult } from '@/lib/cards/identity';
 describe('identité du titulaire', () => {
-  const ok = { firstName: 'Jean', lastName: 'Dupont', dateOfBirth: '1990-05-17', phone: '+22997000000', country: 'bj', address: '12 rue des Cocotiers', city: 'Cotonou', zipCode: '01BP123' };
+  const ok = { firstName: 'Jean', lastName: 'Dupont', dateOfBirth: '1990-05-17', phone: '+22997000000', country: 'bj', address: '12 rue des Cocotiers', city: 'Cotonou', zipCode: '01BP123', state: 'Littoral' };
   it('accepte une identité complète (pays mis en majuscules) et refuse téléphone sans indicatif, pays invalide ou champ manquant', () => {
     expect(Identity.parse(ok).country).toBe('BJ');
-    expect(Identity.safeParse({ ...ok, phone: '0097000000' }).success).toBe(false); expect(Identity.safeParse({ ...ok, country: 'BEN' }).success).toBe(false); expect(Identity.safeParse({ ...ok, city: '' }).success).toBe(false);
+    expect(Identity.safeParse({ ...ok, phone: '0097000000' }).success).toBe(false); expect(Identity.safeParse({ ...ok, country: 'BEN' }).success).toBe(false); expect(Identity.safeParse({ ...ok, city: '' }).success).toBe(false); expect(Identity.safeParse({ ...ok, state: '' }).success).toBe(false); expect(Identity.safeParse({ ...ok, email: 'pas-un-email' }).success).toBe(false); expect(Identity.parse({ ...ok, email: ' A@B.co ' }).email).toBe('a@b.co');
   });
   it('majorité calculée au jour près', () => { const now = new Date('2026-11-22T00:00:00Z'); expect(adult('2008-11-22', now)).toBe(true); expect(adult('2008-11-23', now)).toBe(false); expect(adult('2026-02-30', now)).toBe(false); });
 });

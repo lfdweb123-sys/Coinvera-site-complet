@@ -8,7 +8,7 @@ vi.mock('@/lib/firebase-admin', () => ({ db: { doc: (path: string) => ({
   create: async (d: any) => { if (path in store) throw new Error('exists'); if (JSON.stringify(d, (_k, v) => (v === undefined ? '__undef__' : v)).includes('__undef__')) throw new Error('undefined value'); store[path] = d; },
   update: async (d: any) => { store[path] = { ...store[path], ...d }; } }) } }));
 import { registerHolder, getHolder } from '@/lib/cards/holder';
-const ID = { firstName: 'Jean', lastName: 'Dupont', dateOfBirth: '1990-05-17', phone: '+22997000000', country: 'BJ', address: '12 rue des Cocotiers', city: 'Cotonou', zipCode: '01BP123' };
+const ID = { firstName: 'Jean', lastName: 'Dupont', dateOfBirth: '1990-05-17', phone: '+22997000000', country: 'BJ', address: '12 rue des Cocotiers', city: 'Cotonou', zipCode: '01BP123', state: 'Littoral' };
 beforeEach(() => { for (const k of Object.keys(store)) delete store[k]; calls.length = 0; failAt = ''; });
 describe('création du compte carte', () => {
   it('crée l’utilisateur puis le titulaire chez le prestataire avec un identifiant de 9 chiffres', async () => {

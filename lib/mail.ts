@@ -11,8 +11,8 @@ function shell(preheader: string, title: string, inner: string) {
 <tr><td style="background:#0A1535;border-radius:16px 16px 0 0;padding:26px 32px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#2255E8;border-radius:10px;width:36px;height:36px;text-align:center;font-family:${F};font-size:20px;font-weight:700;color:#FFFFFF;line-height:36px;">C</td><td style="padding-left:12px;font-family:${F};font-size:22px;font-weight:700;color:#FFFFFF;letter-spacing:-0.5px;">Coinvera</td></tr></table></td></tr>
 <tr><td style="padding:36px 32px 12px 32px;font-family:${F};color:#0B1220;">${inner}</td></tr>
 <tr><td style="padding:8px 32px 30px 32px;font-family:${F};font-size:12px;line-height:18px;color:#64748B;border-top:1px solid #E5EAF2;">
-<p style="margin:18px 0 6px 0;">Cet e-mail vous a été envoyé par COINVERA car une action a été demandée sur votre compte. Ne communiquez jamais ce code : notre équipe ne vous le demandera jamais.</p>
-<p style="margin:0;">© ${new Date().getFullYear()} COINVERA · <a href="${SITE}" style="color:#2255E8;text-decoration:none;">www.coinvera.me</a></p></td></tr></table></td></tr></table></body></html>`;
+<p style="margin:18px 0 6px 0;">Cet e-mail vous a été envoyé par Coinvera LLC car une action a été demandée sur votre compte. Ne communiquez jamais ce code : notre équipe ne vous le demandera jamais.</p>
+<p style="margin:0;">© ${new Date().getFullYear()} Coinvera LLC · <a href="${SITE}" style="color:#2255E8;text-decoration:none;">www.coinvera.me</a></p></td></tr></table></td></tr></table></body></html>`;
 }
 export function codeEmail(p: { name: string; code: string; purpose: 'verify' | 'reset' }) {
   const verify = p.purpose === 'verify';

@@ -2,15 +2,17 @@
 import { useState } from 'react';
 import { Search } from 'lucide-react';
 import { useData } from '@/lib/client';
+import { useBulk } from '@/components/Bulk';
 import { Badge, PageHead } from '@/components/Bits';
 import DataTable from '@/components/DataTable';
 const SKIP = ['merchantId', 'processorChargeId', 'replies', 'lines', 'adminUid'];
 const fmt = (k: string, v: any) => v == null ? '—' : typeof v === 'object' ? JSON.stringify(v) : k === 'status' ? <Badge s={String(v)} /> : String(v);
 export default function AdminTable({ c, title, sub }: { c: string; title: string; sub?: string }) {
-  const { data, loading, error } = useData('/api/admin/list?c=' + c); const [q, setQ] = useState('');
+  const { data, loading, error, reload } = useData('/api/admin/list?c=' + c); const [q, setQ] = useState('');
   const all: any[] = data?.items ?? []; const keys = all[0] ? Object.keys(all[0]).filter(k => !SKIP.includes(k)).slice(0, 7) : [];
   const rows = all.filter(r => JSON.stringify(r).toLowerCase().includes(q.toLowerCase()));
-  return <div className="stack"><PageHead title={title} sub={sub} />{error && <div className="err">{error}</div>}
-    <DataTable loading={loading} rows={rows} empty="Aucune donnée" cols={keys.map(k => ({ key: k, label: k, render: (r: any) => <span style={{ display: 'inline-block', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>{fmt(k, r[k])}</span> }))}
-      toolbar={<div style={{ position: 'relative', flex: '1 1 240px' }}><Search size={16} style={{ position: 'absolute', left: 11, top: 11, color: 'var(--mut)' }} /><input className="in" style={{ paddingLeft: 34, maxWidth: 'none' }} placeholder="Rechercher" value={q} onChange={e => setQ(e.target.value)} aria-label="Recherche" /></div>} /></div>;
+  const bulk = useBulk({ c, rows, reload });
+  return <div className="stack"><PageHead title={title} sub={sub} />{error && <div className="err">{error}</div>}{bulk.status}
+    <DataTable loading={loading} rows={rows} empty="Aucune donnée" cols={[...bulk.pre, ...keys.map(k => ({ key: k, label: k, render: (r: any) => <span style={{ display: 'inline-block', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>{fmt(k, r[k])}</span> })), ...bulk.post]}
+      toolbar={<><div style={{ position: 'relative', flex: '1 1 240px' }}><Search size={16} style={{ position: 'absolute', left: 11, top: 11, color: 'var(--mut)' }} /><input className="in" style={{ paddingLeft: 34, maxWidth: 'none' }} placeholder="Rechercher" value={q} onChange={e => setQ(e.target.value)} aria-label="Recherche" /></div>{bulk.toolbar}</>} /></div>;
 }

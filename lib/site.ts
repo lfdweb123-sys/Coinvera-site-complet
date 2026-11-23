@@ -2,7 +2,7 @@ export const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.coinvera.me
 export const DOCS = 'https://docs.coinvera.me', STATUS = 'https://status.coinvera.me', API = 'https://api.coinvera.me';
 export const HELP = 'https://helpcenter.coinvera.me';
 // Réseaux sociaux affichés en bas de page (à droite). Collez simplement l'adresse complète (https://…) entre les guillemets ; aucun réglage d'environnement.
-// Un réseau laissé vide ('') n'est pas affiché ; sans aucune adresse, le texte www.coinvera.me reste affiché.
+// Tant qu'une adresse est vide (''), l'icône s'affiche quand même et renvoie vers la page Contact.
 export const SOCIALS = [
   { id: 'x', label: 'X', url: '' },
   { id: 'telegram', label: 'Telegram', url: '' },
@@ -12,4 +12,4 @@ export const SOCIALS = [
   { id: 'linkedin', label: 'LinkedIn', url: '' },
   { id: 'youtube', label: 'YouTube', url: '' },
   { id: 'github', label: 'GitHub', url: '' },
-].filter(s => /^https?:\/\//i.test(s.url));
+];

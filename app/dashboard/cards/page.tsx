@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import QRCode from 'qrcode';
 import { CopyRow } from '@/components/CopyBtn';
-import { CreditCard, Eye, Plus, Snowflake, Trash2, X, ShieldCheck, KeyRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CreditCard, Eye, Plus, Snowflake, Trash2, X, ShieldCheck, KeyRound } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
 import CardArt, { KIND_LABEL, kindOf } from '@/components/CardArt';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
@@ -14,6 +14,8 @@ const Modal = ({ title, onClose, children }: { title: string; onClose: () => voi
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [onClose]);
   return <div className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.target === e.currentTarget && onClose()}><div className="mbox wide"><div className="mh"><h2>{title}</h2><button className="mx" aria-label="Fermer" onClick={onClose}><X size={18} /></button></div>{children}</div></div>;
 };
+const Stepper = ({ steps, cur }: { steps: string[]; cur: number }) => <ol className="stp" aria-label="Progression">{steps.map((t, i) => <li key={t} className={i < cur ? 'done' : i === cur ? 'on' : ''} aria-current={i === cur ? 'step' : undefined}><span className="dot">{i < cur ? <Check size={14} /> : i + 1}</span><span className="lbl">{t}</span></li>)}</ol>;
+const Nav = ({ onBack, onNext, next = 'Continuer', disabled }: { onBack?: () => void; onNext?: () => void; next?: string; disabled?: boolean }) => <div className="sfoot">{onBack ? <button className="btn" onClick={onBack}><ArrowLeft size={15} /> Retour</button> : <span />}{onNext && <button className="btn p" disabled={disabled} onClick={onNext}>{next} <ArrowRight size={15} /></button>}</div>;
 const Err = ({ m }: { m: string }) => m ? <p className="err" role="alert">{m}</p> : null;
 function usePoll(url: string | null, done: (d: any) => boolean, every = 5000) {
   const [d, setD] = useState<any>(null);
@@ -27,11 +29,13 @@ function Wait({ orderId, onDone }: { orderId: string; onDone: () => void }) {
   if (o?.status === 'failed') return <><Err m={msg({ message: o.error })} /><p className="mut">Les fonds ont été remis sur votre solde.</p></>;
   return <p className="mut" role="status">Opération en cours : la carte est créée ou rechargée en quelques minutes. Vous pouvez fermer cette fenêtre, elle apparaîtra dans la liste.</p>;
 }
-function PayDirect({ spec, onOrder, deposit, onDone }: { spec: any; onOrder?: (id: string) => void; deposit?: boolean; onDone?: () => void }) {
+function PayDirect({ spec, onOrder, deposit, onDone, onStage }: { spec: any; onOrder?: (id: string) => void; deposit?: boolean; onDone?: () => void; onStage?: (s: 'choose' | 'pay' | 'done') => void }) {
   const cur = useData('/api/cards/pay-orders'); const [c, setC] = useState(''), [po, setPo] = useState<any>(null), [e, setE] = useState(''), [qr, setQr] = useState('');
   const live = usePoll(po ? `/api/cards/pay-orders/${po.id}` : null, r => ['fulfilled', 'failed', 'late_credited', 'closed'].includes(r.status), 8000); const p = live ?? po;
   useEffect(() => { if (p?.status === 'fulfilled' && p.orderId) onOrder?.(p.orderId); if ((p?.status === 'fulfilled' && deposit) || p?.status === 'late_credited') onDone?.(); }, [p?.status, p?.orderId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (po) QRCode.toDataURL(po.address, { margin: 1, width: 180 }).then(setQr).catch(() => {}); }, [po?.address]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stage = !po ? 'choose' : (['late_credited', 'failed', 'expired', 'closed'].includes(p.status) || (deposit && p.status === 'fulfilled')) ? 'done' : 'pay';
+  useEffect(() => { onStage?.(stage); }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
   const list = cur.data?.currencies ?? [];
   if (!po) return <div className="stack"><label htmlFor="pc">Réseau de paiement (USDT)</label>
     <select id="pc" className="in" value={c} onChange={x => setC(x.target.value)}><option value="">Choisir…</option>{list.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
@@ -47,11 +51,16 @@ function PayDirect({ spec, onOrder, deposit, onDone }: { spec: any; onOrder?: (i
     {qr && <img src={qr} alt="QR code de l’adresse de paiement" width={160} height={160} style={{ justifySelf: 'center' }} />}<p className="mut" role="status" style={{ margin: 0 }}>En attente du paiement… (vérification automatique)</p></div>;
 }
 function Deposit({ amount: a0, onClose, onDone }: { amount?: number; onClose: () => void; onDone: () => void }) {
-  const [a, setA] = useState(String(a0 && a0 >= 5 ? a0 : 20)), [go, setGo] = useState(false); const ok = AMT.test(a) && Number(a) >= 5 && Number(a) <= 10000;
-  return <Modal title="Recharger mon crédit cartes" onClose={() => { onClose(); onDone(); }}><div className="stack">
-    <p className="mut">Le crédit cartes se recharge en USDT et sert uniquement à payer vos cartes (émission et recharges). Il n’est pas retirable. Le montant crédité est exactement celui envoyé.</p>
-    {!go ? <><label htmlFor="da">Montant (USD, de 5 à 10 000)</label><input id="da" className="in" inputMode="decimal" value={a} onChange={x => setA(x.target.value)} /><button className="btn p" disabled={!ok} onClick={() => setGo(true)}>Continuer</button></> : <PayDirect spec={{ amount: Number(a).toFixed(2) }} deposit onDone={onDone} />}
-  </div></Modal>;
+  const [a, setA] = useState(String(a0 && a0 >= 5 ? a0 : 20)), [st, setSt] = useState(0), [stage, setStage] = useState<'choose' | 'pay' | 'done'>('choose'); const ok = AMT.test(a) && Number(a) >= 5 && Number(a) <= 10000;
+  const cur = st === 0 ? 0 : stage === 'choose' ? 1 : stage === 'pay' ? 2 : 3;
+  return <Modal title="Recharger mon crédit cartes" onClose={() => { onClose(); onDone(); }}><Stepper steps={['Montant', 'Réseau', 'Paiement', 'Terminé']} cur={cur} /><div className="sbody">
+    {st === 0 ? <>
+      <p className="mut" style={{ margin: 0 }}>Le crédit cartes se recharge en USDT et sert uniquement à payer vos cartes (émission et recharges). Il n’est pas retirable. Le montant crédité est exactement celui envoyé.</p>
+      <label htmlFor="da">Montant à créditer (USD, de 5 à 10 000)</label><input id="da" className="in" inputMode="decimal" autoFocus value={a} onChange={x => setA(x.target.value)} onKeyDown={x => x.key === 'Enter' && ok && setSt(1)} />
+      {!ok && a !== '' && <p className="err" role="alert">Saisissez un montant entre 5 et 10 000 USD (deux décimales au plus).</p>}</> : <>
+      {stage !== 'done' && <div className="kv"><div>Montant à créditer <b>{usd(a)}</b></div></div>}
+      <PayDirect spec={{ amount: Number(a).toFixed(2) }} deposit onDone={onDone} onStage={setStage} /></>}
+  </div>{st === 0 ? <Nav onNext={() => setSt(1)} disabled={!ok} /> : stage === 'choose' ? <Nav onBack={() => setSt(0)} /> : null}</Modal>;
 }
 function KycGate({ onOk }: { onOk: () => void }) {
   const [e, setE] = useState(''), [b, setB] = useState(false);
@@ -60,24 +69,35 @@ function KycGate({ onOk }: { onOk: () => void }) {
     <button className="btn" onClick={async () => { setE(''); try { const r = await api('/api/cards/kyc'); if (r.status === 'approved') onOk(); else setE(r.status === 'pending' || r.status === 'review' ? 'Vérification en cours d’examen, réessayez dans quelques instants.' : 'Identité non encore validée.'); } catch (x) { setE(msg(x)); } }}>J’ai terminé la vérification</button></div>;
 }
 function Checkout({ kind, product, card, kyc, minAmount, onClose, onDone, onDeposit }: any) {
-  const [amount, setAmount] = useState(String(minAmount ?? 5)), [name, setName] = useState(''), [q, setQ] = useState<any>(null), [e, setE] = useState(''), [mode, setMode] = useState<'' | 'direct'>(''), [orderId, setOrderId] = useState(''), [busy, setBusy] = useState(false), [kycOk, setKycOk] = useState(false);
+  const [amount, setAmount] = useState(String(minAmount ?? 5)), [name, setName] = useState(''), [q, setQ] = useState<any>(null), [e, setE] = useState(''), [mode, setMode] = useState<'' | 'direct'>(''), [orderId, setOrderId] = useState(''), [busy, setBusy] = useState(false), [kycOk, setKycOk] = useState(false), [st, setSt] = useState(0), [stage, setStage] = useState<'choose' | 'pay' | 'done'>('choose');
+  const [kycStart] = useState(() => kind === 'issue' && !!product.requiresKyc && kyc !== 'approved');
   const spec = { kind, ...(kind === 'issue' ? { productCode: product.code, ...(name.trim().length >= 2 ? { nameOnCard: name.trim() } : {}) } : { cardId: card.id }), amount };
-  const needKyc = kind === 'issue' && product.requiresKyc && kyc !== 'approved' && !kycOk;
+  const needKyc = kycStart && !kycOk;
   useEffect(() => { setQ(null); setE(''); if (needKyc || !AMT.test(amount) || orderId) return; const t = setTimeout(async () => { try { setQ(await api('/api/cards/quote', { method: 'POST', body: JSON.stringify(spec) })); } catch (x) { setE(msg(x)); } }, 450); return () => clearTimeout(t); }, [amount, needKyc]); // eslint-disable-line react-hooks/exhaustive-deps
   const title = kind === 'issue' ? 'Nouvelle carte virtuelle' : `Recharger la carte •••• ${card.last4 ?? ''}`;
-  return <Modal title={title} onClose={() => { onClose(); if (orderId) onDone(); }}>
-    {needKyc ? <KycGate onOk={() => setKycOk(true)} /> : orderId ? <Wait orderId={orderId} onDone={onDone} /> : <div className="stack">
-      <label htmlFor="am">{kind === 'issue' ? 'Solde d’ouverture' : 'Montant à charger'} (USD){kind === 'issue' && <> — minimum {usd(product.minOpening)}</>}</label>
-      <input id="am" className="in" inputMode="decimal" value={amount} onChange={x => setAmount(x.target.value)} />
-      {kind === 'issue' && <><label htmlFor="nm">Nom sur la carte (facultatif)</label><input id="nm" className="in" maxLength={26} value={name} onChange={x => setName(x.target.value)} placeholder="JEAN DUPONT" /></>}
-      {q && <div className="kv"><div>Montant sur la carte <b>{usd(q.amount)}</b></div><div>Frais (service et réseau){q.dynamic === false ? ' — estimation' : ''} <b>{usd(q.fees)}</b></div><div className="tot">Total à payer <b>{usd(q.total)}</b></div><div className="mut">Crédit cartes : {usd(q.credit)} · solde Coinvera : {usd(q.balance)}</div></div>}
-      <Err m={e} />
-      {q && (q.covers && mode === '' ? <><div className="btns"><button className="btn p" disabled={busy} onClick={async () => { setBusy(true); setE(''); try { setOrderId((await api('/api/cards/orders', { method: 'POST', body: JSON.stringify(spec) })).id); } catch (x) { setE(msg(x)); } setBusy(false); }}>Payer {usd(q.total)} avec mon solde</button>
-        <button className="btn" onClick={() => setMode('direct')}>Ou payer directement en USDT</button></div></> :
-        <>{!q.covers && <p role="status">Solde insuffisant : il vous manque <b>{usd(q.missing)}</b>. Rechargez votre crédit cartes en USDT, ou payez directement cette commande en USDT.</p>}
-          {!q.covers && mode === '' && <div className="btns"><button className="btn p" onClick={() => onDeposit?.(Math.max(5, Math.ceil(Number(q.missing))))}>Recharger mon crédit cartes</button><button className="btn" onClick={() => setMode('direct')}>Payer cette commande en USDT</button></div>}
-          {mode === 'direct' && <PayDirect spec={spec} onOrder={setOrderId} />}</>)}
-    </div>}</Modal>;
+  const keys = [...(kycStart ? ['kyc'] : []), 'amount', ...(kind === 'issue' ? ['name'] : []), 'recap', 'pay', 'done'], labels: Record<string, string> = { kyc: 'Identité', amount: 'Montant', name: 'Carte', recap: 'Récapitulatif', pay: 'Paiement', done: 'Confirmation' };
+  const key = orderId ? 'done' : keys[st], back = () => setSt(n => n - 1), next = () => setSt(n => n + 1);
+  const okAmount = AMT.test(amount) && Number(amount) > 0 && (kind !== 'issue' || Number(amount) >= Number(product.minOpening ?? 0));
+  return <Modal title={title} onClose={() => { onClose(); if (orderId) onDone(); }}><Stepper steps={keys.map(k => labels[k])} cur={keys.indexOf(key)} /><div className="sbody">
+    {key === 'kyc' && <KycGate onOk={() => { setKycOk(true); setSt(1); }} />}
+    {key === 'amount' && <><label htmlFor="am">{kind === 'issue' ? 'Solde d’ouverture' : 'Montant à charger'} (USD){kind === 'issue' && <> — minimum {usd(product.minOpening)}</>}</label>
+      <input id="am" className="in" inputMode="decimal" autoFocus value={amount} onChange={x => setAmount(x.target.value)} onKeyDown={x => x.key === 'Enter' && okAmount && next()} />
+      {!okAmount && amount !== '' && <p className="err" role="alert">{kind === 'issue' ? `Saisissez un montant d’au moins ${usd(product.minOpening)} (deux décimales au plus).` : 'Saisissez un montant valide (deux décimales au plus).'}</p>}</>}
+    {key === 'name' && <><label htmlFor="nm">Nom sur la carte (facultatif)</label><input id="nm" className="in" maxLength={26} autoFocus value={name} onChange={x => setName(x.target.value)} onKeyDown={x => x.key === 'Enter' && next()} placeholder="JEAN DUPONT" /><p className="mut" style={{ margin: 0 }}>Laissez vide pour utiliser le nom par défaut.</p></>}
+    {key === 'recap' && (q ? <div className="kv">{kind === 'issue' && <div>Carte <b>{product.title ?? 'Carte virtuelle'}</b></div>}{kind === 'issue' && name.trim().length >= 2 && <div>Nom sur la carte <b>{name.trim().toUpperCase()}</b></div>}<div>Montant sur la carte <b>{usd(q.amount)}</b></div><div>Frais (service et réseau){q.dynamic === false ? ' — estimation' : ''} <b>{usd(q.fees)}</b></div><div className="tot">Total à payer <b>{usd(q.total)}</b></div><div className="mut">Crédit cartes : {usd(q.credit)} · solde Coinvera : {usd(q.balance)}</div></div> : e ? <Err m={e} /> : <p className="mut" role="status">Calcul des frais en cours…</p>)}
+    {key === 'pay' && (!q ? <p className="mut" role="status">Calcul des frais en cours…</p> : <>
+      {mode === '' && <div className="kv"><div className="tot">Total à payer <b>{usd(q.total)}</b></div></div>}<Err m={e} />
+      {q.covers && mode === '' ? <div className="btns"><button className="btn p" disabled={busy} onClick={async () => { setBusy(true); setE(''); try { setOrderId((await api('/api/cards/orders', { method: 'POST', body: JSON.stringify(spec) })).id); } catch (x) { setE(msg(x)); } setBusy(false); }}>Payer {usd(q.total)} avec mon solde</button>
+        <button className="btn" onClick={() => setMode('direct')}>Ou payer directement en USDT</button></div> :
+        <>{!q.covers && mode === '' && <><p role="status" style={{ margin: 0 }}>Solde insuffisant : il vous manque <b>{usd(q.missing)}</b>. Rechargez votre crédit cartes en USDT, ou payez directement cette commande en USDT.</p>
+          <div className="btns"><button className="btn p" onClick={() => onDeposit?.(Math.max(5, Math.ceil(Number(q.missing))))}>Recharger mon crédit cartes</button><button className="btn" onClick={() => setMode('direct')}>Payer cette commande en USDT</button></div></>}
+          {mode === 'direct' && <PayDirect spec={spec} onOrder={setOrderId} onStage={setStage} />}</>}</>)}
+    {key === 'done' && <Wait orderId={orderId} onDone={onDone} />}
+  </div>
+  {key === 'amount' && <Nav onBack={st > 0 ? back : undefined} onNext={next} disabled={!okAmount} />}
+  {key === 'name' && <Nav onBack={back} onNext={next} next={name.trim() ? 'Continuer' : 'Passer'} />}
+  {key === 'recap' && <Nav onBack={back} onNext={next} next="Continuer vers le paiement" disabled={!q} />}
+  {key === 'pay' && (mode === '' ? <Nav onBack={back} /> : stage === 'choose' ? <Nav onBack={() => setMode('')} /> : null)}</Modal>;
 }
 function CardModal({ c, onClose, onChange }: { c: any; onClose: () => void; onChange: () => void }) {
   const det = useData(`/api/cards/${c.id}`), tx = useData(`/api/cards/${c.id}/transactions`); const [url, setUrl] = useState(''), [e, setE] = useState(''), [otp, setOtp] = useState<any>(null), [cq, setCq] = useState<any>(null), [busy, setBusy] = useState(false);

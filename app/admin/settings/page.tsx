@@ -1,2 +1,3 @@
 import Link from 'next/link';
-export default function S() { return <div className="card"><h1>Paramètres</h1><p className="mut">Les paramètres commerciaux (commissions, prix, limites) se modifient dans <Link href="/admin/pricing">Fees & Pricing</Link>. Les secrets d’infrastructure restent dans les variables d’environnement Vercel.</p></div>; }
+import ThemeSwitch from '@/components/ThemeSwitch';
+export default function S() { return <div className="stack"><div className="card"><h3 style={{ fontSize: 19 }}>Apparence</h3><p className="mut" style={{ margin: '6px 0 16px' }}>Clair, sombre ou thème de l’appareil (Système) — appliqué à tous les domaines Coinvera.</p><ThemeSwitch /></div><div className="card"><h1>Paramètres</h1><p className="mut">Les paramètres commerciaux (commissions, prix, limites) se modifient dans <Link href="/admin/pricing">Fees & Pricing</Link>. Les secrets d’infrastructure restent dans les variables d’environnement Vercel.</p></div></div>; }

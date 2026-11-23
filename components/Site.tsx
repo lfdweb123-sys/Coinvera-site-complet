@@ -7,6 +7,7 @@ import { LogoMark } from '@/components/Illustrations';
 import { CardLogos } from '@/components/Logos';
 import CryptoStrip from '@/components/CryptoStrip';
 import Socials from '@/components/Socials';
+import ThemeSwitch from '@/components/ThemeSwitch';
 import { useAuthUser } from '@/lib/client';
 import { DOCS, HELP, SITE, STATUS } from '@/lib/site';
 const L = [['/features', 'Fonctionnalités'], ['/cartes', 'Cartes'], ['/pricing', 'Tarification'], ['/plugins', 'Plugins'], [DOCS, 'Documentation'], ['/contact', 'Contact']];
@@ -34,5 +35,5 @@ export function Footer({ base = '' }: { base?: string }) {
     <div><h4>Entreprise</h4><ul><li><Link href={to('/contact')}>Contact</Link></li><li><a href="mailto:support@coinvera.me">support@coinvera.me</a></li><li><Link href={to('/login')}>Connexion</Link></li></ul></div>
     <div><h4>Légal</h4><ul><li><Link href={to('/terms')}>Conditions d’utilisation</Link></li><li><Link href={to('/privacy')}>Confidentialité</Link></li><li><Link href={to('/refund-policy')}>Remboursement</Link></li></ul></div></div>
     <div className="risk"><p style={{ margin: 0 }}><b style={{ color: '#fff' }}>Avertissement sur les risques.</b> Les cryptomonnaies sont volatiles et comportent des risques de perte, de changement réglementaire et de défaillance technique. Les transactions sont irréversibles. Coinvera LLC n’est pas une banque et ne fournit pas de conseil en investissement.</p>
-      <div className="bar2"><span>© {new Date().getFullYear()} Coinvera LLC. Tous droits réservés.</span><Socials /></div></div></div></footer></>;
+      <div className="bar2"><span>© {new Date().getFullYear()} Coinvera LLC. Tous droits réservés.</span><span style={{ display: 'inline-flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}><ThemeSwitch mini /><Socials /></span></div></div></div></footer></>;
 }

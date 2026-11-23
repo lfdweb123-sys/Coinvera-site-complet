@@ -16,5 +16,5 @@ export default function SwipeRow({ onDelete, children }: { onDelete: () => void;
   };
   return <div style={{ position: 'relative', overflow: 'hidden', touchAction: 'pan-y' }}>
     <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'var(--bad)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: dx > 0 ? 'flex-start' : 'flex-end', padding: '0 18px', opacity: Math.min(1, Math.abs(dx) / 80) }}><Trash2 size={18} /></div>
-    <div onTouchStart={down} onTouchMove={move} onTouchEnd={up} onTouchCancel={up} style={{ position: 'relative', background: 'var(--card, #fff)', transform: `translateX(${dx}px)`, opacity: 1 - Math.min(.6, Math.abs(dx) / 500), transition: drag ? 'none' : 'transform .18s ease, opacity .18s ease' }}>{children}</div></div>;
+    <div onTouchStart={down} onTouchMove={move} onTouchEnd={up} onTouchCancel={up} style={{ position: 'relative', background: 'var(--bg, #fff)', transform: `translateX(${dx}px)`, opacity: 1 - Math.min(.6, Math.abs(dx) / 500), transition: drag ? 'none' : 'transform .18s ease, opacity .18s ease' }}>{children}</div></div>;
 }

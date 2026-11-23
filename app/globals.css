@@ -202,3 +202,15 @@ html[data-theme=dark] img[src$=".svg"]:not(.av){filter:none}
 .theme-sw button{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--ink2);font:600 14px Inter,system-ui,sans-serif;padding:8px 14px;border-radius:9px;cursor:pointer}
 .theme-sw button[aria-pressed=true]{background:var(--brand);color:#fff}
 .theme-mini{display:inline-flex;gap:2px}.theme-mini button{width:34px;height:34px;display:inline-grid;place-items:center;border:0;border-radius:50%;background:rgba(255,255,255,.08);color:#fff;cursor:pointer}.theme-mini button[aria-pressed=true]{background:var(--brand)}
+
+/* Notifications (cloche) : les boutons du menu ne doivent pas prendre toute la largeur */
+.pop .pop-act{display:inline-block;width:auto;flex:none;padding:6px 12px;border:1px solid var(--line2);font-weight:600;white-space:nowrap}
+.pop .pop-del{display:inline-grid;place-items:center;width:34px;height:34px;flex:none;padding:0;color:var(--mut)}
+.pop .pop-del:hover{color:var(--bad)}
+@media(min-width:721px){.pop.bell{width:min(380px,86vw)}}
+/* Thème sombre : surfaces volontairement claires (QR, cartes, logos, bouton blanc) = on y remet les couleurs claires pour que leur contenu reste lisible */
+html[data-theme=dark] :is(.cc,.cl,.qr,.hv-card,.pl.full,.btn.w){--ink:#0B1220;--ink2:#334155;--mut:#64748B;--line:#E5EAF2;--bg:#fff;--bg2:#F5F8FC;--soft:#F5F8FC;color:#0B1220}
+html[data-theme=dark] .note{color:#F3D58A;border-color:#5A4515}
+html[data-theme=dark] .btn.d{border-color:#5A2A30}
+html[data-theme=dark] .spin{border-color:#2B3856;border-top-color:var(--brand)}
+html[data-theme=dark] .hv-bars i{background:#2B3856}

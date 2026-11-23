@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 const { BYBIT_API_KEY, BYBIT_API_SECRET, RELAY_SECRET } = process.env;
 const BASE = process.env.BYBIT_BASE_URL || 'https://api.bybit.com', PORT = Number(process.env.PORT || 8787), MAX_AMOUNT = Number(process.env.RELAY_MAX_AMOUNT || 500);
 if (!BYBIT_API_KEY || !BYBIT_API_SECRET || !RELAY_SECRET || RELAY_SECRET.length < 32) { console.error('Variables requises : BYBIT_API_KEY, BYBIT_API_SECRET, RELAY_SECRET (32 caractères minimum)'); process.exit(1); }
-const ROUTES = new Set(['POST /v5/asset/withdraw/create', 'GET /v5/asset/withdraw/query-record']);
+const ROUTES = new Set(['POST /v5/asset/withdraw/create', 'GET /v5/asset/withdraw/query-record', 'GET /v5/asset/coin/query-info']);
 const seen = new Map();   // signature -> expiration (anti-rejeu)
 const send = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
 async function bybit(method, path, payload) {

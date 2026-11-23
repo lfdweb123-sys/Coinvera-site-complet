@@ -28,3 +28,5 @@ async function bybit(method: 'GET' | 'POST', path: string, payload: Record<strin
 export const createWithdrawal = (w: { coin: string; chain: string; address: string; amount: string; requestId: string }) =>
   bybit('POST', '/v5/asset/withdraw/create', { ...w, timestamp: Date.now(), accountType: 'FUND', forceChain: 1 });
 export const queryWithdrawal = (withdrawID: string) => bybit('GET', '/v5/asset/withdraw/query-record', { withdrawID });
+// Réseaux et frais de retrait d'une pièce (lecture seule) : sert à facturer à l'utilisateur les frais RÉELS de Bybit.
+export const coinInfo = (coin: string) => bybit('GET', '/v5/asset/coin/query-info', { coin });

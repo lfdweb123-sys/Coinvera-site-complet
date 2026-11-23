@@ -214,3 +214,15 @@ html[data-theme=dark] .note{color:#F3D58A;border-color:#5A4515}
 html[data-theme=dark] .btn.d{border-color:#5A2A30}
 html[data-theme=dark] .spin{border-color:#2B3856;border-top-color:var(--brand)}
 html[data-theme=dark] .hv-bars i{background:#2B3856}
+
+/* Choix d'une carte : cartes cliquables avec leur visuel */
+.pick{display:grid!important;grid-template-columns:210px 1fr;gap:18px;align-items:center;text-align:left;cursor:pointer;width:100%;font:inherit;color:inherit;transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease}
+.pick:hover,.pick:focus-visible{border-color:var(--brand);box-shadow:var(--sh);transform:translateY(-2px);outline:none}
+.pick .pk-t{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px}.pick .pk-go{margin-top:10px;color:var(--brand);font-weight:600;font-size:14px}
+@media(max-width:560px){.pick{grid-template-columns:1fr}}
+.cart{position:relative;aspect-ratio:1.586;width:100%;max-width:230px;border-radius:14px;padding:14px 16px;color:#fff;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 8px 20px rgba(10,21,53,.25);overflow:hidden;font-family:Inter,system-ui,sans-serif}
+.cart:after{content:"";position:absolute;right:-30%;top:-40%;width:90%;aspect-ratio:1;border-radius:50%;background:rgba(255,255,255,.10)}
+.cart-virtual{background:linear-gradient(135deg,#1A43C0,#5B86FF)}.cart-contactless{background:linear-gradient(135deg,#0A1535,#0E9F6E)}.cart-platinum{background:linear-gradient(135deg,#171C2B,#5E6882 60%,#B9C2D6)}
+.cart-top,.cart-bot{display:flex;justify-content:space-between;align-items:center;position:relative;z-index:1}
+.cart-chip{width:34px;height:26px;border-radius:6px;background:linear-gradient(135deg,#F5D98B,#C99A2E)}.cart-tag,.cart-name{font-size:11px;letter-spacing:.14em;font-weight:700;opacity:.9}
+.cart-num{font:600 15px 'SF Mono',Menlo,Consolas,monospace;letter-spacing:.08em;position:relative;z-index:1}.cart-visa{font:italic 800 20px Manrope,Arial,sans-serif;letter-spacing:.02em}

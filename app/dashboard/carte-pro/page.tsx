@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import { CopyRow } from '@/components/CopyBtn';
 import { CreditCard, Eye, Plus, Snowflake, Trash2, X, ShieldCheck, KeyRound, Wallet } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
+import CardArt, { KIND_LABEL, kindOf } from '@/components/CardArt';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
 // Virtuals cards pro : cartes Visa émises via ScarabPay, entièrement séparées des cartes virtuelles (/dashboard/cards). Le nom du prestataire n'apparaît jamais à l'écran.
 const ST: Record<string, string> = { pending: 'En création', active: 'Active', frozen: 'Gelée', terminated: 'Fermée', expired: 'Expirée', failed: 'Échouée' };
@@ -172,7 +173,7 @@ function CardModal({ c, onClose, onChange }: { c: any; onClose: () => void; onCh
 function IssuePicker({ products, mode, onClose, onDone }: any) {
   const [p, setP] = useState<any>(products.length === 1 ? products[0] : null);
   if (p) return <Checkout kind="issue" product={p} mode={mode} minAmount={p.minInitial} onClose={onClose} onDone={onDone} />;
-  return <Modal title="Choisir une carte" onClose={onClose}><div className="stack">{products.map((x: any) => <button key={x.id} className="card" style={{ textAlign: 'left' }} onClick={() => setP(x)}><b>{x.name}</b><br /><span className="mut">{x.description}</span><br /><span className="mut">Dès {usd(x.issueTotalAtMin)} (frais inclus) · recharge : {usd(x.rechargeFeeAt100)} de frais pour 100 $</span></button>)}</div></Modal>;
+  return <Modal title="Choisir une carte" onClose={onClose}><div className="stack">{products.map((x: any) => <button key={x.id} type="button" className="card pick" onClick={() => setP(x)}><CardArt name={x.name ?? ''} /><span><span className="pk-t"><b style={{ fontSize: 17 }}>{x.name}</b><span className="badge info">{KIND_LABEL[kindOf(x.name ?? '')]}</span></span><span className="mut">{x.description}</span><br /><span className="mut">Dès {usd(x.issueTotalAtMin)} (frais inclus) · recharge : {usd(x.rechargeFeeAt100)} de frais pour 100 $</span><br /><span className="pk-go">Choisir cette carte →</span></span></button>)}</div></Modal>;
 }
 export default function CartePro() {
   const d = useData('/api/scarab'); const [m, setM] = useState<any>(null); const reload = d.reload; const pr = useData('/api/scarab/products');

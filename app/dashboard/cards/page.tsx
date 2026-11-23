@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import { CopyRow } from '@/components/CopyBtn';
 import { CreditCard, Eye, Plus, Snowflake, Trash2, X, ShieldCheck, KeyRound } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
+import CardArt, { KIND_LABEL, kindOf } from '@/components/CardArt';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
 const ST: Record<string, string> = { issuing: 'En création', active: 'Active', frozen: 'Gelée', suspended: 'Suspendue', closed: 'Fermée', expired: 'Expirée' };
 const OS: Record<string, string> = { reserved: 'En cours', processing: 'En cours', confirmed: 'Terminée', failed: 'Échouée' };
@@ -143,5 +144,5 @@ export default function Cards() {
 function IssuePicker({ products, kyc, onClose, onDone, onDeposit }: any) {
   const [p, setP] = useState<any>(products.length === 1 ? products[0] : null);
   if (p) return <Checkout kind="issue" product={p} kyc={kyc} minAmount={p.minOpening} onClose={onClose} onDone={onDone} onDeposit={onDeposit} />;
-  return <Modal title="Choisir une carte" onClose={onClose}><div className="stack">{products.map((x: any) => <button key={x.code} className="card" style={{ textAlign: 'left' }} onClick={() => setP(x)}><b>{x.title}</b> {x.brand ?? ''}<br /><span className="mut">Dès {usd(x.issueTotalAtMin)} (frais inclus){x.requiresKyc ? ' · vérification d’identité requise' : ''}</span></button>)}</div></Modal>;
+  return <Modal title="Choisir une carte" onClose={onClose}><div className="stack">{products.map((x: any) => <button key={x.code} type="button" className="card pick" onClick={() => setP(x)}><CardArt name={x.title ?? ''} /><span><span className="pk-t"><b style={{ fontSize: 17 }}>{x.title}</b> {x.brand ?? ''}<span className="badge info">{KIND_LABEL[kindOf(x.title ?? '')]}</span></span><span className="mut">Dès {usd(x.issueTotalAtMin)} (frais inclus){x.requiresKyc ? ' · vérification d’identité requise' : ''}</span><br /><span className="pk-go">Choisir cette carte →</span></span></button>)}</div></Modal>;
 }

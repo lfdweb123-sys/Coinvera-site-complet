@@ -11,7 +11,7 @@ import { programme } from './wallet';
 // avec un minimum pour limiter les petits retraits, et des plafonds par retrait et par jour : au-delà, rien n'est envoyé et l'erreur est journalisée.
 // Alerte e-mail (support + adresse de secours) quand l'alimentation automatique ne peut pas se faire : le virement Bybit se fait alors à la main. Une alerte par cause (et par jour pour les causes globales).
 const ALERT_TO = () => [...new Set([process.env.SUPPORT_EMAIL, ...(process.env.REFILL_ALERT_EMAILS ?? 'gerardfreelancer123@gmail.com').split(',')].map(x => (x ?? '').trim()).filter(Boolean))];
-async function alertRefill(key: string, subject: string, lines: string[]) {
+export async function alertRefill(key: string, subject: string, lines: string[]) {
   try { await db.doc(`card_refill_alerts/${key}`).create({ at: Date.now(), subject }); } catch { return; }   // déjà envoyée
   if (!process.env.BREVO_API_KEY) { warn('cards.refill_alert_not_sent', { subject }); return; }
   const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:22px;color:#0B1220"><h2 style="margin:0 0 12px 0">${esc(subject)}</h2>${lines.map(l => `<p style="margin:0 0 8px 0">${esc(l)}</p>`).join('')}</div>`;

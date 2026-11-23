@@ -10,6 +10,7 @@ import { scarabSettings, pricingOf } from './settings';
 import { categoryOf, customerFee, liveCost, centsToUnits, centsToUsd, Kind } from './pricing';
 import { productOf, wallet, needsCustomer } from './catalog';
 import { requireApprovedCustomer } from './customers';
+import { ensureScarabFunds } from './refill';
 import { ownedCard, saveCard, cardRef, cardPatch, liveCount, refreshCard } from './cards';
 
 export type Spec = { kind: Kind; productId?: string; cardId?: string; amount: string; nameOnCard?: string };
@@ -45,7 +46,7 @@ export async function quote(uid: string, spec: Spec) {
   // Garde-fou : on ne vend jamais à perte, quel que soit le plan ScarabPay.
   if (feeMinor < costFeeMinor) { logError('scarab.price_below_cost', { productId: product.id, kind: spec.kind, feeMinor, costFeeMinor }); throw new HttpError(503, 'scarab_price_below_cost'); }
   // Le portefeuille du programme paie la carte : trop bas, on le dit avant de débiter l'utilisateur.
-  if (w.availableMinor < amountMinor + costFeeMinor) { warn('scarab.wallet_low', { availableMinor: w.availableMinor, needed: amountMinor + costFeeMinor }); throw new HttpError(503, 'scarab_unavailable'); }
+  if (w.availableMinor < amountMinor + costFeeMinor) { warn('scarab.wallet_low', { availableMinor: w.availableMinor, needed: amountMinor + costFeeMinor }); void ensureScarabFunds((amountMinor + costFeeMinor) / 100).catch(() => {}); throw new HttpError(503, 'scarab_unavailable'); }
   return { spec, productName: String(product.name ?? ''), amountMinor, feeMinor, costFeeMinor, customerId, chargeUnits: centsToUnits(amountMinor + feeMinor) };
 }
 export const quoteView = (q: Quote) => ({ kind: q.spec.kind, amount: centsToUsd(q.amountMinor), fees: centsToUsd(q.feeMinor), total: centsToUsd(q.amountMinor + q.feeMinor) });

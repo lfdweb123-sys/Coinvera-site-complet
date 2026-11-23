@@ -6,6 +6,7 @@ import { toUnits } from './money';
 import { getSettings } from './settings';
 import { validAddress } from './address';
 import { OPT, feeOf } from './payout-options';
+import { withdrawFeeUsd } from './bybit-fees';
 import { info, warn } from './log';
 // Cree une demande de retrait : valide l'adresse (somme de controle), reserve les fonds, met en file. Utilise par le retrait manuel ET automatique.
 export async function requestWithdrawal(uid: string, p: { chain: string; address: string; amountUnits: number; auto?: boolean }) {
@@ -13,7 +14,7 @@ export async function requestWithdrawal(uid: string, p: { chain: string; address
   const o = OPT[p.chain]; if (!o) throw new HttpError(400, 'unsupported_coin_or_network');
   const address = p.address.trim();
   if (!validAddress(p.chain, address)) { warn('withdraw.invalid_address', { merchantId: uid, chain: p.chain, address }); throw new HttpError(400, 'invalid_address'); }
-  const fee = toUnits(feeOf(s as any, o)), amt = p.amountUnits;
+  const fee = toUnits((await withdrawFeeUsd(o, feeOf(s as any, o))).usd), amt = p.amountUnits;   // frais réels de Bybit, payés par l'utilisateur
   if (amt < toUnits(s.minWithdrawalUsd) || amt > toUnits(s.maxWithdrawalUsd) || amt <= fee) throw new HttpError(400, 'amount_out_of_limits');
   const ref = db.collection('withdrawals').doc();
   await db.runTransaction(async tx => {

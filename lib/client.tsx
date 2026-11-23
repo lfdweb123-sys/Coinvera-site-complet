@@ -4,7 +4,7 @@ import { SCARAB_ERR } from './scarab/errors';
 import React from "react";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signOut, User } from 'firebase/auth';
 const app = getApps()[0] ?? initializeApp({ apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'missing-key', authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID });
 export const auth = getAuth(app);
@@ -46,3 +46,11 @@ export async function pub(path: string, body: unknown) {
 }
 export const IDLE_KEY = 'cv_last_activity';
 export const touchSession = () => { try { localStorage.setItem(IDLE_KEY, String(Date.now())); } catch {} };
+// Déconnexion totale : le serveur révoque d'abord TOUS les jetons de l'utilisateur (le jeton actuel est refusé immédiatement, y compris s'il avait été copié ailleurs),
+// puis la session locale est effacée. Même sans réseau, la session locale est toujours fermée.
+export async function logout() {
+  try { const t = await auth.currentUser?.getIdToken(); if (t) await fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: `Bearer ${t}` }, keepalive: true }); } catch {}
+  try { await signOut(auth); } catch {}
+  try { localStorage.removeItem(IDLE_KEY); Object.keys(localStorage).filter(k => k.startsWith('firebase:')).forEach(k => localStorage.removeItem(k)); } catch {}
+  try { indexedDB.deleteDatabase('firebaseLocalStorageDb'); } catch {}
+}

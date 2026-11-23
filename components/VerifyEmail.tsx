@@ -1,9 +1,8 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signOut } from 'firebase/auth';
 import { MailCheck } from 'lucide-react';
-import { api, auth, msg, useAuthUser } from '@/lib/client';
+import { api, auth, logout, msg, useAuthUser } from '@/lib/client';
 import AuthShell from '@/components/AuthShell';
 import OtpInput from '@/components/OtpInput';
 import { PageLoader } from '@/components/Loader';
@@ -19,7 +18,7 @@ export default function VerifyEmail() {
     catch (e) { setErr(msg(e)); setCode(''); } setBusy(false); }
   if (!ready || !user || user.emailVerified) return <PageLoader full />;
   return <AuthShell title="Vérifiez votre e-mail" sub={<>Nous avons envoyé un code à 6 chiffres à <b style={{ color: 'var(--ink)' }}>{mask(user.email ?? '')}</b>. Saisissez-le ci-dessous pour activer votre compte.</>}
-    foot={<p className="mut" style={{ textAlign: 'center', marginTop: 22 }}>Mauvaise adresse ? <a href="#" onClick={async e => { e.preventDefault(); await signOut(auth); r.replace('/register'); }} style={{ fontWeight: 600 }}>Recommencer</a></p>}>
+    foot={<p className="mut" style={{ textAlign: 'center', marginTop: 22 }}>Mauvaise adresse ? <a href="#" onClick={async e => { e.preventDefault(); await logout(); r.replace('/register'); }} style={{ fontWeight: 600 }}>Recommencer</a></p>}>
     <div className="ic" style={{ margin: '0 0 18px' }}><MailCheck size={24} /></div>
     <OtpInput value={code} onChange={setCode} onComplete={verify} disabled={busy} invalid={!!err} />
     {err && <div className="err" role="alert" style={{ marginTop: 12 }}>{err}</div>}{ok && <div className="okm" style={{ marginTop: 12 }}>{ok}</div>}

@@ -176,3 +176,15 @@ body:has(.modal){overflow:hidden}
 .ai-hist{padding:12px;display:flex;flex-direction:column;gap:8px}.ai-hi{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.ai-hi.cur{border-color:var(--brand)}.ai-hi-b{flex:1;min-width:0;text-align:left;border:0;background:transparent;padding:10px 12px;cursor:pointer;font:inherit}.ai-hi-b b{display:block;font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ai-hi-b span{font-size:12px;color:var(--mut)}.ai-hi-b:hover{background:var(--brandsoft)}.ai-hi-d{border:0;border-left:1px solid var(--line);background:transparent;color:var(--bad);width:42px;cursor:pointer;display:grid;place-items:center}.ai-hi-d:hover{background:var(--badsoft)}
 @media(max-width:560px){.ai-btn-t{display:none}.ai-btn{width:38px;padding:0;justify-content:center}.ai-panel,.ai-panel.big{inset:0;width:100%;height:100dvh;border-radius:0;border:0}.ai-zoom{display:none!important}.ai-f textarea{font-size:16px}}
 @media(prefers-reduced-motion:reduce){.ai-panel,.ai-btn,.ai-dots i{animation:none;transition:none}}
+
+/* Bandeau crypto avant le pied de page + icônes des réseaux sociaux */
+.cstrip{background:linear-gradient(180deg,#fff 0%,var(--soft) 100%);border-top:1px solid var(--line);padding:clamp(40px,6vw,72px) var(--px)}
+.cs-in{max-width:1180px;margin:0 auto;display:grid;gap:28px;justify-items:center;text-align:center}
+.cs-eyebrow{display:inline-block;font:700 12px Inter,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--brand);background:var(--brandsoft);padding:6px 12px;border-radius:999px}
+.cs-head h2{font-size:clamp(24px,3.4vw,36px);margin:14px 0 8px}.cs-head p{margin:0 auto;max-width:560px;color:var(--mut)}
+.cs-bybit{display:inline-flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:center;background:#0B1220;color:#fff;border-radius:16px;padding:14px 24px;box-shadow:var(--sh)}.cs-bybit span{font-size:13px;opacity:.75}
+.cs-coins{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+.cs-coin{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 18px 8px 8px;box-shadow:0 1px 2px rgba(15,23,42,.04);transition:transform .15s ease,box-shadow .15s ease}
+.cs-coin:hover{transform:translateY(-2px);box-shadow:var(--sh)}.cs-coin span{display:grid;text-align:left;line-height:1.2}.cs-coin b{font-size:14px}.cs-coin small{font-size:12px;color:var(--mut)}
+.soc{display:inline-grid;place-items:center;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.08);color:#fff;transition:background .15s ease,transform .15s ease}.soc:hover{background:var(--brand);transform:translateY(-2px)}
+@media(max-width:560px){.cs-coin{padding-right:14px}.cs-bybit{padding:12px 18px}}

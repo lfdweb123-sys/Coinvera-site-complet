@@ -17,6 +17,7 @@ const F = [
 ] as const;
 const STEPS = [['Créez votre compte et activez-le', 'Un seul paiement unique : la licence du plugin est incluse.'], ['Installez le fichier ZIP dans WordPress', 'Extensions → Ajouter → Téléverser, puis activez.'], ['Saisissez votre licence et vos clés API', 'Dons Coinvera → Réglages. Les clés secrètes sont stockées chiffrées.'], ['Créez une cagnotte et collez son shortcode', 'Les dons sont confirmés automatiquement et apparaissent dans la liste.']];
 const FAQ = [
+  ['Une vérification d’identité est-elle demandée ?', 'Non. Aucune vérification d’identité (KYC) n’est demandée pour créer un compte Coinvera, utiliser ce plugin, encaisser des paiements ou retirer vos fonds. Seule exception : les cartes virtuelles, dont l’émetteur partenaire exige l’identité du titulaire.'],
   ['Faut-il WooCommerce ?', 'Non, mais il est pris en charge. Sans WooCommerce, le don est payé directement par carte via Coinvera. Avec WooCommerce, le don passe par le panier et la passerelle de votre choix (Coinvera inclus). WordPress 5.8 et plus, PHP 7.4 et plus.'],
   ['Comment fonctionne le mode WooCommerce ?', 'Le formulaire ajoute un produit « Don » masqué au panier. Le don est compté dans la cagnotte quand la commande est en cours ou terminée, et retiré si elle est annulée, échouée ou remboursée. La boutique doit être en USD.'],
   ['Faut-il une deuxième licence ?', 'Non. C’est la même licence que le plugin WooCommerce, incluse dans l’activation de votre compte. Elle s’active par site : les deux plugins peuvent cohabiter sur le même site.'],

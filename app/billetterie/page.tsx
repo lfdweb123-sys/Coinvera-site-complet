@@ -13,6 +13,7 @@ const F = [
 ] as const;
 const STEPS = [['Créez votre compte et activez-le', 'Un seul paiement unique : la licence du plugin est incluse.'], ['Installez le fichier ZIP dans WordPress', 'Extensions → Ajouter → Téléverser, puis activez.'], ['Saisissez licence et clés API, créez un événement', 'Billetterie Coinvera → Réglages puis Événements. Le webhook se configure automatiquement.'], ['Placez la vitrine et contrôlez les entrées', 'Vos équipes ouvrent la page de contrôle sur leur téléphone le jour J.']] as const;
 const FAQ = [
+  ['Une vérification d’identité est-elle demandée ?', 'Non. Aucune vérification d’identité (KYC) n’est demandée pour créer un compte Coinvera, utiliser ce plugin, encaisser des paiements ou retirer vos fonds. Seule exception : les cartes virtuelles, dont l’émetteur partenaire exige l’identité du titulaire.'],
   ['Peut-on vendre plus de billets que la capacité ?', 'Non. La jauge est garantie : chaque réservation recompte les places sous verrou. Si un paiement arrive après la libération des places et que l’événement est complet, la commande est signalée « à vérifier » pour un remboursement manuel.'],
   ['Faut-il WooCommerce ?', 'Non. Le plugin fonctionne seul sur WordPress 5.8 et plus, PHP 7.4 et plus.'],
   ['Faut-il une licence supplémentaire ?', 'Non. C’est la même licence que les autres plugins Coinvera, incluse dans l’activation de votre compte.'],

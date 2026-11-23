@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { adminAuth, db } from '@/lib/firebase-admin';
-import { fail, HttpError, requireSuper } from '@/lib/auth';
+import { fail, HttpError, requireAdmin, requireSuper } from '@/lib/auth';
+import { removeTransaction, TX_SUCCESS } from '@/lib/records';
 import { audit } from '@/lib/audit';
 import { rateLimit } from '@/lib/ratelimit';
 // Suppression d'une ou plusieurs lignes des listes du tableau de bord admin. Réservée à l'administrateur principal, journalisée.
@@ -8,7 +9,7 @@ import { rateLimit } from '@/lib/ratelimit';
 type Guard = (d: Record<string, any>) => string | null;
 const TERMINAL_WD = ['completed', 'failed'], DONE_ORDER = ['confirmed', 'expired', 'failed', 'cancelled', 'canceled', 'fulfilled', 'refunded'];
 const LISTS: Record<string, Guard> = {
-  transactions: () => null,
+  transactions: d => TX_SUCCESS.includes(String(d.status)) ? 'transaction_successful' : null,   // une transaction réussie n'est jamais supprimable
   withdrawals: d => TERMINAL_WD.includes(d.status) ? null : 'withdrawal_in_progress',
   balances: d => (d.available ?? 0) === 0 && (d.reserved ?? 0) === 0 ? null : 'balance_not_zero',
   api_keys: () => null, api_activations: () => null, notifications: () => null, audit_logs: () => null, woocommerce_licenses: () => null, support_tickets: () => null, webhook_events: () => null, connections: () => null,
@@ -32,9 +33,30 @@ export async function DELETE(req: Request) {
       if (id.includes('/')) continue;
       const ref = db.doc(`${b.c}/${id}`); const s = await ref.get(); if (!s.exists) continue;
       const why = guard(s.data()!); if (why) { skipped.push({ id, reason: why }); continue; }
-      try { if (b.c === 'merchants') await removeMerchant(id); else await ref.delete(); deleted++; ok.push(id); } catch (e) { skipped.push({ id, reason: (e as HttpError).code ?? 'error' }); }
+      try { if (b.c === 'merchants') await removeMerchant(id); else if (b.c === 'transactions') await removeTransaction(id, s.data()!); else await ref.delete(); deleted++; ok.push(id); } catch (e) { skipped.push({ id, reason: (e as HttpError).code ?? 'error' }); }
     }
     await audit(u.uid, 'records.deleted', { collection: b.c, count: deleted, skipped: skipped.length, ids: ok.slice(0, 50) });
     return Response.json({ ok: true, deleted, skipped });
+  } catch (e) { return e instanceof z.ZodError ? Response.json({ error: 'invalid_request' }, { status: 400 }) : fail(e); }
+}
+// Révocation en masse (clés API, licences) et suspension / réactivation en masse (marchands). Réservée aux administrateurs ; journalisée.
+export async function POST(req: Request) {
+  try { const u = await requireAdmin(req); await rateLimit('recrev_' + u.uid, 60, 3600);
+    const b = z.object({ c: z.enum(['api_keys', 'woocommerce_licenses', 'merchants']), ids: z.array(z.string().min(1).max(200)).min(1).max(500), action: z.enum(['revoke', 'suspend', 'reactivate']) }).parse(await req.json());
+    if ((b.c === 'merchants') !== (b.action !== 'revoke')) throw new HttpError(400, 'invalid_request');
+    let done = 0; const skipped: { id: string; reason: string }[] = [];
+    for (const id of [...new Set(b.ids)]) {
+      if (id.includes('/')) continue; const ref = db.doc(`${b.c}/${id}`); const s = await ref.get(); if (!s.exists) continue;
+      try {
+        if (b.c === 'merchants') {
+          if ((await db.doc(`admins/${id}`).get()).exists) { skipped.push({ id, reason: 'protected_admin' }); continue; }
+          const status = b.action === 'suspend' ? 'suspended' : 'active'; await adminAuth.updateUser(id, { disabled: status === 'suspended' }); await ref.update({ status, updatedAt: new Date() });
+          if (status === 'suspended') await adminAuth.revokeRefreshTokens(id);
+        } else if (s.data()!.status !== 'revoked') await ref.update({ status: 'revoked', revokedAt: new Date() });
+        done++;
+      } catch { skipped.push({ id, reason: 'error' }); }
+    }
+    await audit(u.uid, 'records.' + b.action, { collection: b.c, count: done, skipped: skipped.length, ids: b.ids.slice(0, 50) });
+    return Response.json({ ok: true, done, skipped });
   } catch (e) { return e instanceof z.ZodError ? Response.json({ error: 'invalid_request' }, { status: 400 }) : fail(e); }
 }

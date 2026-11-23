@@ -1,9 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { signOut } from 'firebase/auth';
 import QRCode from 'qrcode';
 import { Building2, CheckCircle2, Copy, Eye, KeyRound, Lock, Mail, ShieldCheck, Smartphone } from 'lucide-react';
-import { api, auth, msg, pub, useData } from '@/lib/client';
+import { api, auth, logout, msg, pub, useData } from '@/lib/client';
 import { PageHead } from '@/components/Bits';
 import { CardLogos } from '@/components/Logos';
 import OtpInput from '@/components/OtpInput';
@@ -20,7 +19,7 @@ export default function Profile() {
   const on2 = !!me.data?.twoFactor;
   async function save(ev: React.FormEvent) { ev.preventDefault(); setM(''); setE(''); setBusy(true); try { await api('/api/profile', { method: 'PUT', body: JSON.stringify({ company: name, storeUrl: url }) }); setM('Modifications enregistrées.'); reload(); } catch (x) { setE(msg(x)); } setBusy(false); }
   async function sendPw() { setPwErr(''); setPwBusy(true); try { await pub('/api/auth/reset-request', { email: p.email }); setPwStep('code'); } catch (x) { setPwErr(msg(x)); } setPwBusy(false); }
-  async function savePw(ev: React.FormEvent) { ev.preventDefault(); setPwErr(''); setPwBusy(true); try { await pub('/api/auth/reset-confirm', { email: p.email, code: pwCode, password: pw }); await signOut(auth); location.assign('/login'); } catch (x) { setPwErr(msg(x)); setPwBusy(false); } }
+  async function savePw(ev: React.FormEvent) { ev.preventDefault(); setPwErr(''); setPwBusy(true); try { await pub('/api/auth/reset-confirm', { email: p.email, code: pwCode, password: pw }); await logout(); location.assign('/login'); } catch (x) { setPwErr(msg(x)); setPwBusy(false); } }
   async function start2fa() { setTErr(''); setTBusy(true); try { setSetup(await api('/api/2fa/setup', { method: 'POST' })); } catch (x) { setTErr(msg(x)); } setTBusy(false); }
   async function enable(c: string) { setTBusy(true); setTErr(''); try { await api('/api/2fa/enable', { method: 'POST', body: JSON.stringify({ code: c }) }); setSetup(null); setTc(''); me.reload(); } catch (x) { setTErr(msg(x)); setTc(''); } setTBusy(false); }
   async function disable(c: string) { setTBusy(true); setTErr(''); try { await api('/api/2fa/disable', { method: 'POST', body: JSON.stringify({ code: c }) }); setDis(false); setTc(''); me.reload(); } catch (x) { setTErr(msg(x)); setTc(''); } setTBusy(false); }
@@ -42,7 +41,7 @@ export default function Profile() {
             <div className="in" style={{ marginTop: 12, color: 'var(--mut)', display: 'flex', alignItems: 'center' }}>•••• •••• •••• 4242</div><div className="g2" style={{ marginTop: 10, gap: 10 }}><div className="in" style={{ color: 'var(--mut)', display: 'flex', alignItems: 'center' }}>12 / 28</div><div className="in" style={{ color: 'var(--mut)', display: 'flex', alignItems: 'center' }}>CVC •••</div></div><div className="hv-btn" style={{ borderRadius: 10 }}>Payer 49,00 $</div></div></div></div></div>}
     {tab === 'password' && <div className="g2"><div className="card"><h3 style={{ fontSize: 19 }}>Changer le mot de passe</h3>{pwStep === 'idle' ? <><p className="mut" style={{ margin: '6px 0 16px' }}>Nous envoyons un code à 6 chiffres à <b>{p?.email}</b> pour confirmer le changement.</p>{pwErr && <div className="err">{pwErr}</div>}<button className="btn p" onClick={sendPw} disabled={pwBusy}>{pwBusy ? 'Envoi…' : 'Envoyer le code par e-mail'}</button></> :
         <form onSubmit={savePw}><p className="mut" style={{ margin: '6px 0 14px' }}>Saisissez le code reçu puis votre nouveau mot de passe.</p><OtpInput value={pwCode} onChange={setPwCode} invalid={!!pwErr} /><label htmlFor="np">Nouveau mot de passe</label><input id="np" className="in" type="password" required minLength={8} value={pw} onChange={ev => setPw(ev.target.value)} autoComplete="new-password" />{pwErr && <div className="err" role="alert">{pwErr}</div>}<button className="btn p" style={{ marginTop: 16 }} disabled={pwBusy || pwCode.length < 6}>{pwBusy ? 'Enregistrement…' : 'Modifier le mot de passe'}</button></form>}</div>
-      <div className="card"><h3 style={{ fontSize: 19 }}>Session</h3><p className="mut" style={{ margin: '6px 0 16px' }}>Déconnectez-vous de cet appareil.</p><button className="btn d" onClick={() => signOut(auth).then(() => location.assign('/login'))}>Se déconnecter</button></div></div>}
+      <div className="card"><h3 style={{ fontSize: 19 }}>Session</h3><p className="mut" style={{ margin: '6px 0 16px' }}>Déconnectez-vous de cet appareil.</p><button className="btn d" onClick={() => logout().then(() => location.assign('/login'))}>Se déconnecter</button></div></div>}
     {tab === '2fa' && <div className="g2" style={{ alignItems: 'start' }}>
       <div className="card"><div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 10 }}><div className="ic" style={{ margin: 0 }}><Smartphone size={22} /></div><div><h3 style={{ fontSize: 19 }}>Authentification à deux facteurs</h3><p className="mut" style={{ margin: 0 }}>Protégez votre compte avec un code temporaire.</p></div></div>
         {on2 ? <><p><span className="badge ok">Activée</span></p><p className="mut">Un code de votre application d’authentification est demandé à chaque connexion.</p>

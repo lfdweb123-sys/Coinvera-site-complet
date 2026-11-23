@@ -13,6 +13,7 @@ const F = [
 ] as const;
 const STEPS = [['Créez votre compte et activez-le', 'Un seul paiement unique : la licence du plugin est incluse.'], ['Installez le fichier ZIP dans WordPress', 'Extensions → Ajouter → Téléverser, puis activez.'], ['Saisissez licence et clés API, créez un plan', 'Abonnements Coinvera → Réglages puis Plans. Le webhook se configure automatiquement.'], ['Placez le formulaire et réservez vos contenus', 'Les accès suivent les paiements : actifs, délai de grâce, puis expirés.']] as const;
 const FAQ = [
+  ['Une vérification d’identité est-elle demandée ?', 'Non. Aucune vérification d’identité (KYC) n’est demandée pour créer un compte Coinvera, utiliser ce plugin, encaisser des paiements ou retirer vos fonds. Seule exception : les cartes virtuelles, dont l’émetteur partenaire exige l’identité du titulaire.'],
   ['Les cartes sont-elles prélevées automatiquement ?', 'Non. Les paiements Coinvera sont des paiements uniques : à chaque échéance, le membre reçoit un lien et paie par carte. Tant que la période est payée, l’accès reste ouvert ; sinon il expire après le délai de grâce.'],
   ['Faut-il WooCommerce ?', 'Non. Le plugin fonctionne seul sur WordPress 5.8 et plus, PHP 7.4 et plus.'],
   ['Faut-il une licence supplémentaire ?', 'Non. C’est la même licence que les autres plugins Coinvera, incluse dans l’activation de votre compte.'],

@@ -7,6 +7,7 @@ export async function GET(req: Request) {
     if (!(c in OK)) throw new HttpError(400, 'unknown_collection');
     const q = OK[c] ? db.collection(c).orderBy('createdAt', 'desc') : db.collection(c);
     let items: any[] = rows(await q.limit(1000).get());
+    if (c === 'transactions') items = items.filter(t => !t.hidden);   // transactions en attente supprimées : masquées, jamais effacées (voir lib/records.ts)
     if (c === 'merchants') { const ad = new Set((await db.collection('admins').get()).docs.map(d => d.id)); items = items.filter(m => !ad.has(m.id)); }   // un admin n'est jamais un marchand
     return Response.json({ items });
   } catch (e) { return fail(e); }

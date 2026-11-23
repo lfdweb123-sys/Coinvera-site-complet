@@ -5,9 +5,11 @@ import { api, msg, useData } from '@/lib/client';
 import { Badge, Copy, day, PageHead } from '@/components/Bits';
 import { useConfirm } from '@/components/Confirm';
 import DataTable from '@/components/DataTable';
+import { useBulk } from '@/components/Bulk';
 export default function Keys() {
   const { data, loading, reload } = useData('/api/keys'); const pr = useData('/api/pricing'); const ask = useConfirm();
   const [secret, setSecret] = useState<any>(null), [err, setErr] = useState('');
+  const bulk = useBulk({ c: 'api_keys', mine: true, rows: data?.keys ?? [], reload, label: 'clé', revoke: true, canRevoke: (k: any) => k.status === 'active' });
   const act = data?.activation ?? {}; const left = Math.max(0, (pr.data?.freeTrials ?? 2) - (act.trialsUsed ?? 0));
   const state = act.activated ? 'API activée' : left > 0 ? `Mode test : ${left} essai(s) gratuit(s) restant(s)` : 'En attente d’activation';
   const run = async (f: () => Promise<any>) => { setErr(''); try { await f(); } catch (e) { setErr(msg(e)); } };
@@ -19,7 +21,7 @@ export default function Keys() {
     {err && <div className="err" role="alert">{err}</div>}
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><button className="btn p" onClick={() => run(async () => { setSecret(await api('/api/keys', { method: 'POST', body: JSON.stringify({ mode: 'test' }) })); reload(); })}>Nouvelle clé test</button>
       <button className="btn" disabled={!act.activated} onClick={() => run(async () => { setSecret(await api('/api/keys', { method: 'POST', body: JSON.stringify({ mode: 'live' }) })); reload(); })}>Nouvelle clé production</button></div>
-    <DataTable loading={loading} rows={data?.keys ?? []} empty="Aucune clé" emptyHint="Générez une clé test pour commencer." cols={[{ key: 'publicKey', label: 'Clé publique', render: k => <code style={{ wordBreak: 'break-all' }}>{k.publicKey}</code> }, { key: 'mode', label: 'Environnement', render: k => <Badge s={k.mode} /> }, { key: 'createdAt', label: 'Créée', render: k => day(k.createdAt) }, { key: 'lastUsedAt', label: 'Dernière utilisation', render: k => day(k.lastUsedAt) }, { key: 'status', label: 'Statut', render: k => <Badge s={k.status} /> },
-      { key: 'a', label: '', right: true, render: k => k.status === 'active' && <button className="btn d sm" onClick={async () => { if (await ask({ title: 'Révoquer cette clé ?', message: 'Effet immédiat : toute application utilisant cette clé cessera de fonctionner.', confirmLabel: 'Révoquer', danger: true })) run(async () => { await api('/api/keys/' + k.id, { method: 'DELETE' }); reload(); }); }}>Révoquer</button> }]} />
+    {bulk.status}<DataTable toolbar={bulk.toolbar} loading={loading} rows={data?.keys ?? []} empty="Aucune clé" emptyHint="Générez une clé test pour commencer." cols={[...bulk.pre, { key: 'publicKey', label: 'Clé publique', render: k => <code style={{ wordBreak: 'break-all' }}>{k.publicKey}</code> }, { key: 'mode', label: 'Environnement', render: k => <Badge s={k.mode} /> }, { key: 'createdAt', label: 'Créée', render: k => day(k.createdAt) }, { key: 'lastUsedAt', label: 'Dernière utilisation', render: k => day(k.lastUsedAt) }, { key: 'status', label: 'Statut', render: k => <Badge s={k.status} /> },
+      { key: 'a', label: '', right: true, render: k => k.status === 'active' && <button className="btn d sm" onClick={async () => { if (await ask({ title: 'Révoquer cette clé ?', message: 'Effet immédiat : toute application utilisant cette clé cessera de fonctionner.', confirmLabel: 'Révoquer', danger: true })) run(async () => { await api('/api/keys/' + k.id, { method: 'DELETE' }); reload(); }); }}>Révoquer</button> }, ...bulk.post]} />
     <p className="mut">Pour régénérer une clé : créez-en une nouvelle puis révoquez l’ancienne.</p></div>;
 }

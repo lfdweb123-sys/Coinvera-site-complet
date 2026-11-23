@@ -13,6 +13,7 @@ const F = [
 ] as const;
 const STEPS = [['Installez WooCommerce si ce n’est pas déjà fait', 'Coinvera Guard protège le checkout WooCommerce, quelle que soit la passerelle de paiement utilisée.'], ['Installez le fichier ZIP dans WordPress', 'Extensions → Ajouter → Téléverser, puis activez.'], ['Saisissez votre licence', 'Coinvera Guard → Réglages. Les seuils par défaut conviennent à la plupart des boutiques.'], ['Ajustez si besoin', 'Seuils de vélocité, listes blanches/noires, e-mails jetables : tout est réglable sans toucher au code.']] as const;
 const FAQ = [
+  ['Une vérification d’identité est-elle demandée ?', 'Non. Aucune vérification d’identité (KYC) n’est demandée pour créer un compte Coinvera, utiliser ce plugin, encaisser des paiements ou retirer vos fonds. Seule exception : les cartes virtuelles, dont l’émetteur partenaire exige l’identité du titulaire.'],
   ['Faut-il utiliser la passerelle de paiement Coinvera ?', 'Non. Coinvera Guard protège le checkout WooCommerce quelle que soit la passerelle active : il agit avant même que la demande de paiement ne parte.'],
   ['Les vrais clients voient-ils une différence ?', 'Non. Il n’y a ni CAPTCHA ni étape supplémentaire ; seules les tentatives suspectes sont ralenties ou bloquées.'],
   ['Que se passe-t-il quand une IP est bloquée ?', 'Le client voit un message générique l’invitant à réessayer plus tard. Le motif réel n’est visible que dans votre tableau de bord.'],

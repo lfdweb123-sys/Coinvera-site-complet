@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api, msg, useData } from '@/lib/client';
 const F: [string, string][] = [['platformFeeBps', 'Commission plateforme (points de base, 150 = 1,5 %)'], ['processingFeeBps', 'Frais de traitement affichés (points de base)'], ['apiActivationUsd', 'Prix d’activation unique : API + plugin (USD)'], ['minWithdrawalUsd', 'Retrait minimum (USD)'], ['maxWithdrawalUsd', 'Retrait maximum (USD)'], ['withdrawalFeeTRX', 'Frais de retrait TRC20 (USDT)'], ['withdrawalFeeETH', 'Frais de retrait ERC20 (USDT)'], ['withdrawalFeeBSC', 'Frais de retrait BEP20 (USDT)'], ['freeTrials', 'Essais gratuits'], ['maxLicenseActivations', 'Sites par licence'], ['pluginVersion', 'Version du plugin publiée']];
-const WA: [string, string][] = [['whatsappCartTemplate', 'Modèle Meta — relance panier'], ['whatsappStatusTemplate', 'Modèle Meta — statut de commande'], ['whatsappLang', 'Code langue du modèle (ex. fr)']];
+const WA: [string, string][] = [['whatsappCartTemplate', 'Modèle Meta — relance panier'], ['whatsappStatusTemplate', 'Modèle Meta — statut de commande'], ['whatsappLang', 'Code langue du modèle (ex. fr)'], ['whatsappRateCartUsd', 'Prix facturé au marchand — relance panier (USD/message délivré)'], ['whatsappRateStatusUsd', 'Prix facturé au marchand — statut (USD/message délivré)']];
 const STR = new Set(['pluginVersion', 'whatsappCartTemplate', 'whatsappStatusTemplate', 'whatsappLang']);
 export default function P() {
   const { data } = useData('/api/admin/pricing'); const [v, setV] = useState<any>({}), [m, setM] = useState('');

@@ -15,7 +15,7 @@ const csp = (nonce: string) => [
   "frame-src https:",
   "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'", "object-src 'none'", "upgrade-insecure-requests",
 ].join('; ');
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const nonce = btoa(crypto.randomUUID()), policy = csp(nonce);
   const headers = new Headers(req.headers); headers.set('x-nonce', nonce); headers.set('Content-Security-Policy', policy);   // Next.js lit le jeton dans l'en-tête de la requête
   const done = (r: NextResponse) => { r.headers.set('Content-Security-Policy', policy); return r; };

@@ -1,4 +1,4 @@
-// En-têtes de sécurité. La politique de sécurité du contenu (CSP, avec jeton par requête) est posée par middleware.ts.
+// En-têtes de sécurité. La politique de sécurité du contenu (CSP, avec jeton par requête) est posée par proxy.ts.
 const headers = [
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },

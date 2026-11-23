@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { ArrowLeftRight, BadgeCheck, Bell, CreditCard, FileBarChart, HelpCircle, KeyRound, LayoutDashboard, LifeBuoy, Link2, LogOut, Menu, PanelLeft, ScrollText, Settings, ShieldCheck, Store, Tag, Users, Wallet, Webhook, ChevronDown, Lock, Landmark, UserCog, Ellipsis, Coins, Trash2 } from 'lucide-react';
-import { api, auth, logout, msg, usePending } from '@/lib/client';
+import { api, auth, isAuthFailure, logout, msg, usePending } from '@/lib/client';
 import { LogoMark } from '@/components/Illustrations';
 import SwipeRow from '@/components/SwipeRow';
 import { PageLoader } from '@/components/Loader';
@@ -18,15 +18,15 @@ export type NavItem = { href: string; label: string; icon: string; superOnly?: b
 export type NavGroup = { title: string; items: NavItem[] };
 export default function Shell({ groups, admin, quick, children }: { groups: NavGroup[]; admin?: boolean; quick: string[]; children: React.ReactNode }) {
   const path = usePathname(), r = useRouter(); const pending = usePending();
-  const [u, setU] = useState<User | null>(null), [me, setMe] = useState<any>(null), [col, setCol] = useState(false), [mob, setMob] = useState(false), [menu, setMenu] = useState(false), [bell, setBell] = useState(false), [notes, setNotes] = useState<any[]>([]), [settled, setSettled] = useState('');
+  const [u, setU] = useState<User | null>(null), [me, setMe] = useState<any>(null), [col, setCol] = useState(false), [mob, setMob] = useState(false), [menu, setMenu] = useState(false), [bell, setBell] = useState(false), [notes, setNotes] = useState<any[]>([]), [settled, setSettled] = useState(''), [bootErr, setBootErr] = useState(false), [attempt, setAttempt] = useState(0);
   const [opened, setOpened] = useState<Record<string, boolean>>({ 'Vue d’ensemble': true, 'Compte': true }), [mc, setMc] = useState(''), [mErr, setMErr] = useState(''), [mBusy, setMBusy] = useState(false);
   const refMenu = useRef<HTMLDivElement>(null), refBell = useRef<HTMLDivElement>(null);
   useEffect(() => onAuthStateChanged(auth, async x => {
     if (!x) { r.replace('/login'); return; }
     if (!x.emailVerified) { r.replace('/verify-email'); return; }
     if (admin && (await x.getIdTokenResult()).claims.role !== 'admin') { r.replace('/dashboard'); return; }
-    try { const m = await api('/api/me'); if (!admin && m.admin) { r.replace('/admin'); return; } setMe(m); setU(x); } catch { await logout(); r.replace('/login'); }
-  }), [admin, r]);
+    try { const m = await api('/api/me'); if (!admin && m.admin) { r.replace('/admin'); return; } setMe(m); setU(x); } catch (e) { if (isAuthFailure(e)) { await logout(); r.replace('/login'); } else setBootErr(true); }
+  }), [admin, r, attempt]);
   useEffect(() => { if (admin && me && !me.twoFactor && path !== '/admin/security') r.replace('/admin/security'); }, [admin, me, path, r]);   // 2FA obligatoire pour les administrateurs
   useEffect(() => { if (me && (!me.twoFactor || me.mfa)) api('/api/notifications').then(d => setNotes(d.items)).catch(() => {}); }, [me]);
   useEffect(() => { setMob(false); setMenu(false); setBell(false); setSettled(path); }, [path]);
@@ -37,6 +37,7 @@ export default function Shell({ groups, admin, quick, children }: { groups: NavG
   const expire = useCallback(async () => { try { sessionStorage.setItem('cv_expired', '1'); } catch {} await logout(); r.replace('/login'); }, [r]);
   // suppression d'une notification (balayage mobile ou bouton) ou de toutes : retirée tout de suite de l'écran, puis supprimée côté serveur
   const dropNotes = (ids: string[]) => { const keep = notes; setNotes(n => n.filter(x => !ids.includes(x.id))); api('/api/records', { method: 'DELETE', body: JSON.stringify({ c: 'notifications', ids: ids.slice(0, 500) }) }).catch(() => setNotes(keep)); };
+  if (bootErr && !me) return <AuthShell title="Service momentanément indisponible" sub="Impossible de charger votre compte pour le moment. Votre session est conservée."><button className="btn" onClick={() => { setBootErr(false); setAttempt(n => n + 1); }}>Réessayer</button><p className="mut" style={{ marginTop: 18 }}><a href="#" onClick={async e => { e.preventDefault(); await logout(); r.replace('/login'); }}>Se déconnecter</a></p></AuthShell>;
   if (!u || !me) return <PageLoader full />;
   if (me.twoFactor && !me.mfa) return <AuthShell title="Vérification en deux étapes" sub="Saisissez le code à 6 chiffres affiché par votre application d’authentification.">
     <OtpInput value={mc} onChange={setMc} invalid={!!mErr} disabled={mBusy} onComplete={async c => { setMBusy(true); setMErr(''); try { await api('/api/2fa/verify', { method: 'POST', body: JSON.stringify({ code: c }) }); setMe({ ...me, mfa: true }); } catch (e) { setMErr(msg(e)); setMc(''); } setMBusy(false); }} />

@@ -1,8 +1,9 @@
+import { seo } from '@/lib/seo';
 import { BellRing, Clock, Link2, ListChecks, MessageCircle, ShieldCheck } from 'lucide-react';
 import PluginPage, { Frame } from '@/components/PluginPage';
 import { getSettings } from '@/lib/settings';
 export const revalidate = 300;
-export const metadata = { title: 'Plugin de relance WhatsApp WordPress', description: 'Relancez automatiquement vos commandes WooCommerce en attente de paiement et notifiez vos clients par WhatsApp. Même licence que les autres plugins Coinvera.', alternates: { canonical: '/relances-whatsapp' } };
+export const metadata = seo({ title: 'Relance panier WhatsApp pour WooCommerce', description: 'Relancez automatiquement les commandes WooCommerce en attente de paiement et notifiez vos clients par WhatsApp. Même licence que les autres plugins.', path: '/relances-whatsapp', keywords: ['relance panier abandonné WhatsApp', 'notification commande WhatsApp', 'WhatsApp WooCommerce', 'plugin WhatsApp WordPress', 'relance commande en attente'] });
 const F = [
   [Clock, 'Relance après un délai réglable', 'Une commande restée en attente de paiement reçoit un rappel WhatsApp avec un lien de paiement direct, après le délai de votre choix.'],
   [BellRing, 'Notifications de statut', 'Vos clients sont prévenus par WhatsApp à chaque changement de statut que vous activez : en cours, terminée, annulée, remboursée...'],

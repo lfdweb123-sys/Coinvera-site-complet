@@ -1,3 +1,4 @@
+import { seo } from '@/lib/seo';
 import Link from 'next/link';
 import { Check } from 'lucide-react';
 import { Header, Footer } from '@/components/Site';
@@ -6,7 +7,7 @@ import CtaLink from '@/components/Cta';
 import { CardLogos } from '@/components/Logos';
 import { getSettings } from '@/lib/settings';
 export const revalidate = 300;
-export const metadata = { title: 'Plugin WooCommerce', description: 'Acceptez les cartes dans votre boutique WooCommerce. Configuration automatique, confirmation des commandes vérifiée côté serveur.', alternates: { canonical: '/woocommerce' } };
+export const metadata = seo({ title: 'Plugin WooCommerce : paiement par carte', description: 'Acceptez Visa et Mastercard dans votre boutique WooCommerce et retirez en USDT. Configuration automatique, commandes confirmées et vérifiées côté serveur.', path: '/woocommerce', keywords: ['plugin WooCommerce paiement', 'passerelle de paiement WooCommerce', 'paiement par carte WooCommerce', 'module de paiement WordPress', 'accepter les cartes WooCommerce', 'WooCommerce USDT'] });
 export default async function P() { const s = await getSettings();
   return <><Header /><PageHero v={0} eyebrow="WooCommerce" title="Le paiement par carte dans votre boutique" sub="Vos commandes passent en « payée » uniquement après confirmation côté serveur, jamais sur un simple retour du client." />
     <main className="sec"><div className="wrap split"><div className="g2" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>{[['Créez votre compte et activez-le', 'Un seul paiement unique : la licence du plugin est incluse.'], ['Installez le fichier ZIP dans WordPress', 'Extensions → Ajouter → Téléverser.'], ['Saisissez votre licence et vos clés API', 'Le webhook se configure tout seul à l’enregistrement.'], ['Les commandes se mettent à jour automatiquement', 'Confirmation par webhook, avec vérification de secours.']].map(([t, d], i) => <div className="step" key={t}><i>{i + 1}</i><h3 style={{ fontSize: 17 }}>{t}</h3><p className="mut" style={{ margin: 0 }}>{d}</p></div>)}</div>

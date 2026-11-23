@@ -1,8 +1,9 @@
+import { seo } from '@/lib/seo';
 import { Bell, CreditCard, FileText, Printer, ShieldCheck, Hash } from 'lucide-react';
 import PluginPage, { Frame } from '@/components/PluginPage';
 import { getSettings } from '@/lib/settings';
 export const revalidate = 300;
-export const metadata = { title: 'Plugin de factures WordPress', description: 'Créez des factures numérotées sur WordPress avec lien de paiement par carte, statut « payée » automatique et relances automatiques. Même licence que les autres plugins Coinvera.', alternates: { canonical: '/factures' } };
+export const metadata = seo({ title: 'Plugin de factures WordPress', description: 'Créez des factures numérotées sur WordPress avec lien de paiement par carte, statut « payée » automatique et relances. Même licence que les autres plugins.', path: '/factures', keywords: ['plugin de facturation WordPress', 'facture avec lien de paiement', 'facture payable par carte', 'plugin facture WooCommerce'] });
 const F = [
   [Hash, 'Numérotation fiable', 'Numéros PRÉFIXE-2026-0001 attribués de façon atomique : jamais de doublon, jamais réutilisés.'],
   [FileText, 'Lignes, remise et taxe', 'Quantités, prix unitaires, remise et taux de taxe. Tous les montants sont calculés côté serveur, en entiers.'],

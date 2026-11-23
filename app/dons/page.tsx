@@ -1,3 +1,4 @@
+import { seo } from '@/lib/seo';
 import Link from 'next/link';
 import { Check, CreditCard, FileDown, Heart, ShieldCheck, Target, Users } from 'lucide-react';
 import { Header, Footer } from '@/components/Site';
@@ -6,7 +7,7 @@ import CtaLink from '@/components/Cta';
 import { CardLogos } from '@/components/Logos';
 import { getSettings } from '@/lib/settings';
 export const revalidate = 300;
-export const metadata = { title: 'Plugin de dons WordPress', description: 'Collectez des dons et gérez des cagnottes sur WordPress, seul ou avec WooCommerce : paiement par carte sécurisé, objectif et progression, confirmation vérifiée côté serveur. Même licence que le plugin WooCommerce.', alternates: { canonical: '/dons' } };
+export const metadata = seo({ title: 'Plugin de dons WordPress, cagnottes', description: 'Collectez des dons et gérez des cagnottes sur WordPress, avec ou sans WooCommerce : paiement par carte sécurisé, objectif, progression et confirmation vérifiée côté serveur.', path: '/dons', keywords: ['plugin de dons WordPress', 'cagnotte WordPress', 'collecte de dons en ligne', 'don par carte bancaire', 'plugin donation WordPress'] });
 const F = [
   [Target, 'Cagnottes avec objectif', 'Objectif, date limite, don minimum et montants suggérés. Barre de progression et compte à rebours intégrés.'],
   [CreditCard, 'Paiement par carte sécurisé', 'Page de paiement hébergée par Coinvera : aucune donnée de carte ne transite par votre site.'],

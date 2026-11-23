@@ -1,3 +1,4 @@
+import { seo } from '@/lib/seo';
 import Link from 'next/link';
 import { Check } from 'lucide-react';
 import { Header, Footer } from '@/components/Site';
@@ -6,7 +7,7 @@ import CtaLink from '@/components/Cta';
 import { LISTED } from '@/lib/plugins';
 import { getSettings } from '@/lib/settings';
 export const revalidate = 300;
-export const metadata = { title: 'Plugins WordPress', description: 'Plugins WordPress Coinvera : WooCommerce, dons, factures, abonnements et billetterie. Une seule licence pour tous, incluse dans l’activation de votre compte.', alternates: { canonical: '/plugins' } };
+export const metadata = seo({ title: 'Plugins WordPress de paiement', description: 'Plugins WordPress Coinvera : WooCommerce, dons, factures, abonnements, billetterie, anti-fraude et relance WhatsApp. Une seule licence pour tous.', path: '/plugins', keywords: ['plugins WordPress paiement', 'plugin paiement par carte WordPress', 'extensions WooCommerce', 'plugins e-commerce WordPress'] });
 export default async function P() { const s = await getSettings();
   return <><Header /><PageHero v={1} eyebrow="Plugins" title="Une seule licence pour tous les plugins Coinvera" sub="Acceptez les cartes dans votre boutique, collectez des dons, facturez, vendez des abonnements et des billets, sur WordPress." />
     <main className="sec"><div className="wrap stack">

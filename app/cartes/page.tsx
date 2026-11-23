@@ -1,9 +1,10 @@
+import { seo } from '@/lib/seo';
 import { CreditCard, ShieldCheck, Snowflake, Eye, Wallet, Zap, BadgeCheck, Lock, Check } from 'lucide-react';
 import { Header, Footer } from '@/components/Site';
 import PageHero from '@/components/PageHero';
 import CtaLink from '@/components/Cta';
 import { CardLogos } from '@/components/Logos';
-export const metadata = { title: 'Cartes virtuelles', description: 'Cartes virtuelles Visa et Mastercard rechargeables pour payer en ligne : Virtuals cards standard et Virtuals cards pro, frais affichés avant chaque paiement, gel instantané et contrôle total.', alternates: { canonical: '/cartes' } };
+export const metadata = seo({ title: 'Cartes virtuelles Visa et Mastercard', description: 'Cartes virtuelles Visa et Mastercard rechargeables pour payer en ligne : Virtuals cards standard et pro, frais affichés avant paiement, gel instantané.', path: '/cartes', keywords: ['carte virtuelle', 'carte virtuelle Visa', 'carte virtuelle Mastercard', 'carte virtuelle rechargeable', 'carte bancaire virtuelle', 'payer en ligne carte virtuelle', 'Virtuals cards'] });
 const CARDS = [
   { name: 'Virtuals cards standard', tag: '', icon: CreditCard, text: 'Une carte virtuelle Visa ou Mastercard rechargeable pour payer vos achats et abonnements en ligne.', pts: ['Création en quelques instants', 'Rechargeable à tout moment', 'Paiement par solde Coinvera ou en USDT', 'Gel et dégel depuis votre tableau de bord'], cta: 'Activer ma carte' },
   { name: 'Virtuals cards pro', tag: 'Pro', icon: ShieldCheck, text: 'Une carte virtuelle Visa vérifiée, avec une vérification d’identité unique et des frais fixes affichés avant chaque opération.', pts: ['Une seule vérification d’identité pour toutes vos cartes', 'Frais fixes, jamais de surprise', 'Détails de la carte affichés en toute sécurité', 'Codes de vérification en un clic'], cta: 'J’active ma carte' }];

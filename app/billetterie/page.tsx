@@ -1,8 +1,9 @@
+import { seo } from '@/lib/seo';
 import { CreditCard, QrCode, ScanLine, ShieldCheck, Ticket, Users } from 'lucide-react';
 import PluginPage, { Frame } from '@/components/PluginPage';
 import { getSettings } from '@/lib/settings';
 export const revalidate = 300;
-export const metadata = { title: 'Plugin de billetterie WordPress', description: 'Vendez des billets d’événement sur WordPress avec QR code, jauge garantie sans surbooking et contrôle d’entrée sur téléphone. Même licence que les autres plugins Coinvera.', alternates: { canonical: '/billetterie' } };
+export const metadata = seo({ title: 'Plugin de billetterie WordPress', description: 'Vendez des billets d’événement sur WordPress avec QR code, jauge sans surbooking et contrôle d’entrée sur téléphone. Paiement par carte inclus.', path: '/billetterie', keywords: ['plugin billetterie WordPress', 'vendre des billets en ligne', 'billet QR code', 'billetterie événement', 'plugin événement WordPress'] });
 const F = [
   [Ticket, 'Types de billets et quotas', 'Plusieurs tarifs par événement, quotas par type, fenêtre de vente et nombre maximum de billets par commande.'],
   [Users, 'Jauge garantie, sans surbooking', 'La capacité est vérifiée sous verrou à chaque réservation : jamais dépassée, même avec des achats simultanés.'],

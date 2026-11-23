@@ -1,8 +1,9 @@
+import { seo } from '@/lib/seo';
 import { CalendarClock, CreditCard, Lock, ShieldCheck, UserCheck, Users } from 'lucide-react';
 import PluginPage, { Frame } from '@/components/PluginPage';
 import { getSettings } from '@/lib/settings';
 export const revalidate = 300;
-export const metadata = { title: 'Plugin d’abonnements WordPress', description: 'Vendez des abonnements sur WordPress par lien de paiement : échéances envoyées par e-mail, contenus réservés aux abonnés, relances et expiration automatiques. Même licence que les autres plugins Coinvera.', alternates: { canonical: '/abonnements' } };
+export const metadata = seo({ title: 'Plugin d’abonnements WordPress', description: 'Vendez des abonnements sur WordPress par lien de paiement : échéances par e-mail, contenus réservés aux abonnés, relances et expiration automatiques.', path: '/abonnements', keywords: ['plugin abonnement WordPress', 'paiement récurrent WordPress', 'vendre des abonnements en ligne', 'contenu réservé aux abonnés', 'site d’adhésion WordPress'] });
 const F = [
   [CalendarClock, 'Plans et périodes', 'Semaine, mois, trimestre ou an, avec délai de grâce. Les fins de mois sont gérées (31 janvier + 1 mois = fin février).'],
   [CreditCard, 'Lien de paiement à chaque échéance', 'Le membre reçoit son lien par e-mail avant l’échéance, avec rappels la veille et le jour même.'],

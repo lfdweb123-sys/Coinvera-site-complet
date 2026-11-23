@@ -1,8 +1,9 @@
+import { seo } from '@/lib/seo';
 import { Ban, BellRing, Gauge, ListChecks, MailWarning, ShieldCheck } from 'lucide-react';
 import PluginPage, { Frame } from '@/components/PluginPage';
 import { getSettings } from '@/lib/settings';
 export const revalidate = 300;
-export const metadata = { title: 'Plugin anti-fraude WordPress', description: 'Protégez votre checkout WooCommerce contre le card testing, les e-mails jetables et les tentatives répétées, sans CAPTCHA. Même licence que les autres plugins Coinvera.', alternates: { canonical: '/anti-fraude' } };
+export const metadata = seo({ title: 'Plugin anti-fraude WooCommerce', description: 'Protégez votre checkout WooCommerce contre le card testing, les e-mails jetables et les tentatives répétées, sans CAPTCHA. Même licence que les autres plugins.', path: '/anti-fraude', keywords: ['anti-fraude WooCommerce', 'card testing', 'protection paiement en ligne', 'fraude carte bancaire e-commerce', 'plugin sécurité WooCommerce'] });
 const F = [
   [Gauge, 'Vélocité par IP', 'Trop de commandes ou de paiements échoués depuis la même IP en peu de temps : blocage temporaire, durée réglable.'],
   [MailWarning, 'E-mails jetables', 'Détecte les domaines de messagerie temporaire les plus répandus : blocage ou simple signalement, au choix.'],

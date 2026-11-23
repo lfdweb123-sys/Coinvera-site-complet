@@ -1,3 +1,4 @@
+import { seo } from '@/lib/seo';
 import { Check } from 'lucide-react';
 import { Header, Footer } from '@/components/Site';
 import PageHero from '@/components/PageHero';
@@ -5,7 +6,7 @@ import CtaLink from '@/components/Cta';
 import { CardLogos } from '@/components/Logos';
 import { getSettings } from '@/lib/settings';
 export const revalidate = 300;
-export const metadata = { title: 'Tarification', description: 'Une commission unique par paiement réussi, un accès API et un plugin WooCommerce à tarif fixe. Aucun abonnement.', alternates: { canonical: '/pricing' } };
+export const metadata = seo({ title: 'Tarifs : une commission par paiement réussi', description: 'Une seule commission par paiement réussi, accès API et plugin WooCommerce à tarif fixe. Aucun abonnement mensuel : vous payez uniquement quand vous encaissez.', path: '/pricing', keywords: ['tarifs passerelle de paiement', 'commission paiement par carte', 'frais de paiement en ligne', 'prix API de paiement', 'paiement sans abonnement'] });
 export default async function Pricing() {
   const s = await getSettings(); const f = (b: number) => String(b / 100).replace('.', ','); const t = s.processingFeeBps + s.platformFeeBps;
   return <><Header /><PageHero v={1} eyebrow="Tarification" title="Des frais clairs, sans surprise" sub="Un seul pourcentage par paiement réussi, détaillé pour chaque transaction." />

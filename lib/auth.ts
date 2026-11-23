@@ -20,7 +20,7 @@ async function verify(req: Request, o: { mfa: boolean; verified: boolean }) {
   if (o.verified && !dec.email_verified) { warn('auth.email_not_verified', { uid: dec.uid }); throw new HttpError(403, 'email_not_verified'); }
   const role = (dec.role as string) ?? 'merchant';
   const prof: Record<string, any> | null = role === 'admin' ? await loadAdmin(dec) : (await db.doc(`merchants/${dec.uid}`).get()).data() ?? null;
-  if (!prof || (o.verified && prof.status !== 'active')) { warn('auth.account_unavailable', { uid: dec.uid, role }); throw new HttpError(403, 'account_disabled'); }
+  if (!prof || prof.status !== 'active') { warn('auth.account_unavailable', { uid: dec.uid, role }); throw new HttpError(403, 'account_disabled'); }
   let mfaOk = true;
   if (prof.twoFactor) mfaOk = (await db.doc(`mfa_sessions/${dec.uid}`).get()).data()?.authTime === dec.auth_time;
   if (o.mfa && !mfaOk) { warn('auth.mfa_required', { uid: dec.uid }); throw new HttpError(403, 'mfa_required'); }
@@ -31,6 +31,7 @@ export const requireUserBasic = (req: Request) => verify(req, { mfa: false, veri
 export async function requireAdmin(req: Request) {
   const u = await requireUser(req);
   if (u.role !== 'admin') { warn('auth.forbidden_admin', { uid: u.uid }); throw new HttpError(403, 'forbidden'); }
+  if (!u.merchant.twoFactor) { warn('auth.admin_mfa_setup_required', { uid: u.uid }); throw new HttpError(403, 'mfa_setup_required'); }   // un administrateur doit protéger son accès par la double authentification
   return u;
 }
 // Seul l'administrateur principal (cree en premier) gere les autres administrateurs et ne peut lui-meme etre ni modifie ni supprime.

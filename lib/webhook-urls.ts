@@ -2,8 +2,8 @@
 export const MAX_WEBHOOKS = 5;
 
 export function safeUrl(u: string) {   // anti-SSRF basique : https obligatoire, pas d'IP ni de nom interne
-  const x = new URL(u);
-  if (x.protocol !== 'https:' || /^(localhost|.*\.local|.*\.internal)$/i.test(x.hostname) || /^[\d.]+$/.test(x.hostname) || x.hostname.includes(':')) throw new Error('unsafe_url');
+  const x = new URL(u); const h = x.hostname.replace(/\.$/, '').toLowerCase();
+  if (x.protocol !== 'https:' || x.username || x.password || (x.port && x.port !== '443') || !h.includes('.') || /^(localhost|.*\.(local|internal|localhost|lan|home|corp))$/.test(h) || /^[\d.]+$/.test(h) || h.includes(':') || /^\[/.test(x.host)) throw new Error('unsafe_url');
   return x.toString();
 }
 

@@ -13,4 +13,10 @@ export function verifyTotp(secret: string, code: string, window = 1) {
   for (let i = -window; i <= window; i++) { const a = Buffer.from(totp(secret, Date.now() + i * 30_000)), b = Buffer.from(code); if (a.length === b.length && crypto.timingSafeEqual(a, b)) ok = true; }
   return ok;
 }
+// Renvoie le pas de 30 s qui correspond au code (ou null) : permet de refuser un code déjà utilisé (anti-rejeu).
+export function matchTotpStep(secret: string, code: string, window = 1): number | null {
+  if (!/^\d{6}$/.test(code)) return null; let hit: number | null = null;
+  for (let i = -window; i <= window; i++) { const at = Date.now() + i * 30_000, a = Buffer.from(totp(secret, at)), b = Buffer.from(code); if (a.length === b.length && crypto.timingSafeEqual(a, b)) hit = Math.floor(at / 30_000); }
+  return hit;
+}
 export const otpauth = (secret: string, email: string) => `otpauth://totp/Coinvera:${encodeURIComponent(email)}?secret=${secret}&issuer=Coinvera&algorithm=SHA1&digits=6&period=30`;

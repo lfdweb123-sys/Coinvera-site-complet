@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+import { Timestamp } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '@/lib/firebase-admin';
@@ -13,8 +15,13 @@ export async function POST(req: Request) {
     const a = await verifyApiRequest(req, raw);
     const body = Body.parse(JSON.parse(raw));
     const idem = req.headers.get('idempotency-key');
-    if (idem) { const ex = await db.doc(`idempotency_records/pay_${a.merchantId}_${idem}`).get();
-      if (ex.exists) return Response.json(ex.data()!.response); }
+    if (idem && !/^[A-Za-z0-9_.:-]{1,64}$/.test(idem)) throw new HttpError(400, 'invalid_idempotency_key');
+    const bodyHash = crypto.createHash('sha256').update(raw).digest('hex'); const idemRef = idem ? db.doc(`idempotency_records/pay_${a.merchantId}_${idem}`) : null;
+    if (idemRef) {   // réservation ATOMIQUE de la clé : deux requêtes simultanées ne créent jamais deux paiements ; une clé réutilisée avec un autre corps est refusée
+      const won = await idemRef.create({ bodyHash, createdAt: Date.now(), ttl: Timestamp.fromMillis(Date.now() + 24 * 3600_000) }).then(() => true, () => false);
+      if (!won) { const ex = (await idemRef.get()).data(); if (ex?.bodyHash !== bodyHash) throw new HttpError(409, 'idempotency_conflict'); if (ex.response) return Response.json(ex.response); throw new HttpError(409, 'request_in_progress'); }
+    }
+    try {
     const s = await getSettings();
     // Essais gratuits comptes cote serveur (par marchand, pas par cle) : recreer une cle ne les remet pas a zero.
     let mode: 'test' | 'live' = 'live';
@@ -32,7 +39,8 @@ export async function POST(req: Request) {
     await ref.update({ processorChargeId: ch.id });
     const response = { id: ref.id, status: 'pending', amount: body.amount, mode, checkoutUrl: ch.checkout_url,
       fees: { processingBps: s.processingFeeBps, platformBps: s.platformFeeBps, totalBps: s.processingFeeBps + s.platformFeeBps } };
-    if (idem) await db.doc(`idempotency_records/pay_${a.merchantId}_${idem}`).set({ response, createdAt: Date.now() });
+    if (idemRef) await idemRef.update({ response });
     return Response.json(response, { status: 201 });
-  } catch (e) { return e instanceof z.ZodError ? Response.json({ error: 'invalid_request', issues: e.issues }, { status: 400 }) : fail(e); }
+    } catch (e) { await idemRef?.delete().catch(() => {}); throw e; }   // échec : la clé est libérée pour permettre une nouvelle tentative
+  } catch (e) { return e instanceof z.ZodError ? Response.json({ error: 'invalid_request' }, { status: 400 }) : fail(e); }
 }

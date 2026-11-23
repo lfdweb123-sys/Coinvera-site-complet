@@ -1,3 +1,4 @@
+import { cronAllowed } from '@/lib/cron';
 import { db } from '@/lib/firebase-admin';
 import { warn } from '@/lib/log';
 import { checkPayOrder } from '@/lib/cards/pay';
@@ -5,7 +6,7 @@ import { reconcile } from '@/lib/cards/orders';
 import { checkClose } from '@/lib/cards/cards';
 // À planifier toutes les 2 à 5 minutes (Authorization: Bearer $CRON_SECRET). Filet de sécurité : tout ce que les webhooks auraient manqué est relu à la source.
 export async function GET(req: Request) {
-  const s = process.env.CRON_SECRET; if (!s || req.headers.get('authorization') !== `Bearer ${s}`) return new Response('unauthorized', { status: 401 });
+  if (!cronAllowed(req)) return new Response('forbidden', { status: 403 });
   const out = { payOrders: 0, orders: 0, closes: 0, errors: 0 };
   const run = async (n: 'payOrders' | 'orders' | 'closes', f: () => Promise<unknown>) => { try { await f(); out[n]++; } catch (e) { out.errors++; warn('cron.cards_item_failed', { n, message: (e as Error).message }); } };
   for (const st of ['awaiting', 'paid', 'expired']) for (const d of (await db.collection('card_pay_orders').where('status', '==', st).limit(200).get()).docs) await run('payOrders', () => checkPayOrder(null, d.id));

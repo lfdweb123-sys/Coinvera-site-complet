@@ -35,7 +35,7 @@ export async function requireHolder(uid: string) { const h = await getHolder(uid
 // Vérification d'identité hébergée par le prestataire (/v1/kyc/*) : le verdict est relu à la source, jamais déduit.
 export async function startKyc(uid: string) {
   const h = await requireHolder(uid); const r = await ci('POST', '/v1/kyc/start', { body: { user_id: h.externalId, language: 'fr' } });
-  await holderRef(uid).update({ kycStatus: r.data.status }); return { status: r.data.status as string, url: (r.data.url ?? null) as string | null };
+  await holderRef(uid).update({ kycStatus: r.data.status }); return { status: r.data.status as string, url: (() => { try { const x = new URL(String(r.data.url)); return x.protocol === 'https:' && !x.username ? x.toString() : null; } catch { return null; } })() };   // https uniquement : jamais de javascript:/data:
 }
 export async function readKyc(uid: string) {
   const h = await requireHolder(uid); const r = await ci('GET', '/v1/kyc/status', { query: { user_id: h.externalId } });

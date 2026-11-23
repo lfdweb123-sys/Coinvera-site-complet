@@ -9,6 +9,7 @@ import { byId, fmt, Cur } from '../cryptos';
 import { programme, grossUp, netOf } from './wallet';
 import { scanIncoming } from '../chains';
 import { quote, placeOrder, Spec } from './orders';
+import { reserveAmount } from '../pay-amounts';
 // Paiements USDT directs (collection à part : card_pay_orders). Deux usages :
 //  - commander une carte / une recharge : l'USDT reçu entre directement dans la réservation de l'ordre ;
 //  - recharger son « crédit cartes » (kind = deposit) : l'USDT reçu est crédité sur un solde réservé aux cartes, non retirable.
@@ -26,7 +27,7 @@ async function newPayOrder(uid: string, curId: string, spec: Spec | { kind: 'dep
   const taken = new Set<string>();             // les ordres expirés restent surveillés 7 jours : leur montant ne doit pas être réutilisé (sinon un paiement tardif pourrait être attribué à un autre)
   for (const st of ['awaiting', 'expired']) (await db.collection('card_pay_orders').where('cur', '==', c.id).where('status', '==', st).get()).docs.forEach(d => taken.add(String(d.data().expected)));
   (await db.collection('crypto_orders').where('cur', '==', c.id).where('status', '==', 'awaiting').get()).docs.forEach(d => taken.add(String(d.data().expected)));
-  let off = 0; for (let i = 0; i < 40; i++) { const n = crypto.randomInt(1, 9001); if (!taken.has((BigInt(gross + n) * k).toString())) { off = n; break; } }   // centimes aléatoires (jusqu'à 0,009 $) = identifiant du paiement
+  let off = 0; for (let i = 0; i < 40; i++) { const n = crypto.randomInt(1, 9001); const ex = (BigInt(gross + n) * k).toString(); if (!taken.has(ex) && await reserveAmount('cards', c.id, ex, Date.now() + GRACE_MS + 3600_000)) { off = n; break; } }   // centimes aléatoires (jusqu'à 0,009 $) = identifiant du paiement
   if (!off) throw new HttpError(503, 'network_unavailable');
   const now = Date.now(); const ref = db.collection('card_pay_orders').doc();
   const o = { merchantId: uid, spec, cur: c.id, decimals: c.decimals, address, feeBps: prog.bps, netCharge: charge, chargeUnits: gross + off, baseChargeUnits: base.chargeUnits, ciTotalUnits: base.ciTotalUnits, markupUnits: base.markupUnits, expected: (BigInt(gross + off) * k).toString(), status: 'awaiting', createdAt: now, expiresAt: now + VALID_MS };

@@ -1,3 +1,4 @@
+import { Timestamp } from 'firebase-admin/firestore';
 import { db } from './firebase-admin';
 import { HttpError } from './auth';
 import { warn } from './log';
@@ -8,6 +9,6 @@ export async function rateLimit(key: string, limit: number, windowSec: number) {
   await db.runTransaction(async tx => {
     const n = ((await tx.get(ref)).data()?.n ?? 0) + 1;
     if (n > limit) { warn('rate_limited', { key: key.slice(0, 24), limit, windowSec }); throw new HttpError(429, 'rate_limited'); }
-    tx.set(ref, { n, expiresAt: Date.now() + windowSec * 2000 });
+    tx.set(ref, { n, expiresAt: Date.now() + windowSec * 2000, ttl: Timestamp.fromMillis(Date.now() + windowSec * 2000) });
   });
 }

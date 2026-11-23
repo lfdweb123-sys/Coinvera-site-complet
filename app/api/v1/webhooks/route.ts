@@ -2,7 +2,9 @@ import { z } from 'zod';
 import { db } from '@/lib/firebase-admin';
 import { verifyApiRequest } from '@/lib/apikey';
 import { fail } from '@/lib/auth';
+import crypto from 'node:crypto';
 import { addUrl, webhookUrlsOf } from '@/lib/webhook-urls';
+import { assertPublicHost } from '@/lib/ssrf';
 // Enregistrement automatique du webhook (utilisé par les plugins WordPress). PUT { url } -> { url, urls, secret }
 // L'URL est AJOUTÉE à la liste du compte (5 maximum) sans remplacer les autres : plusieurs plugins ou sites peuvent coexister.
 export async function GET(req: Request) {
@@ -12,7 +14,11 @@ export async function GET(req: Request) {
 }
 export async function PUT(req: Request) {
   try { const raw = await req.text(); const a = await verifyApiRequest(req, raw); const { url } = z.object({ url: z.string().url() }).parse(JSON.parse(raw));
-    const ref = db.doc(`merchant_settings/${a.merchantId}`);
+    const ref = db.doc(`merchant_settings/${a.merchantId}`); await assertPublicHost(addUrl([], url)[0]);
+    if (a.mode !== 'live') {   // clé de test : aucune URL de production n'est modifiée et le vrai secret de signature n'est jamais divulgué (les événements ne partent qu'en production)
+      const s = (await ref.get()).data() ?? {}; const urls = webhookUrlsOf(s);
+      return Response.json({ url: addUrl([], url), urls, secret: 'whsec_test_' + crypto.createHmac('sha256', String(s.webhookSecret ?? 'x')).update('test-mode:' + a.merchantId).digest('hex').slice(0, 40), test: true });
+    }
     // Transaction : deux plugins qui s'enregistrent en même temps ne s'écrasent pas.
     const out = await db.runTransaction(async t => {
       const s = (await t.get(ref)).data() ?? {};
@@ -23,7 +29,7 @@ export async function PUT(req: Request) {
     return Response.json({ url: addUrl([], url), urls: out.urls, secret: out.secret });
   } catch (e) {
     if (e instanceof z.ZodError) return Response.json({ error: 'invalid_request' }, { status: 400 });
-    if (e instanceof Error && e.message === 'unsafe_url') return Response.json({ error: 'unsafe_url' }, { status: 400 });
+    if (e instanceof Error && (e.message === 'unsafe_url' || e.message === 'unsafe_host')) return Response.json({ error: 'unsafe_url' }, { status: 400 });
     if (e instanceof Error && e.message === 'webhook_limit') return Response.json({ error: 'webhook_limit' }, { status: 409 });
     return fail(e);
   }

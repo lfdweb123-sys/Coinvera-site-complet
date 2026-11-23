@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { db } from '@/lib/firebase-admin';
 import { fail, HttpError, requireUser } from '@/lib/auth';
 import { validAddress } from '@/lib/address';
+import { notify } from '@/lib/audit';
 import { OPT } from '@/lib/payout-options';
 const TH = [50, 100, 250, 500, 1000];
 const Body = z.object({ chain: z.string().refine(c => c in OPT), address: z.string().max(120), autoPayout: z.boolean(), threshold: z.number().refine(n => TH.includes(n)) });
@@ -11,10 +12,12 @@ export async function GET(req: Request) {
   } catch (e) { return fail(e); }
 }
 export async function PUT(req: Request) {
-  try { const u = await requireUser(req); const b = Body.parse(await req.json()); const address = b.address.trim();
+  try { const u = await requireUser(req); if (!u.merchant.twoFactor) throw new HttpError(403, 'twofa_required'); const b = Body.parse(await req.json()); const address = b.address.trim();
+    const before = (await db.doc(`merchant_settings/${u.uid}`).get()).data() ?? {};
     if (address && !validAddress(b.chain, address)) throw new HttpError(400, 'invalid_address');
     if (b.autoPayout && !address) throw new HttpError(400, 'address_required');
     await db.doc(`merchant_settings/${u.uid}`).set({ payoutChain: b.chain, payoutAddress: address, autoPayout: b.autoPayout, payoutThreshold: b.threshold, payoutUpdatedAt: new Date() }, { merge: true });
+    if ((before.payoutAddress ?? '') !== address || (before.payoutChain ?? 'TRX') !== b.chain) await notify(u.uid, 'Adresse de retrait modifiée', 'Votre adresse ou réseau de retrait automatique a changé. Les retraits automatiques sont suspendus 24 h. Si ce n’est pas vous, changez votre mot de passe et contactez le support.');
     return Response.json({ ok: true });
   } catch (e) { return e instanceof z.ZodError ? Response.json({ error: 'invalid_request' }, { status: 400 }) : fail(e); }
 }

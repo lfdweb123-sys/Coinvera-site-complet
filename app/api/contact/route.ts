@@ -22,12 +22,14 @@ export async function POST(req: Request) {
       await checkCaptcha(captchaToken, captchaAnswer);                // 'website' = honeypot : doit rester vide
       b = rest; name = n; email = e;
     }
+    b.subject = b.subject.replace(/[\r\n]+/g, ' ').trim(); name = name.replace(/[\r\n]+/g, ' ').trim();
     const ref = await db.collection('support_tickets').add({ subject: b.subject, category: b.category, message: b.message, name, email, merchantId, status: 'New', priority: 'normal', assignedTo: null, replies: [], createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
     info('contact.ticket_created', { ticketId: ref.id, category: b.category, merchantId });
     await notify('admin', `Nouveau ticket : ${b.subject}`, ref.id);
     const html = `<p><b>${esc(b.category)}</b> — ${esc(name)} (${esc(email)})${merchantId ? ' — marchand ' + merchantId : ''}</p><p>${esc(b.message).replace(/\n/g, '<br>')}</p><p>Ticket ${ref.id}</p>`;
     await Promise.allSettled([sendMail(process.env.SUPPORT_EMAIL!, `[Ticket] ${b.subject}`, html),
-      sendMail(email, 'Nous avons bien reçu votre message', `<p>Bonjour ${esc(name)},</p><p>Votre demande « ${esc(b.subject)} » a bien été reçue (réf. ${ref.id}). Nous vous répondrons rapidement.</p><p>L'équipe Coinvera</p>`)]);
+      // accusé de réception : seulement vers l'e-mail d'un compte connecté, jamais vers une adresse saisie par un visiteur (anti-relais d'e-mails)
+      ...(merchantId ? [sendMail(email, 'Nous avons bien reçu votre message', `<p>Bonjour ${esc(name)},</p><p>Votre demande « ${esc(b.subject)} » a bien été reçue (réf. ${ref.id}). Nous vous répondrons rapidement.</p><p>L'équipe Coinvera</p>`)] : [])]);
     return Response.json({ ok: true, id: ref.id }, { status: 201 });
   } catch (e) { return e instanceof z.ZodError ? Response.json({ error: 'invalid_request' }, { status: 400 }) : fail(e); }
 }

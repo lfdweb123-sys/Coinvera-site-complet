@@ -8,7 +8,7 @@ const page = (t: string, m: string, s = 404) => new Response(`<!doctype html><ht
 // Lien de paiement public : cree un paiement a chaque visite puis redirige vers la page de paiement securisee.
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  try { await rateLimit('pay_' + ipOf(req), 30, 60); } catch { return page('Trop de tentatives', 'Veuillez réessayer dans quelques instants.', 429); }
+  try { await rateLimit('pay_' + ipOf(req), 15, 60); await rateLimit('paylink_' + id.slice(0, 40), 20, 60); } catch { return page('Trop de tentatives', 'Veuillez réessayer dans quelques instants.', 429); }
   const l = (await db.doc(`payment_links/${id}`).get()).data();
   if (!l || l.deleted || !l.active) { info('link.unavailable', { linkId: id }); return page('Lien indisponible', 'Ce lien de paiement n’existe pas ou n’est plus actif.'); }
   const act = (await db.doc(`api_activations/${l.merchantId}`).get()).data();

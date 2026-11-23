@@ -34,6 +34,8 @@ export function checkDocs(b: { id_type: string; country: string; id_front_image?
   if (TWO_SIDED.includes(b.id_type) ? !b.id_back_image : !!b.id_back_image) throw new HttpError(400, TWO_SIDED.includes(b.id_type) ? 'document_required' : 'document_not_allowed');
 }
 
+// Le lien de vérification d'identité n'est jamais affiché s'il n'est pas en https (pas de javascript:, data:, http:).
+const httpsUrl = (u: unknown) => { try { const x = new URL(String(u)); return x.protocol === 'https:' && !x.username ? x.toString() : null; } catch { return null; } };
 export const customerView = (c: Record<string, any> | null) => c ? { registered: !!c.customerId, creating: c.status === 'creating', kycStatus: c.kycStatus ?? 'unsubmitted', failureReason: c.failureReason ?? null, verificationUrl: c.verificationUrl ?? null, firstName: c.firstName ?? null, lastName: c.lastName ?? null, idLast4: c.idLast4 ?? null } : null;
 
 // Création : on réserve d'abord l'entrée locale (create échoue si elle existe : pas de doublon sur double clic), puis on appelle l'API.
@@ -48,7 +50,7 @@ export async function createCustomer(uid: string, input: z.infer<typeof CUSTOMER
     const r = await sp('POST', '/customers', { body });
     const d = r.data ?? {};
     await db.doc(`scarab_customer_ids/${d.id}`).set({ uid, createdAt: Date.now() });
-    await ref.update({ customerId: d.id, status: 'ready', kycStatus: d.kyc_status ?? 'unsubmitted', failureReason: d.kyc_failure_reason ?? null, verificationUrl: d.verification_url ?? null, verificationUrlExpiresAt: d.verification_url_expires_at ?? null, updatedAt: Date.now() });
+    await ref.update({ customerId: d.id, status: 'ready', kycStatus: d.kyc_status ?? 'unsubmitted', failureReason: d.kyc_failure_reason ?? null, verificationUrl: httpsUrl(d.verification_url), verificationUrlExpiresAt: d.verification_url_expires_at ?? null, updatedAt: Date.now() });
     info('scarab.customer_created', { merchantId: uid, customerId: d.id });
     return customerView(await getCustomer(uid));
   } catch (e) {
@@ -73,7 +75,7 @@ export async function refreshCustomer(uid: string) {
   let c = await getCustomer(uid); if (!c) return null;
   if (c.status === 'creating' && !c.customerId) { if (Date.now() - (c.updatedAt ?? 0) < 20_000 || !(await recoverCustomer(uid, c).catch(() => false))) return customerView(await getCustomer(uid)); c = await getCustomer(uid); if (!c) return null; }
   const d = (await spx('GET', `/customers/${c.customerId}`)).data ?? {};
-  const patch = { kycStatus: d.kyc_status ?? c.kycStatus, failureReason: d.kyc_failure_reason ?? null, verificationUrl: d.verification_url ?? null, verificationUrlExpiresAt: d.verification_url_expires_at ?? null, updatedAt: Date.now() };
+  const patch = { kycStatus: d.kyc_status ?? c.kycStatus, failureReason: d.kyc_failure_reason ?? null, verificationUrl: httpsUrl(d.verification_url), verificationUrlExpiresAt: d.verification_url_expires_at ?? null, updatedAt: Date.now() };
   await custRef(uid).update(patch); return customerView({ ...c, ...patch });
 }
 export async function requireApprovedCustomer(uid: string) {
@@ -87,7 +89,7 @@ export async function resubmitCustomer(uid: string, patch: Record<string, unknow
   const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
   if (Object.keys(clean).length) await spx('PATCH', `/customers/${c.customerId}`, { body: clean });
   const d = (await spx('POST', `/customers/${c.customerId}/kyc`)).data ?? {};
-  const upd = { kycStatus: d.kyc_status ?? 'pending', failureReason: d.kyc_failure_reason ?? null, verificationUrl: d.verification_url ?? null, updatedAt: Date.now(), ...(clean.id_number ? { idLast4: String(clean.id_number).slice(-4) } : {}) };
+  const upd = { kycStatus: d.kyc_status ?? 'pending', failureReason: d.kyc_failure_reason ?? null, verificationUrl: httpsUrl(d.verification_url), updatedAt: Date.now(), ...(clean.id_number ? { idLast4: String(clean.id_number).slice(-4) } : {}) };
   await custRef(uid).update(upd); return customerView({ ...c, ...upd });
 }
 export async function onKycEvent(customerId: string, type: string, reason?: string) {

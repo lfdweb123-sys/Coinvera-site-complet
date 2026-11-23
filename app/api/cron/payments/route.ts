@@ -1,3 +1,4 @@
+import { cronAllowed } from '@/lib/cron';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '@/lib/firebase-admin';
 import { getCharge } from '@/lib/processor';
@@ -7,7 +8,7 @@ import { notify } from '@/lib/audit';
 import { info, warn } from '@/lib/log';
 // Filet de securite : relit aupres du prestataire les paiements restes "pending" (webhook manque) et expire les anciens.
 export async function GET(req: Request) {
-  if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return new Response('forbidden', { status: 403 });
+  if (!cronAllowed(req)) return new Response('forbidden', { status: 403 });
   const now = Date.now(); let checked = 0, settled = 0, expired = 0;
   for (const d of (await db.collection('transactions').where('status', '==', 'pending').limit(100).get()).docs) {
     const x = d.data(); if (x.purpose) continue; const created = x.createdAt?.toMillis?.() ?? 0; const old = now - created > 24 * 3600_000;

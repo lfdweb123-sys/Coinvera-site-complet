@@ -1,3 +1,4 @@
+import { reserveAmount } from '../pay-amounts';
 import crypto from 'node:crypto';
 import { db } from '../firebase-admin';
 import { HttpError } from '../auth';
@@ -39,7 +40,7 @@ export async function createPayOrder(uid: string, curId: string, spec: Spec) {
   const taken = new Set<string>();
   for (const col of ['scarab_pay_orders', 'card_pay_orders', 'crypto_orders']) (await db.collection(col).where('cur', '==', c.id).where('status', '==', 'awaiting').get()).docs.forEach(d => taken.add(String(d.data().expected)));
   let expected = 0n;                           // centimes aléatoires (jusqu'à 0,009 $) : deux commandes en attente n'ont jamais le même montant
-  for (let i = 0; i < 30; i++) { const e = BigInt(need) * k + BigInt(crypto.randomInt(1, 9001)) * k; if (!taken.has(e.toString())) { expected = e; break; } }
+  for (let i = 0; i < 30; i++) { const e = BigInt(need) * k + BigInt(crypto.randomInt(1, 9001)) * k; if (!taken.has(e.toString()) && await reserveAmount('scarab', c.id, e.toString(), Date.now() + 8 * 24 * 3600_000)) { expected = e; break; } }
   if (!expected) throw new HttpError(503, 'network_unavailable');
   const now = Date.now(); const ref = db.collection('scarab_pay_orders').doc();
   const o = { merchantId: uid, spec, cur: c.id, decimals: c.decimals, address, chargeUnits: need + Number((expected - BigInt(need) * k) / k), q: { amountMinor: q.amountMinor, feeMinor: q.feeMinor, costFeeMinor: q.costFeeMinor, customerId: q.customerId, productName: q.productName },

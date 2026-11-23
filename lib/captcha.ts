@@ -1,7 +1,8 @@
+import { Timestamp } from 'firebase-admin/firestore';
 import crypto from 'node:crypto';
 import { db } from './firebase-admin';
 import { HttpError } from './auth';
-const K = () => process.env.CAPTCHA_SECRET ?? process.env.API_SECRET_ENC_KEY ?? 'dev';
+const K = () => { const k = process.env.CAPTCHA_SECRET ?? process.env.API_SECRET_ENC_KEY; if (!k && process.env.NODE_ENV === 'production') throw new HttpError(500, 'server_misconfigured'); return k ?? 'dev'; };
 const sig = (n: string, e: number, ans: number) => crypto.createHmac('sha256', K()).update(`${n}.${e}.${ans}`).digest('hex');
 export function makeCaptcha() {
   const a = 2 + crypto.randomInt(8), b = 2 + crypto.randomInt(8), op = ['+', '−', '×'][crypto.randomInt(3)];
@@ -14,5 +15,5 @@ export async function checkCaptcha(token: string, answer: string) {
   if (!n || !e || !s || !Number.isInteger(ans) || Date.now() > Number(e)) throw new HttpError(400, 'captcha_invalid');
   const a = Buffer.from(sig(n, Number(e), ans)), b = Buffer.from(s);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new HttpError(400, 'captcha_invalid');
-  await db.doc(`idempotency_records/cap_${n}`).create({ expiresAt: Number(e) }).catch(() => { throw new HttpError(400, 'captcha_invalid'); });   // usage unique
+  await db.doc(`idempotency_records/cap_${n}`).create({ expiresAt: Number(e), ttl: Timestamp.fromMillis(Number(e) + 60_000) }).catch(() => { throw new HttpError(400, 'captcha_invalid'); });   // usage unique
 }

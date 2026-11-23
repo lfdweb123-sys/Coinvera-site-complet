@@ -27,6 +27,7 @@ export default function Shell({ groups, admin, quick, children }: { groups: NavG
     if (admin && (await x.getIdTokenResult()).claims.role !== 'admin') { r.replace('/dashboard'); return; }
     try { const m = await api('/api/me'); if (!admin && m.admin) { r.replace('/admin'); return; } setMe(m); setU(x); } catch { await logout(); r.replace('/login'); }
   }), [admin, r]);
+  useEffect(() => { if (admin && me && !me.twoFactor && path !== '/admin/security') r.replace('/admin/security'); }, [admin, me, path, r]);   // 2FA obligatoire pour les administrateurs
   useEffect(() => { if (me && (!me.twoFactor || me.mfa)) api('/api/notifications').then(d => setNotes(d.items)).catch(() => {}); }, [me]);
   useEffect(() => { setMob(false); setMenu(false); setBell(false); setSettled(path); }, [path]);
   // ferme les fenetres flottantes au clic dans le vide ou avec Echap

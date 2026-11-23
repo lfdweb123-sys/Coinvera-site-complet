@@ -1,3 +1,4 @@
+import { cronAllowed } from '@/lib/cron';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from '@/lib/firebase-admin';
 import { createWithdrawal, queryWithdrawal } from '@/lib/bybit';
@@ -26,13 +27,14 @@ async function finish(id: string, ok: boolean, extra: object) {
   await notify(m, ok ? 'Retrait terminé' : 'Retrait échoué', `Retrait ${id}`);
 }
 export async function GET(req: Request) {
-  if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return new Response('forbidden', { status: 403 });
+  if (!cronAllowed(req)) return new Response('forbidden', { status: 403 });
   let auto = 0;
   // 0) Retraits automatiques : solde disponible >= seuil -> demande vers l'adresse enregistree
   for (const d of (await db.collection('merchant_settings').where('autoPayout', '==', true).limit(200).get()).docs) {
     try {
       const m = (await db.doc(`merchants/${d.id}`).get()).data(); if (m?.status !== 'active') continue;
-      const s = d.data(); const bal = (await db.doc(`balances/${d.id}`).get()).data() ?? {};
+      const s = d.data(); if (Date.now() - (s.payoutUpdatedAt?.toMillis?.() ?? 0) < 24 * 3600_000) continue;   // adresse modifiée il y a moins de 24 h : pas de retrait automatique
+      const bal = (await db.doc(`balances/${d.id}`).get()).data() ?? {};
       if (s.payoutAddress && (bal.available ?? 0) >= toUnits(s.payoutThreshold ?? 50)) { await requestWithdrawal(d.id, { chain: s.payoutChain ?? 'TRX', address: s.payoutAddress, amountUnits: bal.available, auto: true }); auto++; }
     } catch (e) { warn('cron.auto_payout_skipped', { merchantId: d.id, reason: (e as Error).message }); }
   }

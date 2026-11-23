@@ -2,7 +2,8 @@ import { db } from '../firebase-admin';
 import { createWithdrawal, bybitConfigured } from '../bybit';
 import { toUnits } from '../money';
 import { info, warn, error } from '../log';
-import { sendMail, esc } from '../brevo';
+import { sendMail } from '../brevo';
+import { simpleEmail } from '../mail';
 import { cardSettings } from './settings';
 import { programme } from './wallet';
 // Alimentation AUTOMATIQUE du portefeuille du programme depuis le compte Bybit de la plateforme (retrait USDT TRC20 vers l'adresse du programme).
@@ -14,7 +15,7 @@ const ALERT_TO = () => [...new Set([process.env.SUPPORT_EMAIL, ...(process.env.R
 export async function alertRefill(key: string, subject: string, lines: string[]) {
   try { await db.doc(`card_refill_alerts/${key}`).create({ at: Date.now(), subject }); } catch { return; }   // déjà envoyée
   if (!process.env.BREVO_API_KEY) { warn('cards.refill_alert_not_sent', { subject }); return; }
-  const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:22px;color:#0B1220"><h2 style="margin:0 0 12px 0">${esc(subject)}</h2>${lines.map(l => `<p style="margin:0 0 8px 0">${esc(l)}</p>`).join('')}</div>`;
+  const html = simpleEmail({ title: subject, paragraphs: lines, note: 'Alerte automatique Coinvera (alimentation des portefeuilles de cartes).' });
   for (const to of ALERT_TO()) await sendMail(to, subject, html).catch(e => warn('cards.refill_alert_failed', { to, message: (e as Error).message }));
 }
 const dayKey = () => new Date().toISOString().slice(0, 10);

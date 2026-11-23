@@ -16,7 +16,8 @@ export async function DELETE(req: Request) {
     const out: Outcome[] = [];
     for (const s of await owned(b.c, u.uid, b.ids)) {
       if (b.c === 'transactions') { if (s.data()!.purpose) { out.push({ id: s.id, result: 'skipped', reason: 'not_allowed' }); continue; } out.push(await removeTransaction(s.id, s.data()!)); }
-      else { await s.ref.delete(); out.push({ id: s.id, result: 'deleted' }); }
+      else { if (b.c === 'woocommerce_licenses') await db.doc(`api_activations/${u.uid}`).set({ licenseIssued: true }, { merge: true });   // une licence supprimée ne peut pas être régénérée (sinon : sites illimités)
+        await s.ref.delete(); out.push({ id: s.id, result: 'deleted' }); }
     }
     const deleted = out.filter(o => o.result !== 'skipped').length, skipped = out.filter(o => o.result === 'skipped').map(o => ({ id: o.id, reason: o.reason! }));
     if (b.c !== 'notifications') info('user.records_deleted', { uid: u.uid, c: b.c, deleted, skipped: skipped.length });

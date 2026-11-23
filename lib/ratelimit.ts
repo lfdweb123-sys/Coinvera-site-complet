@@ -2,7 +2,8 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { db } from './firebase-admin';
 import { HttpError } from './auth';
 import { warn } from './log';
-export const ipOf = (req: Request) => (req.headers.get('x-forwarded-for') ?? 'x').split(',')[0].trim();
+// IP du visiteur : l'en-tête posé par Vercel (non falsifiable par le client) d'abord ; x-forwarded-for en dernier recours.
+export const ipOf = (req: Request) => (req.headers.get('x-vercel-forwarded-for') ?? req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for') ?? 'x').split(',')[0].trim();
 export async function rateLimit(key: string, limit: number, windowSec: number) {
   const win = Math.floor(Date.now() / (windowSec * 1000));
   const ref = db.doc(`idempotency_records/rl_${key.replace(/[^a-zA-Z0-9]/g, '_')}_${win}`);

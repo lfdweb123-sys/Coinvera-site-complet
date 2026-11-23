@@ -1,7 +1,9 @@
 export const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.coinvera.me';
 export const DOCS = 'https://docs.coinvera.me', STATUS = 'https://status.coinvera.me', API = 'https://api.coinvera.me';
 export const HELP = 'https://helpcenter.coinvera.me';
-// Réseaux sociaux affichés en bas de page (à droite). Renseignez les adresses dans les variables d'environnement ; seuls les réseaux renseignés s'affichent.
+// Réseaux sociaux affichés en bas de page (à droite).
+// Aucune adresse n'est écrite en dur : renseignez-les dans les variables NEXT_PUBLIC_SOCIAL_X, _TELEGRAM, _WHATSAPP, _FACEBOOK, _INSTAGRAM, _LINKEDIN, _YOUTUBE et _GITHUB
+// (adresses complètes https://…), puis redéployez. Seuls les réseaux renseignés s'affichent ; sans aucune adresse, le texte www.coinvera.me reste affiché.
 export const SOCIALS = [
   { id: 'x', label: 'X', url: process.env.NEXT_PUBLIC_SOCIAL_X },
   { id: 'telegram', label: 'Telegram', url: process.env.NEXT_PUBLIC_SOCIAL_TELEGRAM },

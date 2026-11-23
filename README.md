@@ -61,3 +61,7 @@ Sources dans `plugins/coinvera-<nom>/` ; pages de présentation `/dons`, `/factu
 - **Nouvelle version d'un plugin** : incrémentez la version dans le fichier principal (en-tête et constante `CVx_VERSION`), dans `readme.txt` et dans `PLUGIN_VERSIONS`, puis régénérez l'archive : `cd plugins && zip -rq ../public/downloads/coinvera-<nom>.zip coinvera-<nom> -x '*.DS_Store'`. `npm test` vérifie la cohérence des versions et le contenu des archives.
 - **Factures** (`cvi`) : factures numérotées, page privée avec lien de paiement, relances par paliers, reçus. **Abonnements** (`cvs`) : plans, échéances par e-mail, accès aux contenus, cron horaire. **Billetterie** (`cvt`) : jauge garantie sous verrou MySQL (`GET_LOCK`), QR codes (bibliothèque MIT `qrcode-generator` embarquée), contrôle d'entrée.
 - Non couvert : l'intégration WooCommerce des plugins factures, abonnements et billetterie (seul le plugin de dons l'a).
+
+## Réseaux sociaux du pied de page
+
+Aucune adresse n'est écrite en dur. Renseignez-les dans les variables `NEXT_PUBLIC_SOCIAL_X`, `_TELEGRAM`, `_WHATSAPP`, `_FACEBOOK`, `_INSTAGRAM`, `_LINKEDIN`, `_YOUTUBE` et `_GITHUB` (adresses complètes `https://…`), puis redéployez. Seuls les réseaux renseignés s'affichent.

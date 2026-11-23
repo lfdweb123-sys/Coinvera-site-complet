@@ -64,4 +64,4 @@ Sources dans `plugins/coinvera-<nom>/` ; pages de présentation `/dons`, `/factu
 
 ## Réseaux sociaux du pied de page
 
-Aucune adresse n'est écrite en dur. Renseignez-les dans les variables `NEXT_PUBLIC_SOCIAL_X`, `_TELEGRAM`, `_WHATSAPP`, `_FACEBOOK`, `_INSTAGRAM`, `_LINKEDIN`, `_YOUTUBE` et `_GITHUB` (adresses complètes `https://…`), puis redéployez. Seuls les réseaux renseignés s'affichent.
+Collez les adresses complètes dans `SOCIALS` (fichier `lib/site.ts`). Un réseau laissé vide n'est pas affiché.

@@ -15,7 +15,10 @@ const L = [['/features', 'Fonctionnalités'], ['/cartes', 'Cartes'], ['/pricing'
 // Depuis docs.*, status.* ou helpcenter.*, un lien relatif (/pricing) resterait sur le sous-domaine, où il est réécrit vers la page du sous-domaine :
 // les liens internes du header et du footer pointent donc vers le site principal, page exacte comprise. Sur le site principal (ou en local) ils restent relatifs.
 // Sous-menus du header : la clé est un lien du menu principal, la valeur la liste de ses sous-liens (aussi affichés en retrait dans le menu mobile).
-const SUBMENU: Record<string, [string, string][]> = { '/features': [['/features', 'Toutes les fonctionnalités'], ['/couverture', 'Couverture mondiale']] };
+const SUBMENU: Record<string, [string, string][]> = {
+  '/features': [['/features', 'Toutes les fonctionnalités'], ['/couverture', 'Couverture mondiale']],
+  '/plugins': [['/woocommerce', 'Plugin WooCommerce'], ['/dons', 'Plugin de dons'], ['/factures', 'Plugin de factures'], ['/abonnements', 'Plugin d’abonnements'], ['/billetterie', 'Plugin de billetterie'], ['/paiement-livraison', 'Plugin paiement à la livraison'], ['/paiement-en-plusieurs-fois', 'Plugin paiement en plusieurs fois']],
+};
 const SUB = /^(docs|status|helpcenter|api)\./i;
 function useBase(base: string) { const [b, setB] = useState(base); useEffect(() => { setB(SUB.test(window.location.hostname) ? SITE : ''); }, []); return b; }
 export function Header({ base = '' }: { base?: string }) {
@@ -24,7 +27,7 @@ export function Header({ base = '' }: { base?: string }) {
   const cta = user ? <Link href={to('/dashboard')} className="btn p">Tableau de bord</Link> : <><Link href={to('/login')} className="btn">Connexion</Link><Link href={to('/register')} className="btn p">Créer un compte</Link></>;
   return <><header className="hdr"><div className="bar"><Link href={to('/')} className="logo" aria-label="Coinvera, accueil"><LogoMark />Coinvera</Link>
     <nav className="nav" aria-label="Navigation principale">{L.map(([h, l]) => SUBMENU[h]
-      ? <div key={h} className="dd"><Link href={to(h)} className={'l' + (SUBMENU[h].some(([x]) => x === path) ? ' on' : '')} aria-haspopup="true">{l}<ChevronDown size={14} aria-hidden="true" /></Link><div className="ddm" role="menu">{SUBMENU[h].map(([x, y]) => <Link key={x} href={to(x)} role="menuitem" className={path === x ? 'on' : ''}>{y}</Link>)}</div></div>
+      ? <div key={h} className="dd"><Link href={to(h)} className={'l' + (path === h || SUBMENU[h].some(([x]) => x === path) ? ' on' : '')} aria-haspopup="true">{l}<ChevronDown size={14} aria-hidden="true" /></Link><div className="ddm" role="menu">{SUBMENU[h].map(([x, y]) => <Link key={x} href={to(x)} role="menuitem" className={path === x ? 'on' : ''}>{y}</Link>)}</div></div>
       : <Link key={h} href={to(h)} className={'l' + (path === h ? ' on' : '')}>{l}</Link>)}</nav>
     <div className="hdr-cta">{cta}</div>
     <button className="btn burger" aria-label="Menu" aria-expanded={o} onClick={() => setO(!o)} style={{ padding: 0, width: 44 }}>{o ? <X size={20} /> : <Menu size={20} />}</button></div></header>

@@ -42,13 +42,12 @@ const TRUST: [typeof ShieldCheck, string, string][] = [
   [Activity, 'État des services public', 'Consultez à tout moment la disponibilité de la plateforme.'],
   [LifeBuoy, 'Support et aide', 'Support joignable par e-mail et centre d’aide en libre accès.'],
 ];
-function TrustBar({ to }: { to: (h: string) => string }) {
-  return <div className="trust-f"><h4>Pourquoi nous faire confiance</h4><ul>{TRUST.map(([I, t, d]) => <li key={t}><span className="tf-i"><I size={18} aria-hidden="true" /></span><div><b>{t}</b><p>{d}</p></div></li>)}</ul>
-    <p className="tf-n">Coinvera LLC exploite la plateforme. <Link href={to('/terms')}>Conditions</Link> · <Link href={to('/privacy')}>Confidentialité</Link> · <Link href={to('/refund-policy')}>Remboursement</Link> · <a href={STATUS}>État des services</a> · <a href={HELP}>Centre d’aide</a> · <a href="mailto:support@coinvera.me">support@coinvera.me</a></p></div>;
+function TrustBar() {
+  return <section className="tsec" aria-labelledby="trust-t"><div className="in2"><h2 id="trust-t">Pourquoi nous faire confiance</h2><ul>{TRUST.map(([I, t, d]) => <li key={t}><span className="tf-i"><I size={18} aria-hidden="true" /></span><div><b>{t}</b><p>{d}</p></div></li>)}</ul></div></section>;
 }
 export function Footer({ base = '' }: { base?: string }) {
   const b = useBase(base); const to = (h: string) => (h.startsWith('/') ? b + h : h);
-  return <><CryptoStrip /><footer className="foot"><div className="in2"><TrustBar to={to} /><div className="cols">
+  return <><CryptoStrip /><TrustBar /><footer className="foot"><div className="in2"><div className="cols">
     <div><div className="logo" style={{ color: '#fff', marginBottom: 16 }}><LogoMark />Coinvera</div><p style={{ maxWidth: 340 }}>Encaissez par carte, retirez en cryptomonnaie. La plateforme de paiement pensée pour les marchands et les développeurs.</p><div style={{ marginTop: 16 }}><CardLogos /></div></div>
     <div><h4>Produit</h4><ul><li><Link href={to('/features')}>Fonctionnalités</Link></li><li><Link href={to('/cartes')}>Cartes virtuelles</Link></li><li><Link href={to('/pricing')}>Tarification</Link></li><li><Link href={to('/woocommerce')}>Plugin WooCommerce</Link></li><li><Link href={to('/dons')}>Plugin de dons</Link></li><li><Link href={to('/factures')}>Plugin de factures</Link></li><li><Link href={to('/abonnements')}>Plugin d’abonnements</Link></li><li><Link href={to('/billetterie')}>Plugin de billetterie</Link></li><li><Link href={to('/paiement-livraison')}>Plugin paiement à la livraison</Link></li><li><Link href={to('/paiement-en-plusieurs-fois')}>Plugin paiement en plusieurs fois</Link></li></ul></div>
     <div><h4>Développeurs</h4><ul><li><a href={DOCS}>Documentation API</a></li><li><a href={HELP}>Centre d’aide</a></li><li><a href={STATUS}>État des services</a></li><li><Link href={to('/couverture')}>Couverture mondiale</Link></li><li><Link href={to('/blog')}>Blog</Link></li><li><Link href={to('/register')}>Créer un compte</Link></li></ul></div>

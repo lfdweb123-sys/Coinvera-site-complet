@@ -245,11 +245,13 @@ html[data-theme=dark] .hv-bars i{background:#2B3856}
 .cv-search{position:relative;max-width:420px;margin-bottom:14px}.cv-search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--mut);pointer-events:none}.cv-search .in{padding-left:42px;width:100%}
 .cv-cont{margin-bottom:clamp(24px,4vw,40px);scroll-margin-top:96px}.cv-cont h3{font-size:clamp(20px,2.4vw,26px);margin:0 0 14px;letter-spacing:-.03em}
 .cv-grid{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}.cv-grid li{padding:10px 14px;background:var(--soft);border:1px solid var(--line);border-radius:10px;font-size:14.5px;overflow-wrap:anywhere}
-/* ---- Pied de page : confiance, installation de l'application ---- */
-.foot .trust-f{border-bottom:1px solid #1D2B52;padding-bottom:32px;margin-bottom:36px}.foot .trust-f ul{grid-template-columns:repeat(4,minmax(0,1fr));gap:22px 28px}.foot .trust-f li{display:flex;gap:12px;align-items:flex-start}
-.foot .tf-i{flex:none;width:36px;height:36px;border-radius:10px;background:#12214A;color:#8FB2FF;display:grid;place-items:center}.foot .trust-f b{display:block;color:#fff;font-size:14px}.foot .trust-f p{margin:2px 0 0;font-size:13px;line-height:1.5;color:#9FB1D3}
-.foot .tf-n{margin:26px 0 0;font-size:13px;color:#9FB1D3;overflow-wrap:anywhere}.foot .tf-n a{text-decoration:underline;text-underline-offset:2px}
-@media(max-width:1000px){.foot .trust-f ul{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.foot .trust-f ul{grid-template-columns:minmax(0,1fr)}}
+/* ---- Section confiance (juste avant le pied de page) ---- */
+.tsec{background:var(--soft);border-top:1px solid var(--line);padding:clamp(36px,5vw,56px) 0}.tsec .in2{padding:0 var(--px)}
+.tsec h2{font-size:clamp(22px,2.6vw,30px);margin:0 0 clamp(20px,3vw,30px);letter-spacing:-.03em}
+.tsec ul{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:22px 28px}.tsec li{display:flex;gap:12px;align-items:flex-start}
+.tsec .tf-i{flex:none;width:38px;height:38px;border-radius:10px;background:var(--brandsoft);color:var(--brand);display:grid;place-items:center}.tsec b{display:block;color:var(--ink);font-size:15px}.tsec p{margin:2px 0 0;font-size:13.5px;line-height:1.5;color:var(--ink2)}
+@media(max-width:1000px){.tsec ul{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.tsec ul{grid-template-columns:minmax(0,1fr)}}
+/* ---- Pied de page : installation de l'application ---- */
 .foot .foot-l{display:grid;gap:14px;justify-items:start;min-width:0}.pwa{display:flex;flex-direction:row;gap:10px}
 .pwa-b{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;min-height:44px;border-radius:10px;border:1px solid #2A3B6B;background:#12214A;color:#fff;font:600 14px Inter,sans-serif;cursor:pointer;white-space:nowrap;transition:.15s}.pwa-b:hover{background:#1A2D63;border-color:#3D5499}.pwa-b:focus-visible{outline:2px solid #8FB2FF;outline-offset:2px}
 @media(max-width:1023px){.foot .foot-l{width:100%}.pwa{flex-direction:column;width:100%;max-width:380px}.pwa-b{width:100%;white-space:normal}}

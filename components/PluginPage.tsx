@@ -13,7 +13,7 @@ export type PluginPageProps = {
   steps: readonly (readonly [string, string])[];
   bullets: readonly string[]; priceNote: string;
   previewTitle: string; preview: ReactNode;
-  codeTitle: string; code: string;
+  codeTitle: string; code: string; codeNote?: string;
   faq: readonly (readonly [string, string])[];
 };
 
@@ -29,7 +29,7 @@ export default function PluginPage(p: PluginPageProps) {
           <div style={{ margin: '20px 0' }}><CardLogos label="Cartes acceptées :" /></div><CtaLink className="btn p lg full" guest={['/register', 'Commencer']} user={['/dashboard/woocommerce', 'Télécharger le plugin']} /></div></div>
       <div className="g2">
         <div className="card"><h3 style={{ marginBottom: 6 }}>{p.previewTitle}</h3><p className="mut" style={{ marginTop: 0 }}>Exemple fictif d’affichage.</p>{p.preview}</div>
-        <div className="card"><h3 style={{ marginBottom: 6 }}>{p.codeTitle}</h3><p className="mut" style={{ marginTop: 0 }}>Collez un shortcode dans n’importe quelle page ou article.</p><div className="code"><pre>{p.code}</pre></div></div></div>
+        <div className="card"><h3 style={{ marginBottom: 6 }}>{p.codeTitle}</h3><p className="mut" style={{ marginTop: 0 }}>{p.codeNote ?? 'Collez un shortcode dans n’importe quelle page ou article.'}</p><div className="code"><pre>{p.code}</pre></div></div></div>
       <div><h2 style={{ marginBottom: 14 }}>Questions fréquentes</h2><div className="g2">{p.faq.map(([q, a]) => <div className="card" key={q}><h3 style={{ fontSize: 17, marginBottom: 6 }}>{q}</h3><p className="mut" style={{ margin: 0 }}>{a}</p></div>)}</div></div>
     </div></main><Footer /></>;
 }

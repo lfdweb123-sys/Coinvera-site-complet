@@ -5,7 +5,7 @@ import { getSettings } from '@/lib/settings';
 import { audit } from '@/lib/audit';
 const Body = z.object({ platformFeeBps: z.number().int().min(0).max(2000), processingFeeBps: z.number().int().min(0).max(2000), apiActivationUsd: z.number().min(0),
   minWithdrawalUsd: z.number().min(0), maxWithdrawalUsd: z.number().min(1), withdrawalFeeTRX: z.number().min(0), withdrawalFeeETH: z.number().min(0), withdrawalFeeBSC: z.number().min(0), freeTrials: z.number().int().min(0).max(20), maxLicenseActivations: z.number().int().min(1).max(100), pluginVersion: z.string().max(20),
-  whatsappCartTemplate: z.string().max(60), whatsappStatusTemplate: z.string().max(60), whatsappLang: z.string().max(10),
+  whatsappCartTemplate: z.string().max(60), whatsappStatusTemplate: z.string().max(60), whatsappCodTemplate: z.string().max(60), whatsappInstallmentTemplate: z.string().max(60), whatsappLang: z.string().max(10),
   whatsappRateCartUsd: z.number().min(0).max(5), whatsappRateStatusUsd: z.number().min(0).max(5) }).partial();
 export async function GET(req: Request) { try { await requireAdmin(req); return Response.json(await getSettings()); } catch (e) { return fail(e); } }
 export async function PUT(req: Request) {

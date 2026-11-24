@@ -5,7 +5,9 @@ import { toUnits } from './money';
 import { getSettings } from './settings';
 import { warn } from './log';
 
-export type WhatsAppCategory = 'cart' | 'status';
+export type WhatsAppCategory = 'cart' | 'status' | 'cod' | 'installment';
+/** Tarif facturé au marchand : « marketing » pour la relance panier, « utilitaire » pour tout le reste (statut, confirmation COD, échéance). */
+export const whatsappRateUsd = (category: WhatsAppCategory, s: { whatsappRateCartUsd: number; whatsappRateStatusUsd: number }) => category === 'cart' ? s.whatsappRateCartUsd : s.whatsappRateStatusUsd;
 
 /** Appelé juste après l'envoi (hors mode test) : garde le lien entre l'identifiant du message Meta et le marchand,
  *  pour que le webhook de statut sache ensuite qui facturer. Pas encore de coût engagé à ce stade. */
@@ -25,7 +27,7 @@ export async function billDeliveredMessage(messageId: string, metaStatus: string
     const snap = await tx.get(ref);
     if (!snap.exists || snap.data()!.status !== 'sent') return;   // déjà facturé, échoué, ou message inconnu : on ne rejoue rien
     const { merchantId, category } = snap.data() as { merchantId: string; category: WhatsAppCategory };
-    const rateUsd = category === 'cart' ? s.whatsappRateCartUsd : s.whatsappRateStatusUsd;
+    const rateUsd = whatsappRateUsd(category, s);
     const amount = toUnits(rateUsd);
     const bal = await readBal(tx, merchantId);
     postEntry(tx, `wa_bill_${messageId}`, merchantId, 'whatsapp_message_billed',

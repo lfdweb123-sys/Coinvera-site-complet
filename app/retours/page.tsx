@@ -1,8 +1,9 @@
+import { seo } from '@/lib/seo';
 import { Clock, Gift, ListChecks, Repeat, RotateCcw, ShieldCheck } from 'lucide-react';
 import PluginPage, { Frame } from '@/components/PluginPage';
 import { getSettings } from '@/lib/settings';
 export const revalidate = 300;
-export const metadata = { title: 'Plugin retours & échanges WordPress', description: 'Portail client en libre-service pour les retours et échanges WooCommerce : avoir immédiat avec bonus ou remboursement validé par vos soins. Même licence que les autres plugins Coinvera.', alternates: { canonical: '/retours' } };
+export const metadata = seo({ title: 'Plugin retours & échanges pour WooCommerce', description: 'Portail client en libre-service pour les retours et échanges WooCommerce : avoir immédiat avec bonus ou remboursement validé par vos soins. Même licence que les autres plugins.', path: '/retours', keywords: ['retours WooCommerce', 'échange produit WooCommerce', 'avoir boutique en ligne', 'remboursement WooCommerce', 'plugin retour marchandise WordPress'] });
 const F = [
   [RotateCcw, 'Demande en 2 clics', 'Le client choisit sa commande, les articles concernés et la raison, directement depuis Mon compte.'],
   [Gift, 'Avoir immédiat avec bonus', 'Un bon d’achat est généré et envoyé par e-mail à l’instant, avec un bonus (taux réglable) qui encourage l’avoir plutôt que le remboursement.'],

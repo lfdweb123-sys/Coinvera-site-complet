@@ -235,3 +235,29 @@ html[data-theme=dark] .hv-bars i{background:#2B3856}
 .stp .dot{position:relative;z-index:1;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--line);background:var(--bg);font:700 13px Inter,sans-serif}.stp li.on .dot{border-color:var(--brand);background:var(--brand);color:#fff}.stp li.done .dot{border-color:var(--brand);background:var(--brandsoft);color:var(--brand)}.stp li.on{color:var(--ink);font-weight:600}
 @media(max-width:560px){.stp li:not(.on) .lbl{display:none}}
 .sbody{display:grid;gap:12px;min-height:150px;align-content:start}.sfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:22px}.sfoot .btn{min-width:120px;justify-content:center}
+
+/* ---- Sous-menu du header (Fonctionnalités > Couverture mondiale) ---- */
+.nav .dd{position:relative}.nav .dd>a.l{display:inline-flex;align-items:center;gap:4px}.nav .dd>a.l svg{transition:transform .15s}.nav .dd:hover>a.l svg,.nav .dd:focus-within>a.l svg{transform:rotate(180deg)}
+.nav .ddm{display:none;position:absolute;top:100%;left:0;min-width:250px;padding:8px;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh);z-index:60}.nav .dd:hover .ddm,.nav .dd:focus-within .ddm{display:block}
+.nav .ddm a{display:block;padding:10px 12px;border-radius:8px;color:var(--ink2);font-size:14.5px;font-weight:500}.nav .ddm a:hover,.nav .ddm a.on{background:var(--soft);color:var(--ink)}.nav .ddm a.on{color:var(--brand);font-weight:600}
+.drawer a.l.sub{padding:12px 4px 12px 20px;font-size:16px;font-weight:500;color:var(--ink2)}
+/* ---- Page Couverture ---- */
+.cv-search{position:relative;max-width:420px;margin-bottom:14px}.cv-search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--mut);pointer-events:none}.cv-search .in{padding-left:42px;width:100%}
+.cv-cont{margin-bottom:clamp(24px,4vw,40px);scroll-margin-top:96px}.cv-cont h3{font-size:clamp(20px,2.4vw,26px);margin:0 0 14px;letter-spacing:-.03em}
+.cv-grid{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}.cv-grid li{padding:10px 14px;background:var(--soft);border:1px solid var(--line);border-radius:10px;font-size:14.5px;overflow-wrap:anywhere}
+/* ---- Pied de page : confiance, installation de l'application ---- */
+.foot .trust-f{border-bottom:1px solid #1D2B52;padding-bottom:32px;margin-bottom:36px}.foot .trust-f ul{grid-template-columns:repeat(4,minmax(0,1fr));gap:22px 28px}.foot .trust-f li{display:flex;gap:12px;align-items:flex-start}
+.foot .tf-i{flex:none;width:36px;height:36px;border-radius:10px;background:#12214A;color:#8FB2FF;display:grid;place-items:center}.foot .trust-f b{display:block;color:#fff;font-size:14px}.foot .trust-f p{margin:2px 0 0;font-size:13px;line-height:1.5;color:#9FB1D3}
+.foot .tf-n{margin:26px 0 0;font-size:13px;color:#9FB1D3;overflow-wrap:anywhere}.foot .tf-n a{text-decoration:underline;text-underline-offset:2px}
+@media(max-width:1000px){.foot .trust-f ul{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.foot .trust-f ul{grid-template-columns:minmax(0,1fr)}}
+.foot .foot-l{display:grid;gap:14px;justify-items:start;min-width:0}.pwa{display:flex;flex-direction:row;gap:10px}
+.pwa-b{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;min-height:44px;border-radius:10px;border:1px solid #2A3B6B;background:#12214A;color:#fff;font:600 14px Inter,sans-serif;cursor:pointer;white-space:nowrap;transition:.15s}.pwa-b:hover{background:#1A2D63;border-color:#3D5499}.pwa-b:focus-visible{outline:2px solid #8FB2FF;outline-offset:2px}
+@media(max-width:1023px){.foot .foot-l{width:100%}.pwa{flex-direction:column;width:100%;max-width:380px}.pwa-b{width:100%;white-space:normal}}
+/* ---- Documentation API : adaptée au mobile ---- */
+.docs .dh1{font-size:40px;margin-bottom:24px}.docs .dh2{font-size:26px}.docs aside .dn{display:block}
+@media(max-width:860px){.docs{align-items:stretch}.docs aside,.docs main{width:100%;max-width:100%;min-width:0}.docs aside{position:static;overflow:visible}
+  .docs aside .dn{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}.docs aside .dn a{flex:none;white-space:nowrap;border:1px solid var(--line);padding:7px 12px}
+  .docs .dh1{font-size:clamp(28px,8vw,40px);margin-bottom:16px}.docs .dh2{font-size:clamp(21px,5.6vw,26px)}.docs p,.docs code{overflow-wrap:anywhere}.docs section{margin-bottom:36px}
+  .docs .code{font-size:12px;padding:44px 14px 14px}.docs .tabs button{flex:1 1 auto}}
+/* ---- Bannières : illustration masquée sur mobile et tablette ---- */
+@media(max-width:1023px){.hero .hv{display:none}.hero .wrap{grid-template-columns:minmax(0,1fr)}.hero .art,.phero .art{display:none}.hero:after,.phero:after{background:none}}

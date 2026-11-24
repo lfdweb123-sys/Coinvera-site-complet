@@ -12,7 +12,8 @@ const csp = (nonce: string) => [
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
   "connect-src 'self' https: wss:",
-  "frame-src https:",
+  "frame-src https:", "worker-src 'self'", "manifest-src 'self'",   // service worker et manifeste de l'application installable (PWA)
+ 
   "frame-ancestors 'none'", "base-uri 'self'", "form-action 'self'", "object-src 'none'", "upgrade-insecure-requests",
 ].join('; ');
 export function proxy(req: NextRequest) {

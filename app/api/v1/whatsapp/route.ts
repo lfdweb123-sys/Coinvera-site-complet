@@ -7,9 +7,9 @@ import { fail, HttpError } from '@/lib/auth';
 import { rateLimit } from '@/lib/ratelimit';
 import { getSettings } from '@/lib/settings';
 import { toUnits } from '@/lib/money';
-import { recordSentMessage } from '@/lib/whatsapp-billing';
+import { recordSentMessage, whatsappRateUsd } from '@/lib/whatsapp-billing';
 import { sendWhatsAppTemplate, toE164Digits, WhatsAppError } from '@/lib/whatsapp';
-const Body = z.object({ to: z.string().min(5).max(20), country: z.string().length(2).optional(), kind: z.enum(['cart', 'status']), vars: z.array(z.string().max(200)).max(5).default([]) });
+const Body = z.object({ to: z.string().min(5).max(20), country: z.string().length(2).optional(), kind: z.enum(['cart', 'status', 'cod', 'installment']), vars: z.array(z.string().max(200)).max(5).default([]) });
 export async function POST(req: Request) {
   const raw = await req.text();
   let idemRef: FirebaseFirestore.DocumentReference | null = null;
@@ -29,8 +29,8 @@ export async function POST(req: Request) {
       const digits = toE164Digits(body.to, body.country ?? '');
       if (!digits) { const response = { error: 'invalid_phone' }; if (idemRef) await idemRef.update({ response }); return Response.json(response, { status: 422 }); }
       const s = await getSettings();
-      const template = body.kind === 'cart' ? s.whatsappCartTemplate : s.whatsappStatusTemplate;
-      const rateUsd = body.kind === 'cart' ? s.whatsappRateCartUsd : s.whatsappRateStatusUsd;
+      const template = { cart: s.whatsappCartTemplate, status: s.whatsappStatusTemplate, cod: s.whatsappCodTemplate, installment: s.whatsappInstallmentTemplate }[body.kind];
+      const rateUsd = whatsappRateUsd(body.kind, s);
       let response: Record<string, unknown>;
       if (a.mode === 'test') response = { sent: false, simulated: true };   // on ne déclenche jamais un vrai envoi WhatsApp depuis une clé de test
       else {

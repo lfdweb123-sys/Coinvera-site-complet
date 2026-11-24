@@ -3,6 +3,8 @@ export const DEFAULTS = { platformFeeBps: 150, processingFeeBps: 150, apiActivat
   minWithdrawalUsd: 10, withdrawalFeeTRX: 1.3, withdrawalFeeETH: 5, withdrawalFeeBSC: 1, maxWithdrawalUsd: 5000, freeTrials: 2, maxLicenseActivations: 1, pluginVersion: '0.1.0', chains: { USDT: ['TRX', 'ETH', 'BSC'] } as Record<string, string[]>,
   // Relances WhatsApp (plugin coinvera-reminders) : noms des modèles Meta pré-approuvés, partagés par tous les marchands.
   whatsappCartTemplate: 'cvr_cart_reminder', whatsappStatusTemplate: 'cvr_order_status', whatsappLang: 'fr',
+  // Confirmation paiement à la livraison (coinvera-cod) et échéances (coinvera-installments) : messages utilitaires, facturés au tarif « statut ».
+  whatsappCodTemplate: 'cvc_cod_confirm', whatsappInstallmentTemplate: 'cvp_installment_due',
   // Prix facturé au marchand par message WhatsApp *délivré* (USD), catégorie « marketing » (relance panier) et
   // « utilitaire » (statut de commande) — à ajuster selon le tarif Meta réel pour vos marchés (Business Manager >
   // WhatsApp Manager > Facturation) plus votre marge : ce sont des valeurs de départ, pas un tarif vérifié.

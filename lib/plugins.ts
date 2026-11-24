@@ -1,6 +1,6 @@
 // Plugins distribués avec la licence unique. La version du plugin WooCommerce reste pilotée par les réglages admin (pluginVersion).
 // Les autres versions doivent rester identiques à l'en-tête et à la constante de chaque plugin (vérifié par tests/plugins.test.ts).
-export const PLUGIN_VERSIONS = { donations: '1.2.1', invoices: '1.0.0', subscriptions: '1.0.0', tickets: '1.0.0', guard: '1.0.0', reminders: '1.0.0', returns: '1.0.0', einvoice: '1.1.0' } as const;
+export const PLUGIN_VERSIONS = { donations: '1.2.1', invoices: '1.0.0', subscriptions: '1.0.0', tickets: '1.0.0', guard: '1.0.0', reminders: '1.0.0', returns: '1.0.0', einvoice: '1.1.0', cod: '1.0.0', installments: '1.0.0' } as const;
 export type PluginKey = keyof typeof PLUGIN_VERSIONS;
 export const isPluginKey = (k: unknown): k is PluginKey => typeof k === 'string' && Object.prototype.hasOwnProperty.call(PLUGIN_VERSIONS, k);
 export const pluginZip = (k: PluginKey) => `/downloads/coinvera-${k}.zip`;
@@ -22,4 +22,6 @@ export const LISTED = [
   { key: 'einvoice', name: 'Plugin facturation électronique', tagline: 'Factures Factur-X conformes (EN 16931) et TVA calculée en temps réel selon l’adresse et l’IP du client.', href: '/facturation-electronique', zip: pluginZip('einvoice') },
   { key: 'reminders', name: 'Plugin relances WhatsApp', tagline: 'Relance les commandes en attente de paiement et notifie vos clients par WhatsApp.', href: '/relances-whatsapp', zip: pluginZip('reminders') },
   { key: 'returns', name: 'Plugin retours & échanges', tagline: 'Portail client en libre-service, avoir immédiat avec bonus ou remboursement validé.', href: '/retours', zip: pluginZip('returns') },
+  { key: 'cod', name: 'Plugin paiement à la livraison', tagline: 'Confirmation WhatsApp avant expédition et score de fiabilité pour réduire les colis refusés.', href: '/paiement-livraison', zip: pluginZip('cod') },
+  { key: 'installments', name: 'Plugin paiement en plusieurs fois', tagline: 'Acompte, paiement en 2 ou 3 fois géré par le marchand, avec lien de paiement à chaque échéance.', href: '/paiement-en-plusieurs-fois', zip: pluginZip('installments') },
 ] as const;

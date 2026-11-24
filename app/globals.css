@@ -263,3 +263,4 @@ html[data-theme=dark] .hv-bars i{background:#2B3856}
   .docs .code{font-size:12px;padding:44px 14px 14px}.docs .tabs button{flex:1 1 auto}}
 /* ---- Bannières : illustration masquée sur mobile et tablette ---- */
 @media(max-width:1023px){.hero .hv{display:none}.hero .wrap{grid-template-columns:minmax(0,1fr)}.hero .art,.phero .art{display:none}.hero:after,.phero:after{background:none}}
+.btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed;pointer-events:none;filter:grayscale(.4)}

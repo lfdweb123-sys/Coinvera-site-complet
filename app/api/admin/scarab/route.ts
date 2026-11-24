@@ -3,7 +3,7 @@ import { db } from '@/lib/firebase-admin';
 import { fail, HttpError, requireAdmin } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { fromUnits } from '@/lib/money';
-import { sp } from '@/lib/scarab/client';
+import { sp, SpError } from '@/lib/scarab/client';
 import { products, wallet } from '@/lib/scarab/catalog';
 import { scarabSettings, pricingOf } from '@/lib/scarab/settings';
 import { categoryOf, customerFee, feeOf, liveCost, centsToUsd, MARGIN_MAX, STARTER } from '@/lib/scarab/pricing';
@@ -40,6 +40,9 @@ export async function POST(req: Request) {
   try { const a = await requireAdmin(req); const b = Act.parse(await req.json());
     if (b.action === 'resolve') { const o = (await db.doc(`scarab_orders/${b.orderId}`).get()).data(); if (!o || o.status !== 'review') throw new HttpError(409, 'scarab_wrong_state'); await resolveOrder(b.orderId, b.decision); await audit(a.uid, 'scarab.resolve', { orderId: b.orderId, decision: b.decision }); return Response.json({ ok: true }); }
     if (b.action === 'wd-resolve') { await resolveWithdrawal(b.id, b.netMinor); await audit(a.uid, 'scarab.wd_resolve', { id: b.id, netMinor: b.netMinor }); return Response.json({ ok: true }); }
-    const r = await sp('POST', '/deposit-addresses', { body: { network: b.network } }); await audit(a.uid, 'scarab.deposit_address', { network: b.network }); return Response.json({ address: r.data });
+    // La doc exige l'identifiant du réseau en minuscules (« trc20 », « bep20 »…) ; une autre casse ou un réseau non activé donne un 422.
+    const network = b.network.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    try { const r = await sp('POST', '/deposit-addresses', { body: { network } }); await audit(a.uid, 'scarab.deposit_address', { network }); return Response.json({ address: r.data }); }
+    catch (e) { if (e instanceof SpError && e.status === 422) throw new HttpError(422, 'network_not_enabled'); throw e; }
   } catch (e) { return fail(e); }
 }

@@ -16,4 +16,4 @@ export const SCARAB_ERR: Record<string, string> = {
   provider_rejected: 'La demande a été refusée par l’émetteur. Vous n’avez pas été débité.', invalid_amount: 'Montant invalide, ou hors des limites de cette carte.',
   validation_error: 'Certaines informations sont invalides ou manquantes : vérifiez le formulaire.', underage: 'Vous devez avoir au moins 18 ans.',
   document_required: 'La photo de la pièce d’identité est obligatoire pour ce type de document.', document_not_allowed: 'Ce type de pièce ne se vérifie pas avec une photo.', country_mismatch: 'Ce type de pièce exige le pays Nigéria (NGA).',
-  code_expired: 'Ce code a expiré.' };
+  code_expired: 'Ce code a expiré.', network_not_enabled: 'Ce réseau n’est pas activé chez le prestataire. Choisissez un autre réseau (TRC20 ou BEP20 en général).' };

@@ -9,6 +9,7 @@ const PLUGINS: { key: PluginKey; slug: string; cst: string; pfx: string }[] = [
   { key: 'subscriptions', slug: 'coinvera-subscriptions', cst: 'CVS_VERSION', pfx: 'cvs' }, { key: 'tickets', slug: 'coinvera-tickets', cst: 'CVT_VERSION', pfx: 'cvt' },
   { key: 'guard', slug: 'coinvera-guard', cst: 'CVG_VERSION', pfx: 'cvg' },
   { key: 'reminders', slug: 'coinvera-reminders', cst: 'CVR_VERSION', pfx: 'cvr' },
+  { key: 'returns', slug: 'coinvera-returns', cst: 'CVX_VERSION', pfx: 'cvx' },
 ];
 describe('registre des plugins', () => {
   it('connaît exactement les plugins testés ci-dessous', () => { expect(Object.keys(PLUGIN_VERSIONS).sort()).toEqual(PLUGINS.map(p => p.key).sort()); });

@@ -3,10 +3,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import QRCode from 'qrcode';
 import { CopyRow } from '@/components/CopyBtn';
-import { CreditCard, Eye, Plus, Snowflake, Trash2, X, ShieldCheck, KeyRound, Wallet } from 'lucide-react';
+import { CreditCard, Eye, Plus, Snowflake, Trash2, ShieldCheck, KeyRound, Wallet } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
 import CardArt, { KIND_LABEL, kindOf } from '@/components/CardArt';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
+import { Err, Modal, Nav, Stepper } from '@/components/Wizard';
 // Virtuals cards pro : cartes Visa émises via ScarabPay, entièrement séparées des cartes virtuelles (/dashboard/cards). Le nom du prestataire n'apparaît jamais à l'écran.
 const ST: Record<string, string> = { pending: 'En création', active: 'Active', frozen: 'Gelée', terminated: 'Fermée', expired: 'Expirée', failed: 'Échouée' };
 const OS: Record<string, string> = { reserved: 'En cours', processing: 'En cours', confirmed: 'Terminée', failed: 'Échouée' };
@@ -29,11 +30,6 @@ async function shrink(f: File): Promise<string> {
   const b = await createImageBitmap(f), k = Math.min(1, 1600 / Math.max(b.width, b.height)), c = document.createElement('canvas'); c.width = Math.round(b.width * k); c.height = Math.round(b.height * k);
   c.getContext('2d')!.drawImage(b, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.82).split(',')[1];
 }
-const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => {
-  useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [onClose]);
-  return <div className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.target === e.currentTarget && onClose()}><div className="mbox wide"><div className="mh"><h2>{title}</h2><button className="mx" aria-label="Fermer" onClick={onClose}><X size={18} /></button></div>{children}</div></div>;
-};
-const Err = ({ m }: { m: string }) => m ? <p className="err" role="alert">{m}</p> : null;
 const fieldsMsg = (e: any) => e?.fields ? Object.entries(e.fields).map(([k, v]: any) => `${FIELD_LABEL[k] ?? k} : ${v?.[0] === 'underage' ? 'vous devez avoir 18 ans' : 'invalide ou manquant'}`).join(' · ') : '';
 function usePoll(url: string | null, done: (d: any) => boolean, every = 5000) {
   const [d, setD] = useState<any>(null);
@@ -44,7 +40,7 @@ function usePoll(url: string | null, done: (d: any) => boolean, every = 5000) {
 // ---- Vérification d'identité (mode « merchant ») --------------------------------------------------------------------------------
 const EMPTY = { first_name: '', last_name: '', email: '', dial_code: '+229', phone_number: '', date_of_birth: '', id_type: 'passport', id_number: '', line1: '', city: '', state: '', postal_code: '', country: 'BEN', place_of_birth: '', occupation: '', employment_status: 'employed', account_purpose: 'personal_spending', annual_salary: '', expected_monthly_volume: '' };
 function IdentityForm({ email, fix, onClose, onDone }: { email?: string; fix?: boolean; onClose: () => void; onDone: () => void }) {
-  const [v, setV] = useState<any>({ ...EMPTY, email: email ?? '' }), [front, setFront] = useState(''), [back, setBack] = useState(''), [terms, setTerms] = useState(false), [e, setE] = useState(''), [busy, setBusy] = useState(false);
+  const [v, setV] = useState<any>({ ...EMPTY, email: email ?? '' }), [front, setFront] = useState(''), [back, setBack] = useState(''), [terms, setTerms] = useState(false), [e, setE] = useState(''), [busy, setBusy] = useState(false), [st, setSt] = useState(0);
   const set = (k: string) => (x: any) => setV({ ...v, [k]: x.target.value }); const needFront = !NO_PHOTO.includes(v.id_type), needBack = TWO_SIDES.includes(v.id_type);
   const pick = (set_: (s: string) => void) => async (x: React.ChangeEvent<HTMLInputElement>) => { setE(''); const f = x.target.files?.[0]; if (!f) return; try { set_(await shrink(f)); } catch { setE('Utilisez une photo JPEG, PNG ou WebP (pas de PDF).'); } };
   const submit = async () => {
@@ -58,22 +54,26 @@ function IdentityForm({ email, fix, onClose, onDone }: { email?: string; fix?: b
   };
   const T = (k: string, label: string, p: any = {}) => <div key={k}><label htmlFor={'f' + k}>{label}</label><input id={'f' + k} className="in" value={v[k]} onChange={set(k)} {...p} /></div>;
   const S = (k: string, label: string, opts: [string, string][]) => <div key={k}><label htmlFor={'f' + k}>{label}</label><select id={'f' + k} className="in" value={v[k]} onChange={set(k)}>{opts.map(([a, b]) => <option key={a} value={a}>{b}</option>)}</select></div>;
-  const ok = fix ? true : terms && v.first_name && v.last_name && v.email && v.phone_number && v.date_of_birth && v.id_number && v.line1 && v.city && v.state && v.postal_code && v.occupation && v.annual_salary && v.expected_monthly_volume && (!needFront || front) && (!needBack || back);
-  return <Modal title={fix ? 'Corriger mes informations' : 'Vérifier mon identité'} onClose={onClose}><div className="stack">
-    <p className="mut"><ShieldCheck size={15} /> Une seule vérification, pour toutes vos cartes. Saisissez vos informations <b>exactement comme sur votre pièce d’identité</b>. {fix ? 'Ne remplissez que ce qui doit être corrigé.' : 'Votre numéro de pièce et vos photos sont transmis pour la vérification et ne sont jamais conservés par Coinvera.'}</p>
-    {T('first_name', 'Prénom', { autoComplete: 'given-name' })}{T('last_name', 'Nom', { autoComplete: 'family-name' })}{T('email', 'E-mail', { type: 'email', autoComplete: 'email' })}
-    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 8 }}>{T('dial_code', 'Indicatif', { placeholder: '+229' })}{T('phone_number', 'Téléphone (sans l’indicatif)', { inputMode: 'numeric', placeholder: '97000000' })}</div>
-    {T('date_of_birth', 'Date de naissance', { type: 'date' })}{T('place_of_birth', 'Lieu de naissance (facultatif)')}
-    {S('id_type', 'Pièce d’identité', ID_TYPES)}{T('id_number', 'Numéro de la pièce')}
-    {needFront && <div><label htmlFor="fimgf">Photo du recto (nette, en entier, non expirée)</label><input id="fimgf" type="file" accept="image/jpeg,image/png,image/webp" onChange={pick(setFront)} />{front && <small className="okm"> ✓ photo prête</small>}</div>}
-    {needBack && <div><label htmlFor="fimgb">Photo du verso</label><input id="fimgb" type="file" accept="image/jpeg,image/png,image/webp" onChange={pick(setBack)} />{back && <small className="okm"> ✓ photo prête</small>}</div>}
-    {NO_PHOTO.includes(v.id_type) && <p className="mut">Cette pièce se vérifie dans la base nationale nigériane : le pays doit être « Nigéria ».</p>}
-    {T('line1', 'Adresse', { autoComplete: 'address-line1' })}{T('city', 'Ville', { autoComplete: 'address-level2' })}{T('state', 'État / région (ou ville)', { autoComplete: 'address-level1' })}{T('postal_code', 'Code postal', { autoComplete: 'postal-code' })}{S('country', 'Pays', COUNTRIES)}
-    {T('occupation', 'Profession', { placeholder: 'ingénieur, commerçant…' })}{S('employment_status', 'Situation professionnelle', [['employed', 'Salarié'], ['self_employed', 'Indépendant'], ['student', 'Étudiant']])}
-    {S('account_purpose', 'Usage de la carte', [['personal_spending', 'Dépenses personnelles'], ['online_shopping', 'Achats en ligne'], ['subscriptions', 'Abonnements']])}
-    {T('annual_salary', 'Revenu annuel (chiffres seulement)', { inputMode: 'numeric' })}{T('expected_monthly_volume', 'Dépenses mensuelles prévues (chiffres seulement)', { inputMode: 'numeric' })}
-    {!fix && <label><input type="checkbox" checked={terms} onChange={x => setTerms(x.target.checked)} /> J’atteste que ces informations sont exactes et j’accepte les conditions d’utilisation de la carte.</label>}
-    <Err m={e} /><button className="btn p" disabled={busy || !ok} onClick={submit}>{busy ? 'Envoi…' : fix ? 'Corriger et relancer la vérification' : 'Envoyer pour vérification'}</button></div></Modal>;
+  // Validité de chaque étape (en mode « correction », tout est facultatif : on ne renvoie que ce qui change).
+  const okStep = [fix || !!(v.first_name && v.last_name && v.email && v.phone_number && v.date_of_birth), fix || !!(v.id_number && (!needFront || front) && (!needBack || back)), fix || !!(v.line1 && v.city && v.state && v.postal_code), fix || !!(v.occupation && v.annual_salary && v.expected_monthly_volume), fix || terms];
+  const steps = ['Identité', 'Pièce', 'Adresse', 'Profil', 'Validation'], last = st === steps.length - 1, idLabel = ID_TYPES.find(([a]) => a === v.id_type)?.[1], country = COUNTRIES.find(([a]) => a === v.country)?.[1];
+  return <Modal title={fix ? 'Corriger mes informations' : 'Vérifier mon identité'} onClose={onClose}><Stepper steps={steps} cur={st} /><div className="sbody">
+    {st === 0 && <><p className="mut" style={{ margin: 0 }}><ShieldCheck size={15} /> Une seule vérification, pour toutes vos cartes. Saisissez vos informations <b>exactement comme sur votre pièce d’identité</b>. {fix ? 'Ne remplissez que ce qui doit être corrigé.' : ''}</p>
+      <div className="g2">{T('first_name', 'Prénom', { autoComplete: 'given-name', autoFocus: true })}{T('last_name', 'Nom', { autoComplete: 'family-name' })}</div>{T('email', 'E-mail', { type: 'email', autoComplete: 'email' })}
+      <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 8 }}>{T('dial_code', 'Indicatif', { placeholder: '+229' })}{T('phone_number', 'Téléphone (sans l’indicatif)', { inputMode: 'numeric', placeholder: '97000000' })}</div>
+      <div className="g2">{T('date_of_birth', 'Date de naissance', { type: 'date' })}{T('place_of_birth', 'Lieu de naissance (facultatif)')}</div></>}
+    {st === 1 && <><p className="mut" style={{ margin: 0 }}>{fix ? '' : 'Votre numéro de pièce et vos photos sont transmis pour la vérification et ne sont jamais conservés par Coinvera.'}</p>
+      <div className="g2">{S('id_type', 'Pièce d’identité', ID_TYPES)}{T('id_number', 'Numéro de la pièce')}</div>
+      {needFront && <div><label htmlFor="fimgf">Photo du recto (nette, en entier, non expirée)</label><input id="fimgf" type="file" accept="image/jpeg,image/png,image/webp" onChange={pick(setFront)} />{front && <small className="okm"> ✓ photo prête</small>}</div>}
+      {needBack && <div><label htmlFor="fimgb">Photo du verso</label><input id="fimgb" type="file" accept="image/jpeg,image/png,image/webp" onChange={pick(setBack)} />{back && <small className="okm"> ✓ photo prête</small>}</div>}
+      {NO_PHOTO.includes(v.id_type) && <p className="mut" style={{ margin: 0 }}>Cette pièce se vérifie dans la base nationale nigériane : le pays doit être « Nigéria ».</p>}<Err m={e} /></>}
+    {st === 2 && <>{T('line1', 'Adresse', { autoComplete: 'address-line1', autoFocus: true })}<div className="g2">{T('city', 'Ville', { autoComplete: 'address-level2' })}{T('state', 'État / région (ou ville)', { autoComplete: 'address-level1' })}</div><div className="g2">{T('postal_code', 'Code postal', { autoComplete: 'postal-code' })}{S('country', 'Pays', COUNTRIES)}</div></>}
+    {st === 3 && <><div className="g2">{T('occupation', 'Profession', { placeholder: 'ingénieur, commerçant…', autoFocus: true })}{S('employment_status', 'Situation professionnelle', [['employed', 'Salarié'], ['self_employed', 'Indépendant'], ['student', 'Étudiant']])}</div>
+      {S('account_purpose', 'Usage de la carte', [['personal_spending', 'Dépenses personnelles'], ['online_shopping', 'Achats en ligne'], ['subscriptions', 'Abonnements']])}
+      <div className="g2">{T('annual_salary', 'Revenu annuel (chiffres seulement)', { inputMode: 'numeric' })}{T('expected_monthly_volume', 'Dépenses mensuelles prévues (chiffres seulement)', { inputMode: 'numeric' })}</div></>}
+    {st === 4 && <><div className="kv"><div>Nom <b>{`${v.first_name} ${v.last_name}`.trim() || '—'}</b></div><div>E-mail <b>{v.email || '—'}</b></div><div>Téléphone <b>{v.phone_number ? `${v.dial_code} ${v.phone_number}` : '—'}</b></div><div>Pièce <b>{idLabel}{v.id_number ? ` · ${v.id_number}` : ''}</b></div><div>Pays <b>{country}</b></div></div>
+      {!fix && <label style={{ display: 'flex', gap: 10, fontWeight: 400, alignItems: 'flex-start' }}><input type="checkbox" checked={terms} onChange={x => setTerms(x.target.checked)} style={{ marginTop: 3, width: 18, height: 18 }} /><span>J’atteste que ces informations sont exactes et j’accepte les conditions d’utilisation de la carte.</span></label>}<Err m={e} /></>}
+  </div><Nav onBack={st > 0 ? () => setSt(st - 1) : undefined} onNext={last ? submit : () => { setE(''); setSt(st + 1); }} disabled={!okStep[st]} busy={busy} last={last} next={last ? (busy ? 'Envoi…' : fix ? 'Corriger et relancer la vérification' : 'Envoyer pour vérification') : 'Continuer'} /></Modal>;
 }
 function Identity({ cust, email, onChange }: { cust: any; email?: string; onChange: () => void }) {
   const [open, setOpen] = useState<'' | 'new' | 'fix'>(''), [e, setE] = useState(''), [busy, setBusy] = useState(false);
@@ -97,11 +97,13 @@ function Wait({ orderId, onDone }: { orderId: string; onDone: () => void }) {
   if (o?.status === 'failed') return <><Err m={msg({ message: o.error })} /><p className="mut">Les fonds ont été remis sur votre solde.</p></>;
   return <p className="mut" role="status">Opération en cours : la carte est créée ou rechargée en quelques instants. Vous pouvez fermer cette fenêtre, elle apparaîtra dans la liste.</p>;
 }
-function PayDirect({ spec, onOrder }: { spec: any; onOrder: (id: string) => void }) {
+function PayDirect({ spec, onOrder, onStage }: { spec: any; onOrder: (id: string) => void; onStage?: (s: 'choose' | 'pay' | 'done') => void }) {
   const cur = useData('/api/scarab/pay-orders'); const [c, setC] = useState(''), [po, setPo] = useState<any>(null), [e, setE] = useState(''), [qr, setQr] = useState('');
   const live = usePoll(po ? `/api/scarab/pay-orders/${po.id}` : null, r => ['fulfilled', 'failed', 'expired'].includes(r.status), 8000); const p = live ?? po;
   useEffect(() => { if (p?.status === 'fulfilled' && p.orderId) onOrder(p.orderId); }, [p?.status, p?.orderId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (po) QRCode.toDataURL(po.address, { margin: 1, width: 180 }).then(setQr).catch(() => {}); }, [po?.address]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stage = !po ? 'choose' : (['failed', 'expired'].includes(p.status)) ? 'done' : 'pay';
+  useEffect(() => { onStage?.(stage); }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
   const list = cur.data?.currencies ?? [];
   if (!po) return <div className="stack"><label htmlFor="pc">Réseau de paiement (USDT)</label>
     <select id="pc" className="in" value={c} onChange={x => setC(x.target.value)}><option value="">Choisir…</option>{list.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
@@ -115,25 +117,35 @@ function PayDirect({ spec, onOrder }: { spec: any; onOrder: (id: string) => void
     {qr && <img src={qr} alt="QR code de l’adresse de paiement" width={160} height={160} style={{ justifySelf: 'center' }} />}<p className="mut" role="status" style={{ margin: 0 }}>En attente du paiement… (vérification automatique)</p></div>;
 }
 function Checkout({ kind, product, card, mode, minAmount, onClose, onDone }: any) {
-  const [amount, setAmount] = useState(String(minAmount ?? 5)), [name, setName] = useState(''), [q, setQ] = useState<any>(null), [e, setE] = useState(''), [pay, setPay] = useState(false), [orderId, setOrderId] = useState(''), [busy, setBusy] = useState(false);
+  const [amount, setAmount] = useState(String(minAmount ?? 5)), [name, setName] = useState(''), [q, setQ] = useState<any>(null), [e, setE] = useState(''), [pay, setPay] = useState(false), [orderId, setOrderId] = useState(''), [busy, setBusy] = useState(false), [st, setSt] = useState(0), [stage, setStage] = useState<'choose' | 'pay' | 'done'>('choose');
   const nameOk = /^[A-Za-z][A-Za-z .'-]{1,49}$/.test(name.trim());
   const spec = { kind, ...(kind === 'issue' ? { productId: product.id, ...(nameOk ? { nameOnCard: name.trim() } : {}) } : { cardId: card.id }), amount };
   const need = kind === 'issue' && mode === 'platform' && !nameOk;
   useEffect(() => { setQ(null); setE(''); if (need || !AMT.test(amount) || orderId) return; const t = setTimeout(async () => { try { setQ(await api('/api/scarab/quote', { method: 'POST', body: JSON.stringify(spec) })); } catch (x) { setE(msg(x)); } }, 450); return () => clearTimeout(t); }, [amount, need, name]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <Modal title={kind === 'issue' ? `Nouvelle ${product.name}` : `Recharger la carte •••• ${card.last4 ?? ''}`} onClose={() => { onClose(); if (orderId) onDone(); }}>
-    {orderId ? <Wait orderId={orderId} onDone={onDone} /> : <div className="stack">
-      <label htmlFor="am">{kind === 'issue' ? 'Solde d’ouverture' : 'Montant à charger'} (USD){kind === 'issue' && <> — minimum {usd(product.minInitial)}</>}</label>
-      <input id="am" className="in" inputMode="decimal" value={amount} onChange={x => setAmount(x.target.value)} />
-      {kind === 'issue' && <><label htmlFor="nm">Nom sur la carte{mode === 'platform' ? '' : ' (facultatif)'}</label><input id="nm" className="in" maxLength={50} value={name} onChange={x => setName(x.target.value)} placeholder="JEAN DUPONT" /></>}
-      {kind === 'topup' && <p className="mut">Deux recharges d’une même carte doivent être espacées d’environ 2 minutes.</p>}
-      {q && <div className="kv"><div>Montant sur la carte <b>{usd(q.amount)}</b></div><div>Frais <b>{usd(q.fees)}</b></div><div className="tot">Total à payer <b>{usd(q.total)}</b></div><div className="mut">Votre solde : {usd(q.balance)}</div></div>}
-      <Err m={e} />
-      {q && (q.covers && !pay ? <><div className="btns"><button className="btn p" disabled={busy} onClick={async () => { setBusy(true); setE(''); try { setOrderId((await api('/api/scarab/orders', { method: 'POST', body: JSON.stringify(spec) })).id); } catch (x) { setE(msg(x)); } setBusy(false); }}>Payer {usd(q.total)} avec mon solde</button>
-        <button className="btn" onClick={() => setPay(true)}>Ou payer directement en USDT</button></div></> :
-        <>{!q.covers && <p role="status">Solde insuffisant : il vous manque <b>{usd(q.missing)}</b>. Rechargez votre solde (en encaissant des paiements) ou payez directement en USDT.</p>}
-          {!q.covers && !pay && <div className="btns"><Link className="btn" href="/dashboard/payments">Créer un lien de paiement</Link><button className="btn p" onClick={() => setPay(true)}>Payer directement en USDT</button></div>}
-          {pay && <PayDirect spec={spec} onOrder={setOrderId} />}</>)}
-    </div>}</Modal>;
+  const keys = ['amount', ...(kind === 'issue' ? ['name'] : []), 'recap', 'pay', 'done'], labels: Record<string, string> = { amount: 'Montant', name: 'Carte', recap: 'Récapitulatif', pay: 'Paiement', done: 'Confirmation' };
+  const key = orderId ? 'done' : keys[st], back = () => setSt(n => n - 1), next = () => setSt(n => n + 1);
+  const okAmount = AMT.test(amount) && Number(amount) > 0 && (kind !== 'issue' || Number(amount) >= Number(product.minInitial ?? 0));
+  return <Modal title={kind === 'issue' ? `Nouvelle ${product.name}` : `Recharger la carte •••• ${card.last4 ?? ''}`} onClose={() => { onClose(); if (orderId) onDone(); }}><Stepper steps={keys.map(k => labels[k])} cur={keys.indexOf(key)} /><div className="sbody">
+    {key === 'amount' && <><label htmlFor="am">{kind === 'issue' ? 'Solde d’ouverture' : 'Montant à charger'} (USD){kind === 'issue' && <> — minimum {usd(product.minInitial)}</>}</label>
+      <input id="am" className="in" inputMode="decimal" autoFocus value={amount} onChange={x => setAmount(x.target.value)} onKeyDown={x => x.key === 'Enter' && okAmount && next()} />
+      {!okAmount && amount !== '' && <p className="err" role="alert">{kind === 'issue' ? `Saisissez un montant d’au moins ${usd(product.minInitial)} (deux décimales au plus).` : 'Saisissez un montant valide (deux décimales au plus).'}</p>}
+      {kind === 'topup' && <p className="mut" style={{ margin: 0 }}>Deux recharges d’une même carte doivent être espacées d’environ 2 minutes.</p>}</>}
+    {key === 'name' && <><label htmlFor="nm">Nom sur la carte{mode === 'platform' ? '' : ' (facultatif)'}</label><input id="nm" className="in" maxLength={50} autoFocus value={name} onChange={x => setName(x.target.value)} onKeyDown={x => x.key === 'Enter' && (!need || nameOk) && next()} placeholder="JEAN DUPONT" />
+      {mode === 'platform' && !nameOk && name !== '' && <p className="err" role="alert">Utilisez des lettres uniquement (2 caractères au moins).</p>}</>}
+    {key === 'recap' && (q ? <div className="kv">{kind === 'issue' && <div>Carte <b>{product.name}</b></div>}{kind === 'issue' && nameOk && <div>Nom sur la carte <b>{name.trim().toUpperCase()}</b></div>}<div>Montant sur la carte <b>{usd(q.amount)}</b></div><div>Frais <b>{usd(q.fees)}</b></div><div className="tot">Total à payer <b>{usd(q.total)}</b></div><div className="mut">Votre solde : {usd(q.balance)}</div></div> : e ? <Err m={e} /> : <p className="mut" role="status">Calcul des frais en cours…</p>)}
+    {key === 'pay' && (!q ? <p className="mut" role="status">Calcul des frais en cours…</p> : <>
+      {!pay && <div className="kv"><div className="tot">Total à payer <b>{usd(q.total)}</b></div></div>}<Err m={e} />
+      {q.covers && !pay ? <div className="btns"><button className="btn p" disabled={busy} onClick={async () => { setBusy(true); setE(''); try { setOrderId((await api('/api/scarab/orders', { method: 'POST', body: JSON.stringify(spec) })).id); } catch (x) { setE(msg(x)); } setBusy(false); }}>Payer {usd(q.total)} avec mon solde</button>
+        <button className="btn" onClick={() => setPay(true)}>Ou payer directement en USDT</button></div> :
+        <>{!q.covers && !pay && <><p role="status" style={{ margin: 0 }}>Solde insuffisant : il vous manque <b>{usd(q.missing)}</b>. Rechargez votre solde (en encaissant des paiements) ou payez directement en USDT.</p>
+          <div className="btns"><Link className="btn" href="/dashboard/payments">Créer un lien de paiement</Link><button className="btn p" onClick={() => setPay(true)}>Payer directement en USDT</button></div></>}
+          {pay && <PayDirect spec={spec} onOrder={setOrderId} onStage={setStage} />}</>}</>)}
+    {key === 'done' && <Wait orderId={orderId} onDone={onDone} />}
+  </div>
+  {key === 'amount' && <Nav onNext={next} disabled={!okAmount} />}
+  {key === 'name' && <Nav onBack={back} onNext={next} disabled={need && !nameOk} next={!need && !name.trim() ? 'Passer' : 'Continuer'} />}
+  {key === 'recap' && <Nav onBack={back} onNext={next} next="Continuer vers le paiement" disabled={!q} />}
+  {key === 'pay' && (!pay ? <Nav onBack={back} /> : stage === 'choose' ? <Nav onBack={() => setPay(false)} /> : null)}</Modal>;
 }
 
 // ---- Carte -------------------------------------------------------------------------------------------------------------------------------

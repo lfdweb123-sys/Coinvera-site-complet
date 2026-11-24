@@ -3,20 +3,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import QRCode from 'qrcode';
 import { CopyRow } from '@/components/CopyBtn';
-import { ArrowLeft, ArrowRight, Check, CreditCard, Eye, Plus, Snowflake, Trash2, X, ShieldCheck, KeyRound } from 'lucide-react';
+import { CreditCard, Eye, Plus, Snowflake, Trash2, ShieldCheck, KeyRound } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
 import CardArt, { KIND_LABEL, kindOf } from '@/components/CardArt';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
+import { Err, Modal, Nav, Stepper } from '@/components/Wizard';
 const ST: Record<string, string> = { issuing: 'En création', active: 'Active', frozen: 'Gelée', suspended: 'Suspendue', closed: 'Fermée', expired: 'Expirée' };
 const OS: Record<string, string> = { reserved: 'En cours', processing: 'En cours', confirmed: 'Terminée', failed: 'Échouée' };
 const AMT = /^\d{1,6}(\.\d{1,2})?$/;
-const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => {
-  useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [onClose]);
-  return <div className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.target === e.currentTarget && onClose()}><div className="mbox wide"><div className="mh"><h2>{title}</h2><button className="mx" aria-label="Fermer" onClick={onClose}><X size={18} /></button></div>{children}</div></div>;
-};
-const Stepper = ({ steps, cur }: { steps: string[]; cur: number }) => <ol className="stp" aria-label="Progression">{steps.map((t, i) => <li key={t} className={i < cur ? 'done' : i === cur ? 'on' : ''} aria-current={i === cur ? 'step' : undefined}><span className="dot">{i < cur ? <Check size={14} /> : i + 1}</span><span className="lbl">{t}</span></li>)}</ol>;
-const Nav = ({ onBack, onNext, next = 'Continuer', disabled }: { onBack?: () => void; onNext?: () => void; next?: string; disabled?: boolean }) => <div className="sfoot">{onBack ? <button className="btn" onClick={onBack}><ArrowLeft size={15} /> Retour</button> : <span />}{onNext && <button className="btn p" disabled={disabled} onClick={onNext}>{next} <ArrowRight size={15} /></button>}</div>;
-const Err = ({ m }: { m: string }) => m ? <p className="err" role="alert">{m}</p> : null;
 function usePoll(url: string | null, done: (d: any) => boolean, every = 5000) {
   const [d, setD] = useState<any>(null);
   useEffect(() => { if (!url) return; let stop = false, t: any; const tick = async () => { try { const r = await api(url); if (stop) return; setD(r); if (done(r)) return; } catch { /* on réessaie */ } t = setTimeout(tick, every); }; tick(); return () => { stop = true; clearTimeout(t); }; }, [url]); // eslint-disable-line react-hooks/exhaustive-deps

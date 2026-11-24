@@ -17,7 +17,7 @@ const L = [['/features', 'Fonctionnalités'], ['/cartes', 'Cartes'], ['/pricing'
 // Sous-menus du header : la clé est un lien du menu principal, la valeur la liste de ses sous-liens (aussi affichés en retrait dans le menu mobile).
 const SUBMENU: Record<string, [string, string][]> = {
   '/features': [['/features', 'Toutes les fonctionnalités'], ['/couverture', 'Couverture mondiale']],
-  '/plugins': [['/woocommerce', 'Plugin WooCommerce'], ['/dons', 'Plugin de dons'], ['/factures', 'Plugin de factures'], ['/abonnements', 'Plugin d’abonnements'], ['/billetterie', 'Plugin de billetterie'], ['/paiement-livraison', 'Plugin paiement à la livraison'], ['/paiement-en-plusieurs-fois', 'Plugin paiement en plusieurs fois']],
+  '/plugins': [['/woocommerce', 'Plugin WooCommerce'], ['/dons', 'Plugin de dons'], ['/factures', 'Plugin de factures'], ['/abonnements', 'Plugin d’abonnements'], ['/billetterie', 'Plugin de billetterie'], ['/anti-fraude', 'Plugin anti-fraude'], ['/facturation-electronique', 'Plugin facturation électronique'], ['/relances-whatsapp', 'Plugin relances WhatsApp'], ['/retours', 'Plugin retours & échanges'], ['/paiement-livraison', 'Plugin paiement à la livraison'], ['/paiement-en-plusieurs-fois', 'Plugin paiement en plusieurs fois']],
 };
 const SUB = /^(docs|status|helpcenter|api)\./i;
 function useBase(base: string) { const [b, setB] = useState(base); useEffect(() => { setB(SUB.test(window.location.hostname) ? SITE : ''); }, []); return b; }

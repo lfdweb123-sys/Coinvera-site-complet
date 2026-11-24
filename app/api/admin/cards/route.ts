@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     const [pend, holders, sums, adv, pendDocs] = await Promise.all([
       safe('pending', async () => (await db.collection('card_orders').where('status', 'in', ['reserved', 'processing']).count().get()).data().count, null as number | null),
       safe('holders', async () => (await db.collection('card_holders').count().get()).data().count, null as number | null),
-      safe('liabilities', async () => (await db.collection('balances').aggregate({ credit: AggregateField.sum('card_credit'), reserved: AggregateField.sum('card_reserved') }).get()).data(), null as any),
+      safe('liabilities', async () => (await db.collection('balances').aggregate({ credit: AggregateField.sum('card_credit'), reserved: AggregateField.sum('card_reserved'), scarabCredit: AggregateField.sum('scarab_credit') }).get()).data(), null as any),
       safe('advances', async () => (await db.collection('card_items').where('advanced', '==', true).get()).docs.map(d => d.data()), null as any[] | null),
       safe('oldest', async () => (await db.collection('card_orders').where('status', 'in', ['reserved', 'processing']).get()).docs.map(d => d.data().createdAtMs ?? now), null as number[] | null)]);
     const open = (adv ?? []).filter(c => !c.settled);

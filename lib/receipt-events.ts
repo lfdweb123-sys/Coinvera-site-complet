@@ -51,3 +51,19 @@ export const receiptCardDeposit = (id: string) => safe('deposit', async () => {
   await sendReceipt(path, { number: receiptNumber(id), date: new Date(), heading: 'Reçu de dépôt', description: 'Dépôt sur votre crédit cartes',
     rows: [['Montant payé', usd(o.chargeUnits ?? 0)], ['Frais du prestataire de paiement', `- ${usd(Math.max(0, (o.chargeUnits ?? 0) - (o.creditedUnits ?? 0)))}`]], totalLabel: 'Crédit cartes ajouté', total: usd(o.creditedUnits ?? 0) }, [], { merchantId: o.merchantId });
 });
+
+/** Virtuals cards pro : carte émise ou rechargée (succès uniquement). */
+export const receiptScarabOrder = (id: string) => safe('scarab_order', async () => {
+  const path = `scarab_orders/${id}`; const o = (await db.doc(path).get()).data();
+  if (!o || o.status !== 'confirmed') return;
+  await sendReceipt(path, { number: receiptNumber(id), date: toDate(o.updatedAt ?? o.createdAtMs), heading: 'Reçu carte virtuelle', description: o.kind === 'issue' ? 'Émission d’une Virtuals cards pro' : 'Recharge d’une Virtuals cards pro',
+    rows: [['Montant chargé sur la carte', usd(Math.round((o.amountMinor ?? 0) * 10_000))], ['Frais', usd(Math.round((o.feeMinor ?? 0) * 10_000))]], totalLabel: 'Total débité', total: usd(o.chargeUnits ?? 0) }, [], { merchantId: o.merchantId });
+});
+
+/** Virtuals cards pro : dépôt crédité. */
+export const receiptScarabDeposit = (id: string) => safe('scarab_deposit', async () => {
+  const path = `scarab_pay_orders/${id}`; const o = (await db.doc(path).get()).data();
+  if (!o || !o.deposit || o.status !== 'fulfilled') return;
+  await sendReceipt(path, { number: receiptNumber(id), date: new Date(), heading: 'Reçu de dépôt', description: 'Dépôt sur votre crédit Virtuals cards pro',
+    rows: [['Montant payé', usd(o.chargeUnits ?? 0)]], totalLabel: 'Crédit ajouté', total: usd(o.creditedUnits ?? 0) }, [], { merchantId: o.merchantId });
+});

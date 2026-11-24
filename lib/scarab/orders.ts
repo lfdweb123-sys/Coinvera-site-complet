@@ -11,6 +11,7 @@ import { categoryOf, customerFee, liveCost, centsToUnits, centsToUsd, Kind } fro
 import { productOf, wallet, needsCustomer } from './catalog';
 import { requireApprovedCustomer } from './customers';
 import { ensureScarabFunds } from './refill';
+import { receiptScarabOrder } from '../receipt-events';
 import { ownedCard, saveCard, cardRef, cardPatch, liveCount, refreshCard } from './cards';
 
 export type Spec = { kind: Kind; productId?: string; cardId?: string; amount: string; nameOnCard?: string };
@@ -69,11 +70,14 @@ export async function placeOrder(uid: string, spec: Spec, q: Quote, o: { source:
   const created = await db.runTransaction(async tx => {
     if ((await tx.get(ref)).exists) return false;
     const bal = await readBal(tx, uid); const fromBal = o.source === 'balance';
-    if (fromBal && bal.available < charge) throw new HttpError(409, 'insufficient_balance');
-    postEntry(tx, `scarab_reserve_${id}`, uid, 'scarab_reserve', [{ account: fromBal ? acct(uid, 'available') : 'central:funds', dir: 'debit', amount: charge }, { account: acct(uid, 'scarab_reserved'), dir: 'credit', amount: charge }], { orderId: id });
-    writeBal(tx, uid, { ...bal, available: bal.available - (fromBal ? charge : 0), scarab_reserved: (bal.scarab_reserved ?? 0) + charge });
+    // Le crédit Virtuals cards pro (dépôts, non retirable) est consommé en premier ; le reste vient du solde Coinvera.
+    const creditPart = fromBal ? Math.min(Math.max(0, bal.scarab_credit ?? 0), charge) : 0, availPart = fromBal ? charge - creditPart : 0;
+    if (fromBal && bal.available < availPart) throw new HttpError(409, 'insufficient_balance');
+    const debit: any[] = fromBal ? [...(creditPart ? [{ account: acct(uid, 'scarab_credit'), dir: 'debit', amount: creditPart }] : []), ...(availPart ? [{ account: acct(uid, 'available'), dir: 'debit', amount: availPart }] : [])] : [{ account: 'central:funds', dir: 'debit', amount: charge }];
+    postEntry(tx, `scarab_reserve_${id}`, uid, 'scarab_reserve', [...debit, { account: acct(uid, 'scarab_reserved'), dir: 'credit', amount: charge }], { orderId: id });
+    writeBal(tx, uid, { ...bal, available: bal.available - availPart, scarab_credit: (bal.scarab_credit ?? 0) - creditPart, scarab_reserved: (bal.scarab_reserved ?? 0) + charge });
     tx.create(ref, { merchantId: uid, kind: spec.kind, source: o.source, payOrderId: o.payOrderId ?? null, productId: spec.productId ?? null, customerId: q.customerId, spCardId: spec.cardId ?? null, nameOnCard: spec.nameOnCard ?? null,
-      amountMinor: q.amountMinor, feeMinor: q.feeMinor, costFeeMinor: q.costFeeMinor, chargeUnits: charge, payloadJson: payloadOf(spec, q), status: 'reserved', attempts: 0, createdAt: FieldValue.serverTimestamp(), createdAtMs: Date.now() });
+      amountMinor: q.amountMinor, feeMinor: q.feeMinor, costFeeMinor: q.costFeeMinor, chargeUnits: charge, creditPart, availPart, payloadJson: payloadOf(spec, q), status: 'reserved', attempts: 0, createdAt: FieldValue.serverTimestamp(), createdAtMs: Date.now() });
     return true;
   });
   if (created) info('scarab.order_reserved', { orderId: id, merchantId: uid, kind: spec.kind, source: o.source, charge });
@@ -123,15 +127,17 @@ export async function finalize(id: string, ok: boolean, f: { error?: string; fee
       writeBal(tx, uid, { ...bal, scarab_reserved: (bal.scarab_reserved ?? 0) - charge, scarab_spent: (bal.scarab_spent ?? 0) + charge });
       tx.update(ref, { status: 'confirmed', costUnits: cost, updatedAt: Date.now() });
     } else {
-      postEntry(tx, `scarab_release_${id}`, uid, 'scarab_release', [{ account: acct(uid, 'scarab_reserved'), dir: 'debit', amount: charge }, { account: acct(uid, 'available'), dir: 'credit', amount: charge }], { orderId: id });
-      writeBal(tx, uid, { ...bal, available: bal.available + charge, scarab_reserved: (bal.scarab_reserved ?? 0) - charge });
+      // Chaque part retourne là où elle a été prise (les anciens ordres, sans parts, reviennent entièrement au solde).
+      const backCredit = (o.creditPart as number | undefined) ?? 0, backAvail = charge - backCredit;
+      postEntry(tx, `scarab_release_${id}`, uid, 'scarab_release', [{ account: acct(uid, 'scarab_reserved'), dir: 'debit', amount: charge }, ...(backAvail ? [{ account: acct(uid, 'available'), dir: 'credit' as const, amount: backAvail }] : []), ...(backCredit ? [{ account: acct(uid, 'scarab_credit'), dir: 'credit' as const, amount: backCredit }] : [])], { orderId: id });
+      writeBal(tx, uid, { ...bal, available: bal.available + backAvail, scarab_credit: (bal.scarab_credit ?? 0) + backCredit, scarab_reserved: (bal.scarab_reserved ?? 0) - charge });
       tx.update(ref, { status: 'failed', error: f.error ?? 'failed', updatedAt: Date.now() });
     }
     return true;
   });
   if (!done) return false;
   info('scarab.order_final', { orderId: id, ok, error: f.error });
-  if (ok) await notify(uid, kind === 'issue' ? 'Virtuals cards pro prête' : 'Virtuals cards pro rechargée', 'Votre opération a été confirmée.');
+  if (ok) { await notify(uid, kind === 'issue' ? 'Virtuals cards pro prête' : 'Virtuals cards pro rechargée', 'Votre opération a été confirmée.'); await receiptScarabOrder(id); }
   else await notify(uid, 'Opération Virtuals cards pro échouée', 'Les fonds ont été remis sur votre solde.');
   return true;
 }

@@ -1,4 +1,8 @@
 import { reserveAmount } from '../pay-amounts';
+import { postEntry, readBal, writeBal } from '../ledger';
+import { toUnits } from '../money';
+import { notify } from '../audit';
+import { receiptScarabDeposit } from '../receipt-events';
 import crypto from 'node:crypto';
 import { db } from '../firebase-admin';
 import { HttpError } from '../auth';
@@ -31,25 +35,53 @@ export async function depositRate(): Promise<number> {
   rc = { t: Date.now(), r }; return r;
 }
 export const payCurrencies = async () => { const a = await depositAddresses(); return SCARAB_PAY.map(id => byId(id)).filter((c): c is Cur => !!c && !!a[c.id]).map(c => ({ id: c.id, name: c.name, net: c.net })); };
-export const payView = (id: string, o: Record<string, any>) => ({ id, status: o.status, cur: o.cur, net: byId(o.cur)?.net ?? '', address: o.address, amount: fmt(BigInt(o.expected), o.decimals), amountUsd: fromUnits(o.chargeUnits), expiresAt: o.expiresAt, txid: o.txid ?? null, orderId: o.orderId ?? null, error: o.error ?? null });
+export const payView = (id: string, o: Record<string, any>) => ({ id, status: o.status, cur: o.cur, net: byId(o.cur)?.net ?? '', address: o.address, amount: fmt(BigInt(o.expected), o.decimals), amountUsd: fromUnits(o.deposit ? o.creditUnits : o.chargeUnits), deposit: !!o.deposit, expiresAt: o.expiresAt, txid: o.txid ?? null, orderId: o.orderId ?? null, error: o.error ?? null });
 
-export async function createPayOrder(uid: string, curId: string, spec: Spec) {
-  const c = byId(curId), address = c ? (await depositAddresses())[c.id] : undefined; if (!c || !SCARAB_PAY.includes(c.id) || !address) throw new HttpError(400, 'currency_unavailable');
-  const q = await quote(uid, spec); const rate = await depositRate(), need = Math.ceil(q.chargeUnits / rate);            // revérifie identité, minimum, prix et portefeuille AVANT que l'utilisateur envoie quoi que ce soit
+async function uniqueExpected(c: Cur, need: number) {
   const k = 10n ** BigInt(c.decimals - 6);     // 1 unité interne (1e-6 USD) = k unités de la monnaie
   const taken = new Set<string>();
   for (const col of ['scarab_pay_orders', 'card_pay_orders', 'crypto_orders']) (await db.collection(col).where('cur', '==', c.id).where('status', '==', 'awaiting').get()).docs.forEach(d => taken.add(String(d.data().expected)));
   let expected = 0n;                           // centimes aléatoires (jusqu'à 0,009 $) : deux commandes en attente n'ont jamais le même montant
   for (let i = 0; i < 30; i++) { const e = BigInt(need) * k + BigInt(crypto.randomInt(1, 9001)) * k; if (!taken.has(e.toString()) && await reserveAmount('scarab', c.id, e.toString(), Date.now() + 8 * 24 * 3600_000)) { expected = e; break; } }
   if (!expected) throw new HttpError(503, 'network_unavailable');
+  return { expected, k };
+}
+export async function createPayOrder(uid: string, curId: string, spec: Spec) {
+  const c = byId(curId), address = c ? (await depositAddresses())[c.id] : undefined; if (!c || !SCARAB_PAY.includes(c.id) || !address) throw new HttpError(400, 'currency_unavailable');
+  const q = await quote(uid, spec); const rate = await depositRate(), need = Math.ceil(q.chargeUnits / rate);            // revérifie identité, minimum, prix et portefeuille AVANT que l'utilisateur envoie quoi que ce soit
+  const { expected, k } = await uniqueExpected(c, need);
   const now = Date.now(); const ref = db.collection('scarab_pay_orders').doc();
   const o = { merchantId: uid, spec, cur: c.id, decimals: c.decimals, address, chargeUnits: need + Number((expected - BigInt(need) * k) / k), q: { amountMinor: q.amountMinor, feeMinor: q.feeMinor, costFeeMinor: q.costFeeMinor, customerId: q.customerId, productName: q.productName },
     expected: expected.toString(), status: 'awaiting', createdAt: now, expiresAt: now + 60 * 60_000 };
   await ref.set(o); return payView(ref.id, o);
 }
 
+// Dépôt seul (comme les cartes standard) : l'USDT reçu alimente le CRÉDIT CARTES PRO de l'utilisateur, utilisable uniquement pour créer ou recharger une carte (jamais retirable).
+// L'utilisateur envoie le montant + une petite majoration (taux de conversion du prestataire + centimes d'unicité) : le crédit est exactement le montant demandé.
+export const DEPOSIT_MIN = 5, DEPOSIT_MAX = 10_000;
+export async function createDepositOrder(uid: string, curId: string, amount: string) {
+  const c = byId(curId), address = c ? (await depositAddresses())[c.id] : undefined; if (!c || !SCARAB_PAY.includes(c.id) || !address) throw new HttpError(400, 'currency_unavailable');
+  const u = toUnits(amount); if (!(u >= DEPOSIT_MIN * 1e6 && u <= DEPOSIT_MAX * 1e6)) throw new HttpError(400, 'invalid_amount');
+  const rate = await depositRate(), need = Math.ceil(u / rate); const { expected, k } = await uniqueExpected(c, need);
+  const now = Date.now(); const ref = db.collection('scarab_pay_orders').doc();
+  const o = { merchantId: uid, deposit: true, spec: { kind: 'deposit', amount }, creditUnits: u, cur: c.id, decimals: c.decimals, address, chargeUnits: need + Number((expected - BigInt(need) * k) / k),
+    expected: expected.toString(), status: 'awaiting', createdAt: now, expiresAt: now + 60 * 60_000 };
+  await ref.set(o); return payView(ref.id, o);
+}
+async function creditDeposit(id: string) {
+  const ref = db.doc(`scarab_pay_orders/${id}`); let uid = '', amt = 0;
+  const ok = await db.runTransaction(async tx => {
+    const o = (await tx.get(ref)).data(); if (!o || !o.deposit || o.status !== 'paid') return false; uid = o.merchantId; amt = o.creditUnits as number; const bal = await readBal(tx, uid);
+    postEntry(tx, `scarab_deposit_${id}`, uid, 'scarab_deposit', [{ account: 'central:funds', dir: 'debit', amount: amt }, { account: `merchant:${uid}:scarab_credit`, dir: 'credit', amount: amt }], { payOrderId: id });
+    writeBal(tx, uid, { ...bal, scarab_credit: (bal.scarab_credit ?? 0) + amt }); tx.update(ref, { status: 'fulfilled', creditedUnits: amt }); return true;
+  });
+  if (ok) { await notify(uid, 'Crédit Virtuals cards pro rechargé', `${fromUnits(amt).replace(/0+$/, '').replace(/\.$/, '')} $ ajoutés : vous pouvez maintenant payer votre carte.`).catch(() => {}); await receiptScarabDeposit(id); }
+  return ok;
+}
+
 export async function fulfillPayOrder(id: string) {
   const ref = db.doc(`scarab_pay_orders/${id}`); const o = (await ref.get()).data(); if (!o || o.status !== 'paid' || o.orderId) return;
+  if (o.deposit) { await creditDeposit(id); return; }
   const orderId = `spo_${id}`;
   try {
     // L'utilisateur a payé chargeUnits (devis + centimes d'unicité) : tout l'excédent est de la marge, jamais rendu au prestataire.

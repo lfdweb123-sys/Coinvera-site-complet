@@ -18,5 +18,5 @@ export const GET = guard(async (_req, _c, u) => {
   const os = await db.collection('scarab_orders').where('merchantId', '==', u.uid).get();
   const orders = os.docs.map(d => orderView(d.id, d.data())).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)).slice(0, 20);
   const bal = (await db.doc(`balances/${u.uid}`).get()).data();
-  return Response.json({ enabled: true, unavailable: mode === null, mode, customer, cards, orders, balance: fromUnits(bal?.available ?? 0), email: u.email });
+  return Response.json({ enabled: true, unavailable: mode === null, mode, customer, cards, orders, balance: fromUnits(bal?.available ?? 0), credit: fromUnits(bal?.scarab_credit ?? 0), email: u.email });
 }, { allowDisabled: true });

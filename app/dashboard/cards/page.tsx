@@ -6,6 +6,7 @@ import { CopyRow } from '@/components/CopyBtn';
 import { CreditCard, Eye, Plus, Snowflake, Trash2, ShieldCheck, KeyRound } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
 import CardArt, { KIND_LABEL, kindOf } from '@/components/CardArt';
+import { byId, networkWarning } from '@/lib/cryptos';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
 import { Err, Modal, Nav, Stepper } from '@/components/Wizard';
 const ST: Record<string, string> = { issuing: 'En création', active: 'Active', frozen: 'Gelée', suspended: 'Suspendue', closed: 'Fermée', expired: 'Expirée' };
@@ -40,8 +41,10 @@ function PayDirect({ spec, onOrder, deposit, onDone, onStage }: { spec: any; onO
   if (p.status === 'expired' || p.status === 'closed') return <p className="err" role="status">Cette demande de paiement a expiré. Si vous avez déjà envoyé le montant exact, il sera détecté et crédité automatiquement sur votre crédit cartes (jusqu’à 7 jours) : inutile de renvoyer des fonds.</p>;
   if (p.status === 'failed') return <><Err m={msg({ message: p.error })} /><p className="mut">Votre paiement a été reçu : le montant a été crédité sur votre crédit cartes.</p></>;
   if (p.status === 'paid' || p.status === 'fulfilled') return <p className="mut" role="status">Paiement reçu. {deposit ? 'Crédit en cours…' : 'Création de l’opération en cours…'}</p>;
+  const cc = byId(p.cur);
   return <div className="stack"><p className="mut" style={{ margin: 0 }}>Envoyez <b>exactement</b> ce montant, sur le réseau indiqué : le montant exact permet d’identifier votre paiement. Valable 60 minutes.</p>
     <CopyRow label="Montant exact à envoyer (USDT)" value={String(p.amount)} shown={`${p.amount} USDT`} /><CopyRow label="Réseau" value={String(p.net)} /><CopyRow label="Adresse de paiement" value={p.address} mono />
+    {cc && <p className="err" role="alert" style={{ margin: 0 }}>{networkWarning(cc)}</p>}
     {qr && <img src={qr} alt="QR code de l’adresse de paiement" width={160} height={160} style={{ justifySelf: 'center' }} />}<p className="mut" role="status" style={{ margin: 0 }}>En attente du paiement… (vérification automatique)</p></div>;
 }
 function Deposit({ amount: a0, onClose, onDone }: { amount?: number; onClose: () => void; onDone: () => void }) {

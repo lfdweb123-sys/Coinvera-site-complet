@@ -16,4 +16,8 @@ export const CURS: Cur[] = [
 export const addrOf = (c: Cur) => (process.env[c.env] ?? '').trim();
 export const available = () => CURS.filter(c => addrOf(c));
 export const byId = (id: string) => CURS.find(c => c.id === id);
+// Nom usuel du réseau, pour l'avertissement affiché à côté de chaque adresse de dépôt (le même jeton existe sur plusieurs
+// réseaux non interchangeables : envoyer sur le mauvais réseau fait perdre les fonds, sans recours possible).
+const NET_NAME: Record<string, string> = { TRC20: 'Tron', TRON: 'Tron', BEP20: 'BNB Smart Chain', BSC: 'BNB Smart Chain', ERC20: 'Ethereum', ETH: 'Ethereum', SOL: 'Solana', BTC: 'Bitcoin', LTC: 'Litecoin' };
+export const networkWarning = (c: Pick<Cur, 'sym' | 'net'>) => `Envoyez uniquement ${c.sym} sur cette adresse, via le réseau ${NET_NAME[c.net] ?? c.net} (${c.net}). Tout envoi via un autre réseau peut entraîner la perte de vos fonds.`;
 export function fmt(u: bigint, dec: number) { const s = u.toString().padStart(dec + 1, '0'); const i = s.slice(0, -dec) || '0', f = s.slice(-dec).replace(/0+$/, ''); return f ? `${i}.${f}` : i; }

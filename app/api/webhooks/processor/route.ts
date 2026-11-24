@@ -5,6 +5,7 @@ import { settlePayment } from '@/lib/settle';
 import { info, warn } from '@/lib/log';
 import { notifyMerchant } from '@/lib/webhooks';
 import { notify } from '@/lib/audit';
+import { receiptPayment } from '@/lib/receipt-events';
 export async function POST(req: Request) {
   const raw = await req.text();
   const sig = req.headers.get('x-nowpayments-sig') ?? '';
@@ -26,5 +27,6 @@ export async function POST(req: Request) {
     await notify(d.merchantId, 'Paiement confirmé', `Transaction ${p.id}`);
     await notifyMerchant(d.merchantId, 'payment.confirmed', { id: p.id, orderRef: d.orderRef ?? null });
   }
+  if (!d.purpose && d.mode === 'live') await receiptPayment(p.id);   // idempotent (indicateur d'envoi) : rejoue aussi un reçu dont l'envoi avait échoué
   return new Response('OK');
 }

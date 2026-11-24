@@ -5,6 +5,7 @@ import { getCharge } from '@/lib/processor';
 import { settlePayment } from '@/lib/settle';
 import { notifyMerchant } from '@/lib/webhooks';
 import { notify } from '@/lib/audit';
+import { receiptPayment } from '@/lib/receipt-events';
 import { info, warn } from '@/lib/log';
 // Filet de securite : relit aupres du prestataire les paiements restes "pending" (webhook manque) et expire les anciens.
 export async function GET(req: Request) {
@@ -15,7 +16,7 @@ export async function GET(req: Request) {
     if (!x.processorChargeId) { if (now - created > 3600_000) { await d.ref.update({ status: 'expired', updatedAt: FieldValue.serverTimestamp() }); expired++; } continue; }
     if (now - created < 90_000) continue;
     try { const ch = await getCharge(x.mode, x.processorChargeId); checked++;
-      if (ch.status === 'paid') { await settlePayment(d.id, ch); settled++; if (x.mode === 'live') { await notify(x.merchantId, 'Paiement confirmé', `Transaction ${d.id}`); await notifyMerchant(x.merchantId, 'payment.confirmed', { id: d.id, orderRef: x.orderRef ?? null }); } }
+      if (ch.status === 'paid') { await settlePayment(d.id, ch); settled++; if (x.mode === 'live') { await notify(x.merchantId, 'Paiement confirmé', `Transaction ${d.id}`); await receiptPayment(d.id); await notifyMerchant(x.merchantId, 'payment.confirmed', { id: d.id, orderRef: x.orderRef ?? null }); } }
       else if (old) { await d.ref.update({ status: 'expired', updatedAt: FieldValue.serverTimestamp() }); expired++; }
     } catch (e) { warn('cron.payment_check_failed', { transactionId: d.id, message: (e as Error).message }); }
   }

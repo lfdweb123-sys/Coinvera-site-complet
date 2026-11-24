@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { receiptActivation } from './receipt-events';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from './firebase-admin';
 import { HttpError } from './auth';
@@ -37,6 +38,7 @@ async function confirm(orderId: string, hit: Pick<Hit, 'txid' | 'amount'>, manua
     tx.update(r, { status: 'confirmed', txid: hit.txid, received: hit.amount.toString(), manual, confirmedAt: Date.now() });
   });
   const o = (await db.doc(`crypto_orders/${orderId}`).get()).data()!; info('crypto.order_confirmed', { orderId, merchantId: o.merchantId, cur: o.cur, purpose: o.purpose, txid: hit.txid, manual });
+  await receiptActivation(orderId);
 }
 // Verification automatique (scan de l'adresse) ou par hash. Montant EXACT requis : empeche de reclamer le paiement d'un autre.
 export async function checkOrder(uid: string | null, orderId: string, txid?: string) {

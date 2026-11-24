@@ -8,6 +8,7 @@ import { notify } from '@/lib/audit';
 import { requestWithdrawal } from '@/lib/withdraw';
 import { OPT } from '@/lib/payout-options';
 import { priceUsd } from '@/lib/price';
+import { receiptWithdrawal } from '@/lib/receipt-events';
 import { info, warn, error } from '@/lib/log';
 async function finish(id: string, ok: boolean, extra: object) {
   await db.runTransaction(async tx => {
@@ -25,6 +26,7 @@ async function finish(id: string, ok: boolean, extra: object) {
   });
   const m = (await db.doc(`withdrawals/${id}`).get()).data()!.merchantId;
   await notify(m, ok ? 'Retrait terminé' : 'Retrait échoué', `Retrait ${id}`);
+  if (ok) await receiptWithdrawal(id);
 }
 export async function GET(req: Request) {
   if (!cronAllowed(req)) return new Response('forbidden', { status: 403 });

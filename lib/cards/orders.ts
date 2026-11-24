@@ -1,4 +1,5 @@
 import { FieldValue } from 'firebase-admin/firestore';
+import { receiptCardOrder } from '../receipt-events';
 import { db } from '../firebase-admin';
 import { HttpError } from '../auth';
 import { postEntry, readBal, writeBal } from '../ledger';
@@ -111,7 +112,7 @@ export async function finalize(id: string, ok: boolean, info_: { total?: string;
   });
   if (!done) return false;
   info('cards.order_final', { orderId: id, ok, error: info_.error });
-  if (ok) { if (kind === 'issue') await syncCards(uid).catch(() => {}); await notify(uid, kind === 'issue' ? 'Carte virtuelle prête' : 'Carte rechargée', 'Votre opération a été confirmée.'); }
+  if (ok) { if (kind === 'issue') await syncCards(uid).catch(() => {}); await notify(uid, kind === 'issue' ? 'Carte virtuelle prête' : 'Carte rechargée', 'Votre opération a été confirmée.'); await receiptCardOrder(id); }
   else await notify(uid, 'Opération carte échouée', 'Les fonds ont été remis sur votre solde ou votre crédit cartes.');
   return true;
 }

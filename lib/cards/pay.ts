@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { receiptCardDeposit } from '../receipt-events';
 import { db } from '../firebase-admin';
 import { HttpError } from '../auth';
 import { fromUnits, toUnits } from '../money';
@@ -50,7 +51,7 @@ async function creditCardBalance(id: string, from: 'paid' | 'late') {
     postEntry(tx, `card_deposit_${id}`, uid, 'card_deposit', [{ account: 'central:funds', dir: 'debit', amount: amt }, { account: `merchant:${uid}:card_credit`, dir: 'credit', amount: amt }], { payOrderId: id, late: from === 'late' });
     writeBal(tx, uid, { ...bal, card_credit: (bal.card_credit ?? 0) + amt }); tx.update(ref, { status: from === 'late' ? 'late_credited' : 'fulfilled', creditedUnits: amt }); return true;
   });
-  if (ok) { info('cards.deposit_credited', { payOrderId: id, merchantId: uid, amount: amt, late: from === 'late' }); await notify(uid, 'Crédit cartes rechargé', `${fromUnits(amt).replace(/0+$/, '').replace(/\.$/, '')} $ ajoutés à votre crédit cartes${from === 'late' ? ' (paiement reçu après expiration)' : ''}.`); }
+  if (ok) { info('cards.deposit_credited', { payOrderId: id, merchantId: uid, amount: amt, late: from === 'late' }); await notify(uid, 'Crédit cartes rechargé', `${fromUnits(amt).replace(/0+$/, '').replace(/\.$/, '')} $ ajoutés à votre crédit cartes${from === 'late' ? ' (paiement reçu après expiration)' : ''}.`); await receiptCardDeposit(id); }
   return ok;
 }
 

@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       mode = 'test'; tx.set(act, { ...d, trialsUsed: d.trialsUsed + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     });
     const ref = db.collection('transactions').doc();
-    await ref.set({ merchantId: a.merchantId, amount: toUnits(body.amount), currency: 'USD', title: body.title, orderRef: body.orderRef ?? null,
+    await ref.set({ merchantId: a.merchantId, amount: toUnits(body.amount), currency: 'USD', title: body.title, orderRef: body.orderRef ?? null, customerEmail: body.customerEmail?.toLowerCase() ?? null,
       mode, status: 'pending', createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
     const ch = await createCharge(mode, { amount: body.amount, title: body.title, customer_email: body.customerEmail, description: ref.id });
     await ref.update({ processorChargeId: ch.id });

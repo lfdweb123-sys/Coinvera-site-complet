@@ -8,9 +8,13 @@ export const audit = async (adminUid: string, action: string, details: object = 
   return db.collection('audit_logs').add({ adminUid, adminEmail, action, details, createdAt: new Date() });
 };
 // Chaque notification est enregistrée dans le tableau de bord ET envoyée par e-mail à l'utilisateur. L'échec de l'e-mail ne bloque jamais l'opération.
-async function emailTo(merchantId: string, title: string, body: string) {
+export async function merchantEmail(merchantId: string) {
   const m = (await db.doc(`merchants/${merchantId}`).get()).data(); let to = typeof m?.email === 'string' ? m.email : '';
   if (!to) { try { to = (await adminAuth.getUser(merchantId)).email ?? ''; } catch { /* compte introuvable */ } }
+  return to;
+}
+async function emailTo(merchantId: string, title: string, body: string) {
+  const to = await merchantEmail(merchantId);
   if (!to || !process.env.BREVO_API_KEY || !process.env.SUPPORT_EMAIL) return;
   const e = notificationEmail({ title, body }); await sendMail(to, e.subject, e.html);
 }

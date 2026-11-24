@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Coinvera E-Invoice
  * Description: Factures électroniques conformes (Factur-X, norme européenne EN 16931) et TVA calculée en temps réel selon l'adresse et l'IP du client, pour WooCommerce. Utilise la même licence que les autres plugins Coinvera.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Requires Plugins: woocommerce
@@ -11,7 +11,7 @@
  */
 if (!defined('ABSPATH')) exit;
 
-define('CVE_VERSION', '1.0.0');
+define('CVE_VERSION', '1.1.0');
 define('CVE_FILE', __FILE__);
 define('CVE_DIR', plugin_dir_path(__FILE__));
 define('CVE_SLUG', 'coinvera-einvoice/coinvera-einvoice.php');

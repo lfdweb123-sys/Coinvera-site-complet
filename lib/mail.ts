@@ -23,7 +23,7 @@ export function simpleEmail(p: { title: string; name?: string; highlight?: strin
 <body style="margin:0;padding:0;background:#eef1f7;${FONT}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f7;"><tr><td align="center" style="padding:24px 12px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid ${C.line};border-radius:16px;overflow:hidden;border-collapse:separate;">
-<tr><td style="background:${C.navy};padding:22px 28px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="width:34px;height:34px;background:#2f6bff;border-radius:9px;text-align:center;color:#ffffff;font-size:19px;font-weight:800;${FONT}">C</td><td style="padding-left:12px;color:#ffffff;font-size:21px;font-weight:700;letter-spacing:.2px;${FONT}">Coinvera</td></tr></table></td></tr>
+<tr><td style="background:${C.navy};padding:22px 28px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="width:40px;height:40px;"><img src="${SITE}/email/logo.png" width="40" height="40" alt="" style="display:block;width:40px;height:40px;border:0;border-radius:10px;"></td><td style="padding-left:12px;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:.2px;${FONT}">Coinvera</td></tr></table></td></tr>
 <tr><td style="padding:30px 28px 8px;${FONT}">
 ${greet}<h1 style="margin:0 0 16px;font-size:25px;line-height:1.25;color:${C.ink};">${title}</h1>
 ${paras}${code}${rows}${btn}

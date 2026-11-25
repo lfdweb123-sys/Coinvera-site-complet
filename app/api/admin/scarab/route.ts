@@ -35,11 +35,20 @@ export async function PUT(req: Request) {
   } catch (e) { return fail(e); }
 }
 // Actions : trancher un ordre bloqué (confirmer = la carte existe, fonds dépensés ; rembourser = rendre les fonds à l'utilisateur) ; créer une adresse de dépôt pour alimenter le portefeuille.
-const Act = z.discriminatedUnion('action', [z.object({ action: z.literal('resolve'), orderId: z.string().min(1).max(80), decision: z.enum(['confirm', 'refund']) }), z.object({ action: z.literal('wd-resolve'), id: z.string().min(1).max(120), netMinor: z.number().int().min(0).nullable() }), z.object({ action: z.literal('deposit-address'), network: z.string().min(2).max(20) })]);
+const Act = z.discriminatedUnion('action', [z.object({ action: z.literal('resolve'), orderId: z.string().min(1).max(80), decision: z.enum(['confirm', 'refund']) }), z.object({ action: z.literal('wd-resolve'), id: z.string().min(1).max(120), netMinor: z.number().int().min(0).nullable() }), z.object({ action: z.literal('deposit-address'), network: z.string().min(2).max(20) }), z.object({ action: z.literal('deposit-addresses-all') })]);
 export async function POST(req: Request) {
   try { const a = await requireAdmin(req); const b = Act.parse(await req.json());
     if (b.action === 'resolve') { const o = (await db.doc(`scarab_orders/${b.orderId}`).get()).data(); if (!o || o.status !== 'review') throw new HttpError(409, 'scarab_wrong_state'); await resolveOrder(b.orderId, b.decision); await audit(a.uid, 'scarab.resolve', { orderId: b.orderId, decision: b.decision }); return Response.json({ ok: true }); }
     if (b.action === 'wd-resolve') { await resolveWithdrawal(b.id, b.netMinor); await audit(a.uid, 'scarab.wd_resolve', { id: b.id, netMinor: b.netMinor }); return Response.json({ ok: true }); }
+    if (b.action === 'deposit-addresses-all') {
+      // Idempotent (doc : « le réseau est la clé ») : une adresse existante est simplement renvoyée. Les réseaux désactivés chez le prestataire répondent 422 not_enabled.
+      const results: { network: string; address?: string; asset?: string; memo?: string | null; error?: string }[] = [];
+      for (const network of ['trc20', 'bep20', 'erc20', 'polygon', 'sol']) {
+        try { const r = await sp('POST', '/deposit-addresses', { body: { network } }); results.push({ network, address: r.data?.address, asset: r.data?.asset, memo: r.data?.memo ?? null }); }
+        catch (e) { results.push({ network, error: e instanceof SpError && e.status === 422 ? 'réseau non activé chez le prestataire' : (e as any)?.code ?? 'erreur' }); }
+      }
+      await audit(a.uid, 'scarab.deposit_addresses_all', { created: results.filter(r => r.address).map(r => r.network) }); return Response.json({ results });
+    }
     // La doc exige l'identifiant du réseau en minuscules (« trc20 », « bep20 »…) ; une autre casse ou un réseau non activé donne un 422.
     const network = b.network.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
     try { const r = await sp('POST', '/deposit-addresses', { body: { network } }); await audit(a.uid, 'scarab.deposit_address', { network }); return Response.json({ address: r.data }); }

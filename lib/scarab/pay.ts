@@ -15,7 +15,7 @@ import { quote, placeOrder, Spec, Quote } from './orders';
 // Paiement direct de la Virtuals cards pro en USDT : adresse + montant unique, collection à part (scarab_pay_orders). Une fois le paiement confirmé,
 // l'USDT reçu entre directement dans la réservation de l'ordre (placeOrder, source = crypto). Même mécanique que les cartes existantes, sans la partager.
 // Réseaux et cryptos acceptés : tout couple (crypto, réseau) que le prestataire expose ET que la chaîne sait surveiller (lib/chains.ts).
-export const SCARAB_PAY = ['usdttrc20', 'usdtbsc', 'usdterc20', 'usdtpolygon', 'usdctrc20', 'usdcbsc', 'usdc', 'usdcpolygon'];
+export const SCARAB_PAY = ['usdttrc20', 'usdtbsc', 'usdterc20', 'usdtpolygon', 'usdtsol', 'usdcsol', 'usdctrc20', 'usdcbsc', 'usdc', 'usdcpolygon'];
 // Adresses de dépôt PERMANENTES du compte chez le prestataire (une par réseau, GET /deposit-addresses) : l'USDT/USDC de l'utilisateur arrive directement dans le portefeuille qui finance les cartes.
 // Une adresse qui exige un mémo ne peut pas être attribuée automatiquement (un transfert de jeton n'en porte pas) : elle est écartée.
 const assetsOf = (d: any): string[] => { const v = d.assets ?? d.asset ?? d.supported_assets ?? d.tokens ?? d.currency ?? d.coin; return (Array.isArray(v) ? v : v ? [v] : []).map((x: any) => String(typeof x === 'object' ? x?.symbol ?? x?.asset ?? x?.id : x).trim().toUpperCase()); };

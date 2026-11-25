@@ -10,6 +10,7 @@ export const CURS: Cur[] = [
   { id: 'usdctrc20', sym: 'USDC', net: 'TRC20', name: 'USDC (TRC-20)', chain: 'tron', decimals: 6, token: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8', env: 'PAY_ADDR_USDC_TRC20', stable: true, scan: true },
   { id: 'usdcbsc', sym: 'USDC', net: 'BEP20', name: 'USDC (BEP-20)', chain: 'evm', evm: 'bsc', decimals: 18, token: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', env: 'PAY_ADDR_USDC_BEP20', stable: true, scan: true },
   { id: 'usdcpolygon', sym: 'USDC', net: 'POLYGON', name: 'USDC (Polygon)', chain: 'evm', evm: 'polygon', decimals: 6, token: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', env: 'PAY_ADDR_USDC_POLYGON', stable: true, scan: true },
+  { id: 'usdcsol', sym: 'USDC', net: 'SOL', name: 'USDC (Solana)', chain: 'sol', decimals: 6, token: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', env: 'PAY_ADDR_USDC_SOL', stable: true, scan: true },
   { id: 'usdc', sym: 'USDC', net: 'ERC20', name: 'USD Coin (USDC)', chain: 'evm', evm: 'eth', decimals: 6, token: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', env: 'PAY_ADDR_USDC_ERC20', stable: true, scan: true },
   { id: 'trx', sym: 'TRX', net: 'TRON', name: 'TRON (TRX)', chain: 'tron', decimals: 6, env: 'PAY_ADDR_TRX', cg: 'tron', scan: true },
   { id: 'btc', sym: 'Bitcoin', net: 'BTC', name: 'Bitcoin (BTC)', chain: 'btc', decimals: 8, env: 'PAY_ADDR_BTC', cg: 'bitcoin', scan: true },
@@ -26,7 +27,7 @@ export const byId = (id: string) => CURS.find(c => c.id === id);
 const NET_NAME: Record<string, string> = { TRC20: 'Tron', TRON: 'Tron', BEP20: 'BNB Smart Chain', BSC: 'BNB Smart Chain', POLYGON: 'Polygon', ERC20: 'Ethereum', ETH: 'Ethereum', SOL: 'Solana', BTC: 'Bitcoin', LTC: 'Litecoin' };
 export const networkWarning = (c: Pick<Cur, 'sym' | 'net'>) => `Envoyez uniquement ${c.sym} sur cette adresse, via le réseau ${NET_NAME[c.net] ?? c.net} (${c.net}). Tout envoi via un autre réseau peut entraîner la perte de vos fonds.`;
 // Identifie un stablecoin du prestataire à partir de son crypto et de son réseau, quelle que soit l'écriture (usdt_trc20, USDT/Tron, usdc_matic…). Renvoie l'identifiant Coinvera, ou undefined si inconnu.
-const NET_ALIAS: Record<string, string> = { trc20: 'TRC20', tron: 'TRC20', trx: 'TRC20', bep20: 'BEP20', bsc: 'BEP20', bnb: 'BEP20', bnbsmartchain: 'BEP20', erc20: 'ERC20', eth: 'ERC20', ethereum: 'ERC20', polygon: 'POLYGON', matic: 'POLYGON' };
+const NET_ALIAS: Record<string, string> = { trc20: 'TRC20', tron: 'TRC20', trx: 'TRC20', bep20: 'BEP20', bsc: 'BEP20', bnb: 'BEP20', bnbsmartchain: 'BEP20', erc20: 'ERC20', eth: 'ERC20', ethereum: 'ERC20', polygon: 'POLYGON', matic: 'POLYGON', sol: 'SOL', solana: 'SOL' };
 export function stableId(sym: string, net: string): string | undefined {
   const n = NET_ALIAS[net.toLowerCase().replace(/[^a-z0-9]/g, '')], s = sym.toUpperCase();
   return n ? CURS.find(c => c.stable && c.token && c.sym === s && c.net === n)?.id : undefined;

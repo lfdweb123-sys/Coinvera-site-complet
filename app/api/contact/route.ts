@@ -7,10 +7,11 @@ import { sendMail } from '@/lib/brevo';
 import { simpleEmail } from '@/lib/mail';
 import { notify } from '@/lib/audit';
 import { checkCaptcha } from '@/lib/captcha';
+import { humanEnabled, requireHuman } from '@/lib/human';
 import { info } from '@/lib/log';
 const Common = z.object({ subject: z.string().min(3).max(120), category: z.enum(['Support technique', 'Paiement', 'Retrait', 'API', 'WooCommerce', 'Compte', 'Autre']), message: z.string().min(10).max(4000), website: z.string().max(0).optional() });
 // Visiteur : nom, e-mail et calcul anti-spam obligatoires. Utilisateur connecté (tableau de bord) : identité prise du compte côté serveur, pas de calcul.
-const Public = Common.extend({ name: z.string().min(2).max(80), email: z.string().email(), captchaToken: z.string(), captchaAnswer: z.string() });
+const Public = Common.extend({ name: z.string().min(2).max(80), email: z.string().email(), captchaToken: z.string().optional(), captchaAnswer: z.string().optional() });   // le calcul n'est utilisé que si Turnstile n'est pas configuré
 export async function POST(req: Request) {
   try {
     await rateLimit('contact_' + ipOf(req), 5, 3600);                      // anti-spam : 5 messages / heure / IP
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
       email = u.email; name = String(u.merchant.fullName || u.merchant.company || 'Marchand').slice(0, 80);
     } else {
       const { captchaToken, captchaAnswer, name: n, email: e, ...rest } = Public.parse(raw);
-      await checkCaptcha(captchaToken, captchaAnswer);                // 'website' = honeypot : doit rester vide
+      if (humanEnabled()) requireHuman(req); else await checkCaptcha(captchaToken ?? '', captchaAnswer ?? '');   // Cloudflare si configuré, sinon le calcul ; 'website' = honeypot : doit rester vide
       b = rest; name = n; email = e;
     }
     b.subject = b.subject.replace(/[\r\n]+/g, ' ').trim(); name = name.replace(/[\r\n]+/g, ' ').trim();

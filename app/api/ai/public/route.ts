@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { fail, HttpError } from '@/lib/auth';
 import { ipOf, rateLimit } from '@/lib/ratelimit';
+import { requireHuman } from '@/lib/human';
 import { getSettings } from '@/lib/settings';
 import { streamClaude } from '@/lib/ai/claude';
 import { publicPrompt, visitorMessages, VisitorBody } from '@/lib/ai/public';
@@ -12,6 +13,7 @@ export async function POST(req: Request) {
   try {
     if (process.env.COINVERA_AI_PUBLIC === 'off') throw new HttpError(503, 'ai_not_configured');
     const site = req.headers.get('sec-fetch-site'); if (site && site !== 'same-origin') throw new HttpError(403, 'forbidden');
+    requireHuman(req);   // vérification Cloudflare faite une fois (cookie signé) : sans effet tant que Turnstile n'est pas configuré
     const ip = ipOf(req); await rateLimit('aip_h_' + ip, 8, 3600); await rateLimit('aip_d_' + ip, 25, 86400);
     const b = VisitorBody.parse(await req.json());
     await rateLimit('aip_all', 3000, 86400);

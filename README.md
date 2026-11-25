@@ -33,6 +33,14 @@ Toutes les listes sont paginées côté serveur (`?page=1&size=20`, size max 100
 Ajoutez au même projet Vercel : `www.coinvera.me` (principal), `api.coinvera.me`, `docs.coinvera.me`, `status.coinvera.me`. Chez votre registrar, créez un CNAME pour chacun (www, api, docs, status) vers la valeur indiquée par Vercel, et redirigez `coinvera.me` vers `www.coinvera.me`. Le middleware route les sous-domaines : `docs.` -> documentation, `status.` -> état des services, `api.` -> API (`https://api.coinvera.me/v1/payments`). Dans Firebase Authentication, autorisez ces domaines.
 Variable : `NEXT_PUBLIC_SITE_URL=https://www.coinvera.me`. `CAPTCHA_SECRET` est facultatif (par défaut `API_SECRET_ENC_KEY`).
 
+### Vérification « êtes-vous humain » (Cloudflare Turnstile)
+Affichée une fois sur la page d'accueil à la première visite, puis à la demande avant une action sensible (chat public, formulaire de contact, mot de passe oublié). Un contrôle réussi pose un cookie signé de 12 h (`cv_human`, HttpOnly) que les endpoints sensibles exigent côté serveur (`requireHuman`, dans `lib/human.ts`).
+1. Cloudflare → Turnstile → *Add widget* (mode *Managed*), domaines `coinvera.me` et `www.coinvera.me` → noter la **clé de site** et la **clé secrète**.
+2. Variables d'environnement : `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (clé de site, lue **au build** : redéployer après l'avoir définie) et `TURNSTILE_SECRET_KEY`. `HUMAN_COOKIE_SECRET` est facultatif (par défaut dérivé de la clé secrète).
+3. Désactivée tant que les DEUX clés ne sont pas définies : déployer sans clés ne bloque rien (le formulaire de contact garde alors son calcul anti-spam). Clés de test Cloudflare : `1x00000000000000000000AA` (site) et `1x0000000000000000000000000000000AA` (secret), qui valident toujours.
+4. Pour couvrir un nouvel endpoint : appeler `requireHuman(req)` au début de la route ; côté client, `pub()` redemande la vérification et rejoue la requête automatiquement, ou appeler `await ensureHuman()` avant un `fetch`.
+
+
 ## Vérification e-mail, mot de passe et 2FA
 Aucun e-mail Firebase n'est utilisé : le code à 6 chiffres (inscription et réinitialisation du mot de passe) est envoyé par Brevo avec un modèle HTML maison. `SUPPORT_EMAIL` doit être un expéditeur validé dans Brevo. La 2FA est une application TOTP (Google Authenticator, Authy…), vérifiée à chaque nouvelle connexion.
 

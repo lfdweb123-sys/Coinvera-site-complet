@@ -272,3 +272,9 @@ html[data-theme=dark] .hv-bars i{background:#2B3856}
 .ai-fab .ai-btn{height:50px;padding:0 20px;box-shadow:0 10px 28px rgba(34,85,232,.38)}
 @media(max-width:560px){.ai-fab .ai-btn{width:52px;height:52px;padding:0;justify-content:center}}
 body:has(.ai-fab) .totop{bottom:calc(max(18px,env(safe-area-inset-bottom)) + 66px)}
+
+/* ---- Vérification humaine (Cloudflare Turnstile) ---- */
+.hg{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:16px;background:rgba(10,21,53,.72);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);overflow:auto}
+.hg-box{width:100%;max-width:420px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:20px;padding:clamp(22px,4vw,32px);text-align:center;box-shadow:0 30px 80px rgba(10,21,53,.4)}
+.hg-ic{width:52px;height:52px;border-radius:14px;margin:0 auto 14px;display:grid;place-items:center;background:var(--brandsoft);color:var(--brand)}.hg-box h2{font-size:22px;margin:0 0 8px}.hg-box p{margin:0 0 16px;color:var(--ink2);font-size:14.5px;line-height:1.5}
+.hg-w{min-height:70px;display:flex;justify-content:center;align-items:center;margin-bottom:12px}.hg-a{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px}.hg-n{font-size:12.5px!important;margin:6px 0 0!important}

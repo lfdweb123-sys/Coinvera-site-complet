@@ -4,6 +4,7 @@ import { BookOpen, Clock, LifeBuoy, RefreshCw, Activity } from 'lucide-react';
 import { Header, Footer } from '@/components/Site';
 import PageHero from '@/components/PageHero';
 import { DOCS, STATUS } from '@/lib/site';
+import { ensureHuman, humanOn } from '@/lib/human-client';
 const CATS = ['Support technique', 'Paiement', 'Retrait', 'API', 'WooCommerce', 'Compte', 'Autre'];
 export default function Contact() {
   const [f, setF] = useState({ name: '', email: '', subject: '', category: 'Support technique', message: '', website: '' }), [cap, setCap] = useState({ question: '…', token: '' }), [ans, setAns] = useState(''), [s, setS] = useState<'' | 'ok' | 'busy'>(''), [err, setErr] = useState('');
@@ -11,9 +12,10 @@ export default function Contact() {
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setErr(''); setS('busy');
+    if (humanOn() && !(await ensureHuman())) { setS(''); setErr('Vérification de sécurité requise pour envoyer le message.'); return; }
     const r = await fetch('/api/contact', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...f, captchaToken: cap.token, captchaAnswer: ans }) });
     if (r.ok) { setS('ok'); return; } const j = await r.json().catch(() => ({})); setS('');
-    setErr(j.error === 'captcha_invalid' ? 'Réponse au calcul incorrecte ou expirée. Réessayez.' : j.error === 'rate_limited' ? 'Trop de messages envoyés. Réessayez plus tard.' : 'L’envoi a échoué. Vérifiez les champs et réessayez.'); load();
+    setErr(j.error === 'human_required' || j.error === 'human_failed' ? 'Vérification de sécurité requise : réessayez.' : j.error === 'captcha_invalid' ? 'Réponse au calcul incorrecte ou expirée. Réessayez.' : j.error === 'rate_limited' ? 'Trop de messages envoyés. Réessayez plus tard.' : 'L’envoi a échoué. Vérifiez les champs et réessayez.'); load();
   }
   return <><Header /><PageHero v={1} eyebrow="Contact" title="Une question ? Écrivez-nous" sub="Notre équipe vous répond par email dans les meilleurs délais." />
     <main className="sec"><div className="wrap cgrid"><div className="stack" style={{ gridTemplateRows: 'repeat(3,1fr)' }}>
@@ -24,7 +26,7 @@ export default function Contact() {
           <div className="g2"><div><label htmlFor="subject">Sujet</label><input id="subject" className="in" required minLength={3} value={f.subject} onChange={set('subject')} /></div><div><label htmlFor="cat">Catégorie</label><select id="cat" className="in" value={f.category} onChange={set('category')}>{CATS.map(c => <option key={c}>{c}</option>)}</select></div></div>
           <label htmlFor="msg">Message</label><textarea id="msg" className="in" rows={6} required minLength={10} value={f.message} onChange={set('message')} />
           <input tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ position: 'absolute', left: -9999 }} value={f.website} onChange={set('website')} />
-          <label htmlFor="cap">Vérification anti-spam : combien font <b style={{ color: 'var(--brand)', fontSize: 17 }}>{cap.question}</b> ?</label>
-          <div style={{ display: 'flex', gap: 10 }}><input id="cap" className="in" inputMode="numeric" required value={ans} onChange={e => setAns(e.target.value.replace(/[^0-9-]/g, ''))} placeholder="Votre réponse" style={{ maxWidth: 200 }} /><button type="button" className="btn" onClick={load} aria-label="Nouveau calcul"><RefreshCw size={16} /></button></div>
-          {err && <div className="err" role="alert">{err}</div>}<button className="btn p lg full" style={{ marginTop: 18 }} disabled={s === 'busy' || !cap.token}>{s === 'busy' ? 'Envoi…' : 'Envoyer le message'}</button></form>}</div></div></main><Footer /></>;
+          {!humanOn() && <><label htmlFor="cap">Vérification anti-spam : combien font <b style={{ color: 'var(--brand)', fontSize: 17 }}>{cap.question}</b> ?</label>
+          <div style={{ display: 'flex', gap: 10 }}><input id="cap" className="in" inputMode="numeric" required value={ans} onChange={e => setAns(e.target.value.replace(/[^0-9-]/g, ''))} placeholder="Votre réponse" style={{ maxWidth: 200 }} /><button type="button" className="btn" onClick={load} aria-label="Nouveau calcul"><RefreshCw size={16} /></button></div></>}
+          {err && <div className="err" role="alert">{err}</div>}<button className="btn p lg full" style={{ marginTop: 18 }} disabled={s === 'busy' || (!humanOn() && !cap.token)}>{s === 'busy' ? 'Envoi…' : 'Envoyer le message'}</button></form>}</div></div></main><Footer /></>;
 }

@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { ArrowUp, Clock, Maximize2, Minimize2, MessageSquarePlus, Sparkles, Square, Trash2, X } from 'lucide-react';
 import { api, auth, msg } from '@/lib/client';
 import { useConfirm } from '@/components/Confirm';
+import { ensureHuman } from '@/lib/human-client';
 type M = { r: 'u' | 'a'; t: string };
 type H = { id: string; title: string; updatedAt: number };
 const SUGGEST = ['Comment créer une carte virtuelle ?', 'Quels sont les frais de retrait ?', 'Comment connecter mon site avec l’API ?', 'Comment activer la double authentification ?'];
@@ -47,6 +48,7 @@ export default function CoinveraAI({ visitor = false }: { visitor?: boolean }) {
     const m = (q ?? text).trim(); if (!m || busy) return; setErr(''); setText(''); setBusy(true); setMsgs(x => [...x, { r: 'u', t: m }, { r: 'a', t: '' }]);
     const ac = new AbortController(); abort.current = ac;
     try {
+      if (visitor && !(await ensureHuman())) throw new Error('human_required');   // vérification Cloudflare, une fois par 12 h
       const tok = visitor ? undefined : await auth.currentUser?.getIdToken();
       const thread = [...msgs.filter(x => x.t.trim()), { r: 'u' as const, t: m }].slice(-10).map(x => ({ role: x.r === 'u' ? 'user' : 'assistant', content: x.t.slice(0, 1000) }));
       const r = visitor

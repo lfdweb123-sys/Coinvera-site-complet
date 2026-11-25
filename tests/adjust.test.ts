@@ -8,6 +8,8 @@ vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () =
 vi.mock('@/lib/auth', () => ({ HttpError: class extends Error { constructor(public status: number, public code: string) { super(code); } } }));
 import { adjustBalance } from '@/lib/adjust';
 const net = (m: string) => Object.values(store).filter((e: any) => e?.lines).flatMap((e: any) => e.lines).filter((l: any) => l.account.startsWith(`merchant:${m}:`)).reduce((a: number, l: any) => a + (l.dir === 'credit' ? l.amount : -l.amount), 0);
+const pools = (m: string) => { const b = store[`balances/${m}`]; return (b.available ?? 0) + (b.card_credit ?? 0) + (b.scarab_credit ?? 0); };
+const ledgerNet = (m: string) => Object.values(store).filter((e: any) => e?.lines).flatMap((e: any) => e.lines).filter((l: any) => l.account.startsWith(`merchant:${m}:`)).reduce((a: number, l: any) => a + (l.dir === 'credit' ? l.amount : -l.amount), 0);
 describe('ajustement manuel du solde', () => {
   it('crédit : solde +, écriture équilibrée, trace conservée', async () => {
     store['merchants/m1'] = { email: 'a@b.c' }; store['balances/m1'] = { available: 5_000_000 };
@@ -31,5 +33,23 @@ describe('ajustement manuel du solde', () => {
     await expect(adjustBalance({ adminUid: 'a', merchantId: 'nope', direction: 'credit', amount: '1', reason: 'xxxxx' })).rejects.toMatchObject({ code: 'not_found' });
     store['merchants/adm1'] = {}; store['admins/adm1'] = {};
     await expect(adjustBalance({ adminUid: 'a', merchantId: 'adm1', direction: 'credit', amount: '1', reason: 'xxxxx' })).rejects.toMatchObject({ code: 'protected_admin' });
+  });
+  it('crédits cartes : chaque solde est ajusté séparément, le registre suit chaque compte', async () => {
+    store['merchants/m4'] = {}; store['balances/m4'] = { available: 1_000_000 };
+    await adjustBalance({ adminUid: 'a', merchantId: 'm4', pool: 'card_credit', direction: 'credit', amount: '20', reason: 'Recharge offerte' });
+    await adjustBalance({ adminUid: 'a', merchantId: 'm4', pool: 'scarab_credit', direction: 'credit', amount: '5.5', reason: 'Recharge offerte' });
+    await adjustBalance({ adminUid: 'a', merchantId: 'm4', pool: 'card_credit', direction: 'debit', amount: '8', reason: 'Correction' });
+    expect(store['balances/m4']).toMatchObject({ available: 1_000_000, card_credit: 12_000_000, scarab_credit: 5_500_000 });
+    expect(ledgerNet('m4')).toBe(pools('m4') - 1_000_000);   // le solde de départ n'a pas d'écriture : seules les écritures d'ajustement sont au registre
+    const e = Object.entries(store).find(([k, v]: any) => k.startsWith('ledger_entries/') && v.pool === 'scarab_credit')![1] as any; expect(e.lines.some((l: any) => l.account === 'merchant:m4:scarab_credit' && l.dir === 'credit')).toBe(true);
+  });
+  it('un retrait refuse de dépasser le solde choisi, sans toucher aux autres soldes', async () => {
+    store['merchants/m5'] = {}; store['balances/m5'] = { available: 50_000_000, card_credit: 2_000_000 };
+    await expect(adjustBalance({ adminUid: 'a', merchantId: 'm5', pool: 'card_credit', direction: 'debit', amount: '2.01', reason: 'xxxxx' })).rejects.toMatchObject({ code: 'insufficient_balance' });
+    expect(store['balances/m5']).toMatchObject({ available: 50_000_000, card_credit: 2_000_000 });
+  });
+  it('refuse un solde inconnu (par exemple réservé)', async () => {
+    store['merchants/m6'] = {}; store['balances/m6'] = {};
+    await expect(adjustBalance({ adminUid: 'a', merchantId: 'm6', pool: 'reserved' as any, direction: 'credit', amount: '1', reason: 'xxxxx' })).rejects.toMatchObject({ code: 'invalid_request' });
   });
 });

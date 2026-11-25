@@ -201,10 +201,11 @@ function CardModal({ c, onClose, onChange }: { c: any; onClose: () => void; onCh
       <button className="btn" disabled={busy} onClick={() => setTerm(true)}><Trash2 size={15} /> Fermer la carte</button>)}
   </div></Modal>;
 }
-function IssuePicker({ products, mode, onClose, onDone, onDeposit }: any) {
-  const [p, setP] = useState<any>(products.length === 1 ? products[0] : null);
+function IssuePicker({ products, mode, spend, onClose, onDone, onDeposit }: any) {
+  const ok = (x: any) => spend >= Number(x.issueTotalAtMin ?? 0);   // sans le solde nécessaire, la carte reste visible (tarifs) mais ne peut pas être choisie
+  const [p, setP] = useState<any>(products.length === 1 && ok(products[0]) ? products[0] : null);
   if (p) return <Checkout kind="issue" product={p} mode={mode} minAmount={p.minInitial} onClose={onClose} onDone={onDone} onDeposit={onDeposit} />;
-  return <Modal title="Choisir une carte" onClose={onClose}><div className="stack">{products.map((x: any) => <button key={x.id} type="button" className="card pick" onClick={() => setP(x)}><CardArt name={x.name ?? ''} /><span><span className="pk-t"><b style={{ fontSize: 17 }}>{x.name}</b><span className="badge info">{KIND_LABEL[kindOf(x.name ?? '')]}</span></span><span className="mut">{x.description}</span><br /><span className="mut">Dès {usd(x.issueTotalAtMin)} (frais inclus) · recharge : {usd(x.rechargeFeeAt100)} de frais pour 100 $</span><br /><span className="pk-go">Choisir cette carte →</span></span></button>)}</div></Modal>;
+  return <Modal title="Choisir une carte" onClose={onClose}><div className="stack">{products.some((x: any) => !ok(x)) && <div className="btns"><button type="button" className="btn p" onClick={() => onDeposit?.(Math.max(5, Math.ceil(Math.min(...products.map((x: any) => Number(x.issueTotalAtMin))) - spend)))}>Déposer pour acheter une carte</button></div>}{products.map((x: any) => <button key={x.id} type="button" className="card pick" disabled={!ok(x)} aria-disabled={!ok(x)} style={ok(x) ? undefined : { opacity: .55, cursor: 'not-allowed' }} onClick={() => ok(x) && setP(x)}><CardArt name={x.name ?? ''} /><span><span className="pk-t"><b style={{ fontSize: 17 }}>{x.name}</b><span className="badge info">{KIND_LABEL[kindOf(x.name ?? '')]}</span></span><span className="mut">{x.description}</span><br /><span className="mut">Dès {usd(x.issueTotalAtMin)} (frais inclus) · recharge : {usd(x.rechargeFeeAt100)} de frais pour 100 $</span><br /><span className="pk-go">{ok(x) ? 'Choisir cette carte →' : `Solde insuffisant : déposez au moins ${usd(Math.max(0, Number(x.issueTotalAtMin) - spend))} pour la choisir`}</span></span></button>)}</div></Modal>;
 }
 export default function CartePro() {
   const d = useData('/api/scarab'); const [m, setM] = useState<any>(null); const reload = d.reload; const pr = useData('/api/scarab/products');
@@ -212,6 +213,7 @@ export default function CartePro() {
   const close = useCallback(() => setM(null), []); const x = d.data; const products = pr.data?.products ?? []; const prod = (id: string) => products.find((p: any) => p.id === id);
   if (d.error && !x) return <><PageHead title="Virtuals cards pro" /><p className="err" role="alert">{d.error}</p></>;
   if (x && !x.enabled) return <><PageHead title="Virtuals cards pro" sub="Cartes Visa Pro rechargeables." /><Empty title="Bientôt disponible" hint="La Virtuals cards pro n’est pas encore ouverte. Revenez bientôt." /></>;
+  const spend = x ? Number(x.balance) + Number(x.credit ?? 0) : 0;
   const ready = x && !x.unavailable && (x.mode === 'platform' || x.customer?.kycStatus === 'approved');
   return <>
     <PageHead title="Virtuals cards pro" sub="Cartes Visa rechargeables pour payer en ligne, avec des frais fixes affichés avant chaque paiement.">{ready && <button className="btn p" onClick={() => setM({ t: 'issue' })} disabled={!products.length}><Plus size={16} /> Nouvelle carte</button>}</PageHead>
@@ -223,11 +225,11 @@ export default function CartePro() {
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><CreditCard size={22} /><span className={'badge ' + (c.status === 'active' ? 'ok' : 'info')}>{ST[c.status] ?? c.status}{c.terminating ? ' (fermeture)' : ''}</span></div>
         <h3 style={{ margin: '12px 0 2px' }}>•••• {c.last4 ?? '····'}</h3><p className="mut" style={{ margin: 0 }}>{c.nameOnCard ?? prod(c.productId)?.name ?? 'Virtuals cards pro'}</p>
         <p style={{ margin: '8px 0 0' }}><b>{c.balance != null ? usd(c.balance) : '—'}</b>{c.codeWaiting ? ' · code en attente' : ''}</p>
-        {c.status === 'active' && <span className="btn" role="button" tabIndex={0} style={{ marginTop: 8 }} onClick={ev => { ev.stopPropagation(); setM({ t: 'topup', c }); }} onKeyDown={ev => { if (ev.key === 'Enter') { ev.stopPropagation(); setM({ t: 'topup', c }); } }}>Recharger</span>}</button>)}</div>
+        {c.status === 'active' && <span className="btn" role="button" tabIndex={spend >= Number(prod(c.productId)?.minRecharge ?? 5) ? 0 : -1} aria-disabled={spend < Number(prod(c.productId)?.minRecharge ?? 5)} title={spend < Number(prod(c.productId)?.minRecharge ?? 5) ? 'Déposez du solde avant de recharger' : undefined} style={{ marginTop: 8, ...(spend < Number(prod(c.productId)?.minRecharge ?? 5) ? { opacity: .55, cursor: 'not-allowed' } : {}) }} onClick={ev => { ev.stopPropagation(); if (spend >= Number(prod(c.productId)?.minRecharge ?? 5)) setM({ t: 'topup', c }); }} onKeyDown={ev => { if (ev.key === 'Enter') { ev.stopPropagation(); if (spend >= Number(prod(c.productId)?.minRecharge ?? 5)) setM({ t: 'topup', c }); } }}>Recharger</span>}</button>)}</div>
         : <Empty title="Aucune carte pour le moment" hint="Créez votre première Virtuals cards pro en quelques instants." />}
       <h2>Opérations récentes</h2>
       {x.orders.length ? <div className="card stack">{x.orders.map((o: any) => <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{o.kind === 'issue' ? 'Nouvelle carte' : 'Recharge'} · {OS[o.status] ?? o.status}{o.status === 'failed' ? ' (remboursée)' : ''}<br /><small className="mut">{o.createdAt ? day(new Date(o.createdAt).toISOString()) : ''}</small></span><b>{usd(o.total)}</b></div>)}</div> : <p className="mut">Aucune opération.</p>}</>}
-    {m?.t === 'issue' && <IssuePicker products={products} mode={x?.mode} onClose={close} onDone={reload} onDeposit={(a: number) => setM({ t: 'deposit', amount: a })} />}
+    {m?.t === 'issue' && <IssuePicker products={products} mode={x?.mode} spend={spend} onClose={close} onDone={reload} onDeposit={(a: number) => setM({ t: 'deposit', amount: a })} />}
     {m?.t === 'topup' && <Checkout kind="topup" card={m.c} mode={x?.mode} minAmount={prod(m.c.productId)?.minRecharge ?? 5} onClose={close} onDone={reload} onDeposit={(a: number) => setM({ t: 'deposit', amount: a })} />}
     {m?.t === 'deposit' && <Deposit amount={m.amount} onClose={close} onDone={reload} />}
     {m?.t === 'card' && <CardModal c={m.c} onClose={close} onChange={reload} />}

@@ -26,3 +26,8 @@ describe('écritures de réseau tolérées (carte pro)', () => {
 });
 
 it('Solana reconnu', () => { expect(mapDepositAddresses([{ network: 'solana', asset: 'USDT', address: 'x' }])).toEqual({ usdtsol: 'x' }); });
+it('réponse réelle : actifs groupés dans une chaîne « USDC,USDT »', () => {
+  const m = mapDepositAddresses([{ network: 'bep20', asset: 'USDC,USDT', address: '0xB' }, { network: 'erc20', asset: 'USDC,USDT', address: '0xE' }, { network: 'polygon', asset: 'USDC,USDT', address: '0xP' }, { network: 'trc20', asset: 'USDT', address: 'TL' }]);
+  expect(Object.keys(m).sort()).toEqual(['usdc', 'usdcbsc', 'usdcpolygon', 'usdtbsc', 'usdterc20', 'usdtpolygon', 'usdttrc20']);
+  expect(m.usdcbsc).toBe('0xB'); expect(m.usdttrc20).toBe('TL'); expect(m.usdctrc20).toBeUndefined();
+});

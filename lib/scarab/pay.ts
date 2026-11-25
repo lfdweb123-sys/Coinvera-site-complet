@@ -18,7 +18,8 @@ import { quote, placeOrder, Spec, Quote } from './orders';
 export const SCARAB_PAY = ['usdttrc20', 'usdtbsc', 'usdterc20', 'usdtpolygon', 'usdtsol', 'usdcsol', 'usdctrc20', 'usdcbsc', 'usdc', 'usdcpolygon'];
 // Adresses de dépôt PERMANENTES du compte chez le prestataire (une par réseau, GET /deposit-addresses) : l'USDT/USDC de l'utilisateur arrive directement dans le portefeuille qui finance les cartes.
 // Une adresse qui exige un mémo ne peut pas être attribuée automatiquement (un transfert de jeton n'en porte pas) : elle est écartée.
-const assetsOf = (d: any): string[] => { const v = d.assets ?? d.asset ?? d.supported_assets ?? d.tokens ?? d.currency ?? d.coin; return (Array.isArray(v) ? v : v ? [v] : []).map((x: any) => String(typeof x === 'object' ? x?.symbol ?? x?.asset ?? x?.id : x).trim().toUpperCase()); };
+const assetsOf = (d: any): string[] => { const v = d.assets ?? d.asset ?? d.supported_assets ?? d.tokens ?? d.currency ?? d.coin; // Le prestataire renvoie plusieurs actifs dans une seule chaîne (« USDC,USDT ») : on sépare sur virgule, point-virgule, barre, « + » et espaces.
+  return (Array.isArray(v) ? v : v ? [v] : []).flatMap((x: any) => String(typeof x === 'object' ? x?.symbol ?? x?.asset ?? x?.id : x).split(/[\s,;/|+]+/)).map((x: string) => x.trim().toUpperCase()).filter(Boolean); };
 let cache: { t: number; a: Record<string, string> } | null = null;
 /** Réponse brute du prestataire -> adresses par identifiant de crypto (ex. usdctrc20). Exportée pour les tests. */
 export function mapDepositAddresses(rows: any[]): Record<string, string> {

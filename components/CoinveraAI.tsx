@@ -7,6 +7,7 @@ import { useConfirm } from '@/components/Confirm';
 type M = { r: 'u' | 'a'; t: string };
 type H = { id: string; title: string; updatedAt: number };
 const SUGGEST = ['Comment créer une carte virtuelle ?', 'Quels sont les frais de retrait ?', 'Comment connecter mon site avec l’API ?', 'Comment activer la double authentification ?'];
+const SUGGEST_V = ['Quels sont les frais et les tarifs ?', 'Faut-il une vérification d’identité ?', 'Quels pays sont couverts ?', 'Comment fonctionne le plugin WooCommerce ?'];
 const SIZE_KEY = 'cv_ai_size';
 // Rendu Markdown minimal et sûr (aucun HTML injecté) : gras, code, liens http(s), listes à puces ou numérotées.
 function inline(s: string, k: string) {
@@ -27,7 +28,8 @@ function Md({ t }: { t: string }) {
   }); flush(); return <>{out}</>;
 }
 const ago = (t: number) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'À l’instant' : m < 60 ? `Il y a ${m} min` : m < 1440 ? `Il y a ${Math.round(m / 60)} h` : new Date(t).toLocaleDateString('fr-FR'); };
-export default function CoinveraAI() {
+// visitor : version publique (accueil, contact) : sans compte, sans historique enregistré, conversation gardée dans le navigateur uniquement.
+export default function CoinveraAI({ visitor = false }: { visitor?: boolean }) {
   const ask = useConfirm(); const [open, setOpen] = useState(false), [big, setBig] = useState(false), [view, setView] = useState<'chat' | 'history'>('chat');
   const [msgs, setMsgs] = useState<M[]>([]), [chatId, setChatId] = useState<string | null>(null), [text, setText] = useState(''), [busy, setBusy] = useState(false), [err, setErr] = useState(''), [hist, setHist] = useState<H[] | null>(null), [mounted, setMounted] = useState(false);
   const end = useRef<HTMLDivElement>(null), inp = useRef<HTMLTextAreaElement>(null), abort = useRef<AbortController | null>(null);
@@ -45,8 +47,11 @@ export default function CoinveraAI() {
     const m = (q ?? text).trim(); if (!m || busy) return; setErr(''); setText(''); setBusy(true); setMsgs(x => [...x, { r: 'u', t: m }, { r: 'a', t: '' }]);
     const ac = new AbortController(); abort.current = ac;
     try {
-      const tok = await auth.currentUser?.getIdToken();
-      const r = await fetch('/api/ai/chat', { method: 'POST', signal: ac.signal, headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: `Bearer ${tok}` } : {}) }, body: JSON.stringify({ chatId: chatId ?? undefined, message: m }) });
+      const tok = visitor ? undefined : await auth.currentUser?.getIdToken();
+      const thread = [...msgs.filter(x => x.t.trim()), { r: 'u' as const, t: m }].slice(-10).map(x => ({ role: x.r === 'u' ? 'user' : 'assistant', content: x.t.slice(0, 1000) }));
+      const r = visitor
+        ? await fetch('/api/ai/public', { method: 'POST', signal: ac.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: thread }) })
+        : await fetch('/api/ai/chat', { method: 'POST', signal: ac.signal, headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: `Bearer ${tok}` } : {}) }, body: JSON.stringify({ chatId: chatId ?? undefined, message: m }) });
       if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'error'); }
       const id = r.headers.get('X-Chat-Id'); if (id) setChatId(id);
       const rd = r.body.getReader(), dec = new TextDecoder(); let acc = '';
@@ -60,17 +65,17 @@ export default function CoinveraAI() {
     <section className={'ai-panel' + (big ? ' big' : '')} role="dialog" aria-label="Coinvera AI" aria-modal="false">
       <header className="ai-h"><div className="ai-logo"><Sparkles size={18} /></div><div style={{ minWidth: 0 }}><b>Coinvera AI</b><div className="ai-sub">{busy ? 'Rédaction en cours…' : 'Assistant de la plateforme'}</div></div>
         <div className="ai-tools"><button aria-label="Nouvelle conversation" title="Nouvelle conversation" onClick={fresh}><MessageSquarePlus size={17} /></button>
-          <button aria-label="Historique" title="Historique" className={view === 'history' ? 'on' : ''} onClick={() => { if (view === 'history') setView('chat'); else { setView('history'); loadHist(); } }}><Clock size={17} /></button>
+          {!visitor && <button aria-label="Historique" title="Historique" className={view === 'history' ? 'on' : ''} onClick={() => { if (view === 'history') setView('chat'); else { setView('history'); loadHist(); } }}><Clock size={17} /></button>}
           <button aria-label={big ? 'Réduire' : 'Agrandir'} title={big ? 'Réduire' : 'Agrandir'} className="ai-zoom" onClick={() => setBig(b => !b)}>{big ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
           <button aria-label="Fermer" title="Fermer" onClick={() => setOpen(false)}><X size={18} /></button></div></header>
       {view === 'history' ? <div className="ai-body"><div className="ai-hist">{hist == null ? <div className="skel" style={{ height: 52 }} /> : !hist.length ? <p className="mut" style={{ textAlign: 'center', padding: '30px 10px' }}>Aucune conversation pour le moment.</p> : hist.map(h => <div key={h.id} className={'ai-hi' + (h.id === chatId ? ' cur' : '')}><button className="ai-hi-b" onClick={() => openChat(h.id)}><b>{h.title}</b><span>{ago(h.updatedAt)}</span></button><button className="ai-hi-d" aria-label="Supprimer" onClick={() => delChat(h.id)}><Trash2 size={15} /></button></div>)}
         {!!hist?.length && <button className="btn sm d" style={{ margin: '12px auto 0' }} onClick={delAll}>Effacer tout l’historique</button>}</div></div> :
-        <div className="ai-body"><div className="ai-msgs">{!msgs.length && <div className="ai-empty"><div className="ai-logo lg"><Sparkles size={26} /></div><h3>Bonjour, comment puis-je vous aider ?</h3><p>Posez-moi vos questions sur vos paiements, retraits, cartes virtuelles, API ou la sécurité de votre compte.</p><div className="ai-sg">{SUGGEST.map(s => <button key={s} onClick={() => send(s)}>{s}</button>)}</div></div>}
+        <div className="ai-body"><div className="ai-msgs">{!msgs.length && <div className="ai-empty"><div className="ai-logo lg"><Sparkles size={26} /></div><h3>Bonjour, comment puis-je vous aider ?</h3><p>{visitor ? 'Posez-moi vos questions sur Coinvera : tarifs, fonctionnalités, plugins, cartes virtuelles, API et pays couverts.' : 'Posez-moi vos questions sur vos paiements, retraits, cartes virtuelles, API ou la sécurité de votre compte.'}</p><div className="ai-sg">{(visitor ? SUGGEST_V : SUGGEST).map(s => <button key={s} onClick={() => send(s)}>{s}</button>)}</div></div>}
           {msgs.map((m, i) => <div key={i} className={'ai-m ' + (m.r === 'u' ? 'u' : 'a')}>{m.r === 'a' && <div className="ai-av"><Sparkles size={13} /></div>}<div className="ai-bub">{m.r === 'u' ? m.t : m.t ? <Md t={m.t} /> : <span className="ai-dots" aria-label="Rédaction"><i /><i /><i /></span>}</div></div>)}
           {err && <div className="err" role="alert" style={{ textAlign: 'center' }}>{err}</div>}<div ref={end} /></div></div>}
       {view === 'chat' && <form className="ai-f" onSubmit={e => { e.preventDefault(); send(); }}><textarea ref={inp} rows={1} value={text} maxLength={2000} placeholder="Écrivez votre question…" aria-label="Votre message" onChange={e => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
         {busy ? <button type="button" className="ai-send stop" aria-label="Arrêter" onClick={() => abort.current?.abort()}><Square size={15} /></button> : <button className="ai-send" aria-label="Envoyer" disabled={!text.trim()}><ArrowUp size={18} /></button>}</form>}
-      {view === 'chat' && <div className="ai-foot">Coinvera AI peut se tromper : vérifiez les informations importantes.</div>}
+      {view === 'chat' && <div className="ai-foot">Coinvera AI peut se tromper : vérifiez les informations importantes.{visitor && <> Pour une demande sur votre compte, utilisez la <a href="/contact">page Contact</a>.</>}</div>}
     </section>, document.body);
   return <>{launcher}{panel}</>;
 }

@@ -10,13 +10,13 @@ export default function Verify({ next, siteKey }: { next: string; siteKey: strin
     catch { setSt('error'); setMsg('La vérification a échoué. Réessayez.'); window.turnstile?.reset(wid.current); }
   }, [next]);
   useEffect(() => {
-    const draw = () => { if (!box.current || !window.turnstile || wid.current) return; wid.current = window.turnstile.render(box.current, { sitekey: siteKey, language: 'fr', theme: 'auto', callback: submit, 'expired-callback': () => window.turnstile?.reset(wid.current), 'error-callback': () => { setSt('error'); setMsg('Impossible de charger la vérification. Vérifiez votre connexion et réessayez.'); } }); setSt('ready'); };
+    const draw = () => { if (!box.current || !window.turnstile || wid.current) return; wid.current = window.turnstile.render(box.current, { sitekey: siteKey, language: 'fr', theme: 'dark', callback: submit, 'expired-callback': () => window.turnstile?.reset(wid.current), 'error-callback': () => { setSt('error'); setMsg('Impossible de charger la vérification. Vérifiez votre connexion et réessayez.'); } }); setSt('ready'); };
     if (window.turnstile) { draw(); return; }
     window.onTurnstileLoaded = draw;   // script inséré par un script de confiance : autorisé par la politique de sécurité (strict-dynamic)
     const s = document.createElement('script'); s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoaded'; s.async = true; s.onerror = () => { setSt('error'); setMsg('Impossible de joindre le service de vérification. Réessayez dans un instant.'); }; document.head.appendChild(s);
     return () => { if (wid.current) window.turnstile?.remove(wid.current); };
   }, [siteKey, submit]);
-  return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 20 }}><div className="card" style={{ maxWidth: 440, width: '100%', textAlign: 'center', display: 'grid', gap: 14, justifyItems: 'center' }}>
+  return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 20, background: '#000', color: '#F5F5F7', ['--ink' as string]: '#F5F5F7', ['--mut' as string]: '#A1A1AA' }}><style>{'html,body{background:#000!important}'}</style><div className="card" style={{ maxWidth: 440, width: '100%', textAlign: 'center', display: 'grid', gap: 14, justifyItems: 'center', background: '#0B0B0F', borderColor: '#26262E', boxShadow: 'none' }}>
     <ShieldCheck size={40} color="var(--brand)" aria-hidden /><h1 style={{ fontSize: 24, margin: 0 }}>Vérification de sécurité</h1>
     <p className="mut" style={{ margin: 0 }}>Nous vérifions que vous êtes bien un humain. Cela ne prend que quelques secondes et n’est demandé qu’une seule fois.</p>
     <div ref={box} style={{ minHeight: 65 }} />

@@ -18,3 +18,9 @@ describe('identifiants crypto du prestataire (cartes standard)', () => {
   });
   it('inconnu : ignoré', () => { expect(stableFromAssetId('btc')).toBeUndefined(); expect(stableFromAssetId('usdt_solana')).toBeUndefined(); expect(stableFromAssetId('dai_erc20')).toBeUndefined(); });
 });
+describe('écritures de réseau tolérées (carte pro)', () => {
+  it('bsc / matic / tron / ethereum et identifiants composés', () => {
+    const m = mapDepositAddresses([{ network: 'BSC', asset: 'USDT', address: 'a' }, { network: 'matic', asset: 'USDC', address: 'b' }, { network: 'Tron', asset: 'USDT', address: 'c' }, { network: 'ethereum', asset: 'usdc', address: 'd' }, { asset: 'usdt_polygon', address: 'e' }]);
+    expect(m).toMatchObject({ usdtbsc: 'a', usdcpolygon: 'b', usdttrc20: 'c', usdc: 'd', usdtpolygon: 'e' });
+  });
+});

@@ -8,7 +8,7 @@ import { db } from '../firebase-admin';
 import { HttpError } from '../auth';
 import { fromUnits } from '../money';
 import { warn } from '../log';
-import { byId, fmt, Cur, networkWarning } from '../cryptos';
+import { byId, fmt, Cur, networkWarning, stableId, stableFromAssetId } from '../cryptos';
 import { spx } from './client';
 import { scanIncoming } from '../chains';
 import { quote, placeOrder, Spec, Quote } from './orders';
@@ -18,15 +18,15 @@ import { quote, placeOrder, Spec, Quote } from './orders';
 export const SCARAB_PAY = ['usdttrc20', 'usdtbsc', 'usdterc20', 'usdtpolygon', 'usdctrc20', 'usdcbsc', 'usdc', 'usdcpolygon'];
 // Adresses de dépôt PERMANENTES du compte chez le prestataire (une par réseau, GET /deposit-addresses) : l'USDT/USDC de l'utilisateur arrive directement dans le portefeuille qui finance les cartes.
 // Une adresse qui exige un mémo ne peut pas être attribuée automatiquement (un transfert de jeton n'en porte pas) : elle est écartée.
-const NET: Record<string, string> = { TRC20: 'trc20', BEP20: 'bep20', ERC20: 'erc20', POLYGON: 'polygon' };
-const assetsOf = (d: any): string[] => { const v = d.assets ?? d.asset ?? d.supported_assets ?? d.tokens; return (Array.isArray(v) ? v : v ? [v] : []).map((x: any) => String(typeof x === 'object' ? x?.symbol ?? x?.asset : x).toUpperCase()); };
+const assetsOf = (d: any): string[] => { const v = d.assets ?? d.asset ?? d.supported_assets ?? d.tokens ?? d.currency ?? d.coin; return (Array.isArray(v) ? v : v ? [v] : []).map((x: any) => String(typeof x === 'object' ? x?.symbol ?? x?.asset ?? x?.id : x).trim().toUpperCase()); };
 let cache: { t: number; a: Record<string, string> } | null = null;
 /** Réponse brute du prestataire -> adresses par identifiant de crypto (ex. usdctrc20). Exportée pour les tests. */
 export function mapDepositAddresses(rows: any[]): Record<string, string> {
   const out: Record<string, string> = {};
   for (const d of rows) {
-    if (!d?.address || d.memo) continue; const net = String(d.network ?? '').toLowerCase(); const assets = assetsOf(d);
-    for (const id of SCARAB_PAY) { const c = byId(id); if (c && NET[c.net] === net && assets.includes(c.sym) && !out[id]) out[id] = String(d.address); }
+    if (!d?.address || d.memo) continue;
+    // Écritures tolérées : réseau « trc20 / TRON / bsc / matic / ethereum… » + crypto « USDT », ou identifiant composé « usdt_trc20 » (dans asset, id ou currency).
+    for (const a of assetsOf(d)) { const id = (d.network ? stableId(a, String(d.network)) : undefined) ?? stableFromAssetId(a); if (id && SCARAB_PAY.includes(id) && !out[id]) out[id] = String(d.address); }
   }
   return out;
 }
@@ -34,7 +34,7 @@ export async function depositAddresses(): Promise<Record<string, string>> {
   if (cache && Date.now() - cache.t < 60_000) return cache.a;
   let out: Record<string, string>;
   try { const rows = ((await spx('GET', '/deposit-addresses')).data ?? []) as any[]; out = mapDepositAddresses(rows);
-    const seen = new Set(Object.keys(out).map(k => byId(k)!.net + byId(k)!.sym)); const lost = rows.filter(d => !d?.address || d.memo || !assetsOf(d).some(a => seen.has(String(d.network ?? '').toUpperCase() + a))).map(d => `${d?.network}/${assetsOf(d).join('+') || '?'}${d?.memo ? '(mémo)' : ''}`);
+    const lost = rows.filter(d => !Object.keys(mapDepositAddresses([d])).length).map(d => `${d?.network}/${assetsOf(d).join('+') || '?'}${d?.memo ? '(mémo)' : ''}`);
     if (lost.length) warn('scarab.deposit_addresses_unmapped', { rows: lost.join(',') }); }
   catch (e) { warn('scarab.deposit_addresses_failed', { message: (e as Error).message }); return cache?.a ?? {}; }
   cache = { t: Date.now(), a: out }; return out;

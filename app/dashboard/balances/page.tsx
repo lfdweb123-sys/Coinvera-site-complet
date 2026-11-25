@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useData } from '@/lib/client';
 import { day, PageHead, Stat, usd } from '@/components/Bits';
 import DataTable from '@/components/DataTable';
-const T: Record<string, string> = { payment_settled: 'Paiement crédité', withdrawal_reserved: 'Retrait réservé', withdrawal_completed: 'Retrait terminé', withdrawal_released: 'Réservation libérée' };
+const T: Record<string, string> = { payment_settled: 'Paiement crédité', withdrawal_reserved: 'Retrait réservé', withdrawal_completed: 'Retrait terminé', withdrawal_released: 'Réservation libérée', admin_adjustment: 'Ajustement par Coinvera' };
 export default function Bal() {
   const [page, setPage] = useState(1); const b = useData('/api/balance'), l = useData(`/api/ledger?page=${page}&size=10`); const d = b.data;
   return <div className="stack"><PageHead title="Soldes" sub="Calculés à partir d’un registre comptable immuable." />

@@ -6,7 +6,7 @@ import { notify } from '../audit';
 import { info, warn } from '../log';
 import { sp, SpError, SpUnknown, publicCode } from './client';
 import { centsToUnits } from './pricing';
-import { cardRef, ownedCard, refreshCard } from './cards';
+import { cardRef, ownedCard, refreshCard, splitRefund } from './cards';
 
 // Retrait d'une partie du solde d'une carte vers le solde Coinvera, selon la documentation du prestataire (POST /cards/{card}/withdraw) :
 //  - montant d'au moins 1,00 $ ET au moins 1,00 $ doit rester sur la carte ; une opération toutes les 5 minutes par carte ;
@@ -50,11 +50,12 @@ async function creditWithdrawal(ref: FirebaseFirestore.DocumentReference, id: st
   const units = centsToUnits(Math.max(0, Math.floor(netMinor))); let uid = '', ok = false;
   await db.runTransaction(async tx => {
     const w = (await tx.get(ref)).data(); if (!w || !from.includes(w.status)) return; uid = w.merchantId;
-    const bal = await readBal(tx, uid);
-    if (units > 0) { postEntry(tx, `scarab_wd_${id}`, uid, 'scarab_withdraw', [{ account: 'central:funds', dir: 'debit', amount: units }, { account: `merchant:${uid}:available`, dir: 'credit', amount: units }], { cardId, walletTransactionId: walletTx }); writeBal(tx, uid, { ...bal, available: bal.available + units }); }
+    const cs = cardRef(cardId); const c = (await tx.get(cs)).data(); const bal = await readBal(tx, uid); const p = splitRefund(c, units);
+    if (units > 0) { postEntry(tx, `scarab_wd_${id}`, uid, 'scarab_withdraw', [{ account: 'central:funds', dir: 'debit', amount: units }, ...(p.avail ? [{ account: `merchant:${uid}:available`, dir: 'credit' as const, amount: p.avail }] : []), ...(p.credit ? [{ account: `merchant:${uid}:scarab_credit`, dir: 'credit' as const, amount: p.credit }] : [])], { cardId, walletTransactionId: walletTx });
+      writeBal(tx, uid, { ...bal, available: bal.available + p.avail, scarab_credit: (bal.scarab_credit ?? 0) + p.credit }); if (p.credit) tx.set(cs, { returnedToCredit: (c?.returnedToCredit ?? 0) + p.credit }, { merge: true }); }
     tx.update(ref, { status: 'confirmed', netUnits: units, feeMinor, at: FieldValue.serverTimestamp() }); ok = true;
   });
-  if (ok) { info('scarab.withdrawn', { cardId, merchantId: uid, net: units }); await notify(uid, 'Retrait de carte confirmé', `${(units / 1e6).toFixed(2)} $ ont été ajoutés à votre solde.`); await refreshCard(uid, cardId).catch(() => {}); }
+  if (ok) { info('scarab.withdrawn', { cardId, merchantId: uid, net: units }); await notify(uid, 'Retrait de carte confirmé', `${(units / 1e6).toFixed(2)} $ ont été ajoutés à votre solde (la part financée par votre dépôt retourne dans votre crédit cartes pro).`); await refreshCard(uid, cardId).catch(() => {}); }
   return ok;
 }
 // Admin : un retrait « à vérifier » est soit confirmé avec le montant NET lu dans le portail du prestataire, soit clos sans crédit.

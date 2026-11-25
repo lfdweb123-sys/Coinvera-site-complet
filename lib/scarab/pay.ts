@@ -8,21 +8,32 @@ import { db } from '../firebase-admin';
 import { HttpError } from '../auth';
 import { fromUnits } from '../money';
 import { warn } from '../log';
-import { byId, fmt, Cur } from '../cryptos';
+import { byId, fmt, Cur, networkWarning } from '../cryptos';
 import { spx } from './client';
 import { scanIncoming } from '../chains';
 import { quote, placeOrder, Spec, Quote } from './orders';
 // Paiement direct de la Virtuals cards pro en USDT : adresse + montant unique, collection à part (scarab_pay_orders). Une fois le paiement confirmé,
 // l'USDT reçu entre directement dans la réservation de l'ordre (placeOrder, source = crypto). Même mécanique que les cartes existantes, sans la partager.
-export const SCARAB_PAY = ['usdttrc20', 'usdtbsc'];
-// Adresses de dépôt PERMANENTES du compte chez le prestataire (une par réseau, GET /deposit-addresses) : l'USDT de l'utilisateur arrive directement dans le portefeuille qui finance les cartes.
-// Une adresse qui exige un mémo ne peut pas être attribuée automatiquement (un transfert TRC20/BEP20 n'en porte pas) : elle est écartée.
-const NET: Record<string, string> = { usdttrc20: 'trc20', usdtbsc: 'bep20' };
+// Réseaux et cryptos acceptés : tout couple (crypto, réseau) que le prestataire expose ET que la chaîne sait surveiller (lib/chains.ts).
+export const SCARAB_PAY = ['usdttrc20', 'usdtbsc', 'usdterc20', 'usdtpolygon', 'usdctrc20', 'usdcbsc', 'usdc', 'usdcpolygon'];
+// Adresses de dépôt PERMANENTES du compte chez le prestataire (une par réseau, GET /deposit-addresses) : l'USDT/USDC de l'utilisateur arrive directement dans le portefeuille qui finance les cartes.
+// Une adresse qui exige un mémo ne peut pas être attribuée automatiquement (un transfert de jeton n'en porte pas) : elle est écartée.
+const NET: Record<string, string> = { TRC20: 'trc20', BEP20: 'bep20', ERC20: 'erc20', POLYGON: 'polygon' };
+const assetsOf = (d: any): string[] => { const v = d.assets ?? d.asset ?? d.supported_assets ?? d.tokens; return (Array.isArray(v) ? v : v ? [v] : []).map((x: any) => String(typeof x === 'object' ? x?.symbol ?? x?.asset : x).toUpperCase()); };
 let cache: { t: number; a: Record<string, string> } | null = null;
+/** Réponse brute du prestataire -> adresses par identifiant de crypto (ex. usdctrc20). Exportée pour les tests. */
+export function mapDepositAddresses(rows: any[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const d of rows) {
+    if (!d?.address || d.memo) continue; const net = String(d.network ?? '').toLowerCase(); const assets = assetsOf(d);
+    for (const id of SCARAB_PAY) { const c = byId(id); if (c && NET[c.net] === net && assets.includes(c.sym) && !out[id]) out[id] = String(d.address); }
+  }
+  return out;
+}
 export async function depositAddresses(): Promise<Record<string, string>> {
   if (cache && Date.now() - cache.t < 60_000) return cache.a;
-  const out: Record<string, string> = {};
-  try { for (const d of ((await spx('GET', '/deposit-addresses')).data ?? []) as any[]) { const id = Object.keys(NET).find(k => NET[k] === String(d.network).toLowerCase()); if (id && String(d.asset).toUpperCase() === 'USDT' && d.address && !d.memo) out[id] = String(d.address); } }
+  let out: Record<string, string>;
+  try { out = mapDepositAddresses(((await spx('GET', '/deposit-addresses')).data ?? []) as any[]); }
   catch (e) { warn('scarab.deposit_addresses_failed', { message: (e as Error).message }); return cache?.a ?? {}; }
   cache = { t: Date.now(), a: out }; return out;
 }
@@ -34,7 +45,7 @@ export async function depositRate(): Promise<number> {
   try { const rates = (((await spx('GET', '/deposits', { query: { limit: 20 } })).data ?? []) as any[]).filter(d => ['credited', 'flagged'].includes(d.status)).map(d => Number(d.rate)).filter(x => x > 0.95 && x <= 1); if (rates.length) r = Math.min(...rates); } catch { /* clé de test ou prestataire injoignable : repli */ }
   rc = { t: Date.now(), r }; return r;
 }
-export const payCurrencies = async () => { const a = await depositAddresses(); return SCARAB_PAY.map(id => byId(id)).filter((c): c is Cur => !!c && !!a[c.id]).map(c => ({ id: c.id, name: c.name, net: c.net })); };
+export const payCurrencies = async () => { const a = await depositAddresses(); return SCARAB_PAY.map(id => byId(id)).filter((c): c is Cur => !!c && !!a[c.id]).map(c => ({ id: c.id, sym: c.sym, name: c.name, net: c.net, warning: networkWarning(c) })); };
 export const payView = (id: string, o: Record<string, any>) => ({ id, status: o.status, cur: o.cur, net: byId(o.cur)?.net ?? '', address: o.address, amount: fmt(BigInt(o.expected), o.decimals), amountUsd: fromUnits(o.deposit ? o.creditUnits : o.chargeUnits), deposit: !!o.deposit, expiresAt: o.expiresAt, txid: o.txid ?? null, orderId: o.orderId ?? null, error: o.error ?? null });
 
 async function uniqueExpected(c: Cur, need: number) {

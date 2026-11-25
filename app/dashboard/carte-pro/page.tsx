@@ -94,28 +94,32 @@ function Wait({ orderId, onDone }: { orderId: string; onDone: () => void }) {
   const o = usePoll(`/api/scarab/orders/${orderId}`, r => r.status === 'confirmed' || r.status === 'failed');
   useEffect(() => { if (o?.status === 'confirmed') onDone(); }, [o?.status]); // eslint-disable-line react-hooks/exhaustive-deps
   if (o?.status === 'confirmed') return <p className="okm">Opération terminée. Votre carte est à jour.</p>;
-  if (o?.status === 'failed') return <><Err m={msg({ message: o.error })} /><p className="mut">Les fonds ont été remis sur votre solde.</p></>;
+  if (o?.status === 'failed') return <><Err m={msg({ message: o.error })} /><p className="mut">Les fonds ont été remis sur votre solde ou votre crédit cartes pro.</p></>;
   return <p className="mut" role="status">Opération en cours : la carte est créée ou rechargée en quelques instants. Vous pouvez fermer cette fenêtre, elle apparaîtra dans la liste.</p>;
 }
 function PayDirect({ spec, onOrder, deposit, onDone, onStage }: { spec: any; onOrder?: (id: string) => void; deposit?: boolean; onDone?: () => void; onStage?: (s: 'choose' | 'pay' | 'done') => void }) {
-  const cur = useData('/api/scarab/pay-orders'); const [c, setC] = useState(''), [po, setPo] = useState<any>(null), [e, setE] = useState(''), [qr, setQr] = useState('');
+  const cur = useData('/api/scarab/pay-orders'); const [c, setC] = useState(''), [sym, setSym] = useState(''), [po, setPo] = useState<any>(null), [e, setE] = useState(''), [qr, setQr] = useState('');
   const live = usePoll(po ? `/api/scarab/pay-orders/${po.id}` : null, r => ['fulfilled', 'failed', 'expired'].includes(r.status), 8000); const p = live ?? po;
   useEffect(() => { if (p?.status === 'fulfilled' && p.orderId) onOrder?.(p.orderId); if (p?.status === 'fulfilled' && deposit) onDone?.(); }, [p?.status, p?.orderId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (po) QRCode.toDataURL(po.address, { margin: 1, width: 180 }).then(setQr).catch(() => {}); }, [po?.address]); // eslint-disable-line react-hooks/exhaustive-deps
   const stage = !po ? 'choose' : (['failed', 'expired'].includes(p.status) || (deposit && p.status === 'fulfilled')) ? 'done' : 'pay';
   useEffect(() => { onStage?.(stage); }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
   const list = cur.data?.currencies ?? [];
-  if (!po) return <div className="stack"><label htmlFor="pc">Réseau de paiement (USDT)</label>
-    <select id="pc" className="in" value={c} onChange={x => setC(x.target.value)}><option value="">Choisir…</option>{list.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+  const syms: string[] = [...new Set<string>(list.map((x: any) => x.sym))], sel = list.find((x: any) => x.id === c);
+  const pickSym = (sym: string) => { const nets = list.filter((x: any) => x.sym === sym); setC(nets.length === 1 ? nets[0].id : ''); setSym(sym); };
+  if (!po) return <div className="stack"><label htmlFor="pk">Crypto</label>
+    <select id="pk" className="in" value={sym} onChange={x => pickSym(x.target.value)}><option value="">Choisir…</option>{syms.map(x => <option key={x} value={x}>{x}</option>)}</select>
+    {sym && <><label htmlFor="pc">Réseau</label><select id="pc" className="in" value={c} onChange={x => setC(x.target.value)}><option value="">Choisir…</option>{list.filter((x: any) => x.sym === sym).map((x: any) => <option key={x.id} value={x.id}>{x.net}</option>)}</select></>}
+    {sel && <p className="err" role="alert" style={{ margin: 0 }}>{sel.warning}</p>}
     {!cur.loading && !list.length && <p className="err" role="alert">Paiement direct indisponible : {msg({ message: cur.data?.problem ?? 'no_deposit_address' })}{cur.data?.problem && cur.data.problem !== 'no_deposit_address' ? ` (code : ${cur.data.problem})` : ''}</p>}<Err m={e} />
     <button className="btn p" disabled={!c} onClick={async () => { setE(''); try { setPo(await api(deposit ? '/api/scarab/deposits' : '/api/scarab/pay-orders', { method: 'POST', body: JSON.stringify({ ...spec, cur: c }) })); } catch (x) { setE(msg(x)); } }}>Afficher l’adresse de paiement</button></div>;
   if (p.status === 'expired') return <p className="err">Cette demande de paiement a expiré. Si vous avez déjà envoyé des fonds, contactez le support avec l’identifiant de transaction.</p>;
-  if (p.status === 'failed') return <><Err m={msg({ message: p.error })} /><p className="mut">Votre paiement a été reçu : le montant a été crédité sur votre solde.</p></>;
+  if (p.status === 'failed') return <><Err m={msg({ message: p.error })} /><p className="mut">Votre paiement a été reçu : le montant a été ajouté à votre crédit cartes pro.</p></>;
   if (p.status === 'fulfilled' && deposit) return <p className="okm" role="status">Paiement reçu : {usd(p.amountUsd)} ont été crédités. Vous pouvez maintenant payer votre carte.</p>;
   if (p.status === 'paid' || p.status === 'fulfilled') return <p className="mut" role="status">Paiement reçu. {deposit ? 'Crédit en cours…' : 'Création de l’opération en cours…'}</p>;
   const payCur = byId(p.cur);
   return <div className="stack"><p className="mut" style={{ margin: 0 }}>Envoyez <b>exactement</b> ce montant, sur le réseau indiqué : le montant exact permet d’identifier votre paiement. Valable 60 minutes.</p>
-    <CopyRow label="Montant exact à envoyer (USDT)" value={String(p.amount)} shown={`${p.amount} USDT`} /><CopyRow label="Réseau" value={String(p.net)} /><CopyRow label="Adresse de paiement" value={p.address} mono />{p.memo && <CopyRow label="Mémo (obligatoire)" value={String(p.memo)} mono />}
+    <CopyRow label={`Montant exact à envoyer (${payCur?.sym ?? 'USDT'})`} value={String(p.amount)} shown={`${p.amount} ${payCur?.sym ?? 'USDT'}`} /><CopyRow label="Réseau" value={String(p.net)} /><CopyRow label="Adresse de paiement" value={p.address} mono />{p.memo && <CopyRow label="Mémo (obligatoire)" value={String(p.memo)} mono />}
     {payCur && <p className="err" role="alert" style={{ margin: 0 }}>{networkWarning(payCur)}</p>}
     {qr && <img src={qr} alt="QR code de l’adresse de paiement" width={160} height={160} style={{ justifySelf: 'center' }} />}<p className="mut" role="status" style={{ margin: 0 }}>En attente du paiement… (vérification automatique)</p></div>;
 }
@@ -124,7 +128,7 @@ function Deposit({ amount: a0, onClose, onDone }: { amount?: number; onClose: ()
   const cur = st === 0 ? 0 : stage === 'choose' ? 1 : stage === 'pay' ? 2 : 3;
   return <Modal title="Déposer pour payer ma carte" onClose={() => { onClose(); onDone(); }}><Stepper steps={['Montant', 'Réseau', 'Paiement', 'Terminé']} cur={cur} /><div className="sbody">
     {st === 0 ? <>
-      <p className="mut" style={{ margin: 0 }}>Le dépôt se fait en USDT et sert uniquement à payer vos Virtuals cards pro (émission et recharges). Il n’est pas retirable. Le montant crédité est exactement celui demandé.</p>
+      <p className="mut" style={{ margin: 0 }}>Le dépôt se fait en USDT ou USDC et sert uniquement à payer vos Virtuals cards pro (émission et recharges). Il n’est pas retirable. Le montant crédité est exactement celui demandé.</p>
       <label htmlFor="da">Montant à créditer (USD, de 5 à 10 000)</label><input id="da" className="in" inputMode="decimal" autoFocus value={a} onChange={x => setA(x.target.value)} onKeyDown={x => x.key === 'Enter' && ok && setSt(1)} />
       {!ok && a !== '' && <p className="err" role="alert">Saisissez un montant entre 5 et 10 000 USD (deux décimales au plus).</p>}</> : <>
       {stage !== 'done' && <div className="kv"><div>Montant à créditer <b>{usd(a)}</b></div></div>}
@@ -153,7 +157,7 @@ function Checkout({ kind, product, card, mode, minAmount, onClose, onDone, onDep
       {!pay && <>{!q.covers && <p role="status" style={{ margin: 0 }}>Votre solde ne couvre pas encore cette carte : il manque <b>{usd(q.missing)}</b>. Déposez ce montant, puis le bouton de paiement s’active.</p>}
         <div className="btns"><button className="btn p" disabled={busy || !q.covers} title={q.covers ? undefined : 'Déposez d’abord le montant manquant'} onClick={async () => { setBusy(true); setE(''); try { setOrderId((await api('/api/scarab/orders', { method: 'POST', body: JSON.stringify(spec) })).id); } catch (x) { setE(msg(x)); } setBusy(false); }}>Payer {usd(q.total)} avec mon solde</button>
           {!q.covers && <button className="btn" onClick={() => onDeposit?.(Math.max(5, Math.ceil(Number(q.missing))))}>Déposer {usd(Math.max(5, Math.ceil(Number(q.missing))))}</button>}
-          <button className="btn" onClick={() => setPay(true)}>Ou payer directement en USDT</button></div></>}
+          <button className="btn" onClick={() => setPay(true)}>Ou payer directement en crypto</button></div></>}
           {pay && <PayDirect spec={spec} onOrder={setOrderId} onStage={setStage} />}</>)}
     {key === 'done' && <Wait orderId={orderId} onDone={onDone} />}
   </div>

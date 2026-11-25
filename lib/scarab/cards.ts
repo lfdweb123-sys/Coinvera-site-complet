@@ -8,6 +8,14 @@ import { centsToUnits } from './pricing';
 
 // Cartes d'un utilisateur : `scarab_cards` est le registre de PROPRIÉTÉ. La clé API du prestataire opère sur TOUTES nos cartes,
 // c'est donc nous qui garantissons que l'utilisateur A ne touche jamais la carte de l'utilisateur B. Le solde et le statut sont relus à la source.
+// Anti-contournement : l'argent entré par le crédit cartes pro (dépôt, non retirable) ne doit jamais ressortir en solde retirable en passant par une carte.
+// Chaque carte mémorise ce qui l'a financée (fundedTotal / fundedFromCredit) ; tout retour d'argent de la carte (retrait vers le solde, fermeture) est ventilé au même prorata
+// et la part « crédit » retourne dans le crédit, dans la limite de ce que la carte a reçu du crédit (returnedToCredit).
+export function splitRefund(c: Record<string, any> | undefined, x: number) {
+  const total = c?.fundedTotal ?? 0, fromCredit = c?.fundedFromCredit ?? 0;
+  const credit = total > 0 && fromCredit > 0 ? Math.min(x, Math.round(x * Math.min(1, fromCredit / total)), Math.max(0, fromCredit - (c?.returnedToCredit ?? 0))) : 0;
+  return { credit, avail: x - credit };
+}
 export const LIVE = ['pending', 'active', 'frozen'];
 export const cardRef = (id: string) => db.doc(`scarab_cards/${id}`);
 export const cardPatch = (c: any) => ({ cardId: c.id, productId: c.product_id ?? null, customerId: c.customer_id ?? null, nameOnCard: c.name_on_card ?? null, status: c.status ?? 'pending', mode: c.mode ?? null,
@@ -63,10 +71,10 @@ export async function creditTermination(id: string, refundedMinor: number) {
   const ref = cardRef(id); let uid = '', credited = false; const amt = centsToUnits(Math.max(0, Math.floor(refundedMinor)));
   await db.runTransaction(async tx => {
     const c = (await tx.get(ref)).data(); if (!c || c.terminationCredited) return; uid = c.merchantId;
-    const bal = await readBal(tx, uid);
-    if (amt > 0) { postEntry(tx, `scarab_refund_${id}`, uid, 'scarab_refund', [{ account: 'central:funds', dir: 'debit', amount: amt }, { account: `merchant:${uid}:available`, dir: 'credit', amount: amt }], { cardId: id }); writeBal(tx, uid, { ...bal, available: bal.available + amt }); }
-    tx.set(ref, { status: 'terminated', terminationCredited: true, refundedUnits: amt, updatedAt: Date.now() }, { merge: true }); credited = true;
+    const bal = await readBal(tx, uid); const p = splitRefund(c, amt);
+    if (amt > 0) { postEntry(tx, `scarab_refund_${id}`, uid, 'scarab_refund', [{ account: 'central:funds', dir: 'debit', amount: amt }, ...(p.avail ? [{ account: `merchant:${uid}:available`, dir: 'credit' as const, amount: p.avail }] : []), ...(p.credit ? [{ account: `merchant:${uid}:scarab_credit`, dir: 'credit' as const, amount: p.credit }] : [])], { cardId: id }); writeBal(tx, uid, { ...bal, available: bal.available + p.avail, scarab_credit: (bal.scarab_credit ?? 0) + p.credit }); }
+    tx.set(ref, { status: 'terminated', terminationCredited: true, refundedUnits: amt, returnedToCredit: (c.returnedToCredit ?? 0) + p.credit, updatedAt: Date.now() }, { merge: true }); credited = true;
   });
-  if (credited) { info('scarab.terminated', { cardId: id, merchantId: uid, refunded: amt }); await notify(uid, 'Carte fermée', amt > 0 ? `${(amt / 1e6).toFixed(2)} $ ajoutés à votre solde.` : 'Votre carte a été fermée.'); }
+  if (credited) { info('scarab.terminated', { cardId: id, merchantId: uid, refunded: amt }); await notify(uid, 'Carte fermée', amt > 0 ? `${(amt / 1e6).toFixed(2)} $ ajoutés à votre solde (la part financée par votre dépôt retourne dans votre crédit cartes pro).` : 'Votre carte a été fermée.'); }
   return credited;
 }

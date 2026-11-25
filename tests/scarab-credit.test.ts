@@ -35,3 +35,4 @@ describe('crédit Virtuals cards pro', () => {
     expect(store['scarab_orders/o3']).toBeUndefined();
   });
 });
+

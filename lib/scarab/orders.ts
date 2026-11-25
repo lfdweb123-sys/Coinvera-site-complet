@@ -118,7 +118,9 @@ export async function finalize(id: string, ok: boolean, f: { error?: string; fee
   const done = await db.runTransaction(async tx => {
     const o = (await tx.get(ref)).data(); if (!o || o.status === 'confirmed' || o.status === 'failed') return false;
     const bal = await readBal(tx, o.merchantId); const charge = o.chargeUnits as number; uid = o.merchantId; kind = o.kind;
+    const cs = o.spCardId ? cardRef(o.spCardId) : null; const card = cs ? (await tx.get(cs)).data() : undefined;   // lecture avant toute écriture
     if (ok) {
+      if (cs) tx.set(cs, { merchantId: uid, fundedTotal: (card?.fundedTotal ?? 0) + charge, fundedFromCredit: (card?.fundedFromCredit ?? 0) + ((o.creditPart as number | undefined) ?? 0) }, { merge: true });   // ce qui a financé la carte (voir splitRefund)
       // Coût réel : montant + frais du plan (frais exacts quand le webhook les donne, sinon relevé au devis). L'écart avec ce qui a été facturé est ta marge.
       const cost = Math.min(charge, centsToUnits(o.amountMinor + (f.feeMinor ?? o.costFeeMinor)));
       const lines: any[] = [{ account: acct(uid, 'scarab_reserved'), dir: 'debit', amount: charge }, { account: 'central:funds', dir: 'credit', amount: cost }];
@@ -128,7 +130,7 @@ export async function finalize(id: string, ok: boolean, f: { error?: string; fee
       tx.update(ref, { status: 'confirmed', costUnits: cost, updatedAt: Date.now() });
     } else {
       // Chaque part retourne là où elle a été prise (les anciens ordres, sans parts, reviennent entièrement au solde).
-      const backCredit = (o.creditPart as number | undefined) ?? 0, backAvail = charge - backCredit;
+      const backCredit = o.source === 'crypto' ? charge : (o.creditPart as number | undefined) ?? 0, backAvail = charge - backCredit;   // un paiement crypto direct refusé revient en crédit cartes pro (jamais en solde retirable)
       postEntry(tx, `scarab_release_${id}`, uid, 'scarab_release', [{ account: acct(uid, 'scarab_reserved'), dir: 'debit', amount: charge }, ...(backAvail ? [{ account: acct(uid, 'available'), dir: 'credit' as const, amount: backAvail }] : []), ...(backCredit ? [{ account: acct(uid, 'scarab_credit'), dir: 'credit' as const, amount: backCredit }] : [])], { orderId: id });
       writeBal(tx, uid, { ...bal, available: bal.available + backAvail, scarab_credit: (bal.scarab_credit ?? 0) + backCredit, scarab_reserved: (bal.scarab_reserved ?? 0) - charge });
       tx.update(ref, { status: 'failed', error: f.error ?? 'failed', updatedAt: Date.now() });
@@ -138,7 +140,7 @@ export async function finalize(id: string, ok: boolean, f: { error?: string; fee
   if (!done) return false;
   info('scarab.order_final', { orderId: id, ok, error: f.error });
   if (ok) { await notify(uid, kind === 'issue' ? 'Virtuals cards pro prête' : 'Virtuals cards pro rechargée', 'Votre opération a été confirmée.'); await receiptScarabOrder(id); }
-  else await notify(uid, 'Opération Virtuals cards pro échouée', 'Les fonds ont été remis sur votre solde.');
+  else await notify(uid, 'Opération Virtuals cards pro échouée', 'Les fonds ont été remis sur votre solde (ou votre crédit cartes pro).');
   return true;
 }
 async function toReview(id: string, reason: string) {

@@ -6,7 +6,7 @@ async function j(url: string, init?: RequestInit) { const r = await fetch(url, {
 async function rpc(url: string, method: string, params: any[]) { const r = await j(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) }); if (r.error) throw new Error('rpc_' + (r.error.message ?? '')); return r.result; }
 const TRON = () => process.env.TRON_API ?? 'https://api.trongrid.io';
 const tronH = (): Record<string, string> => (process.env.TRONGRID_API_KEY ? { 'TRON-PRO-API-KEY': process.env.TRONGRID_API_KEY } : {});
-const RPC = (c: Cur) => c.evm === 'bsc' ? process.env.RPC_BSC ?? 'https://bsc-dataseed.binance.org' : process.env.RPC_ETH ?? 'https://ethereum-rpc.publicnode.com';
+const RPC = (c: Cur) => c.evm === 'bsc' ? process.env.RPC_BSC ?? 'https://bsc-dataseed.binance.org' : c.evm === 'polygon' ? process.env.RPC_POLYGON ?? 'https://polygon-bor-rpc.publicnode.com' : process.env.RPC_ETH ?? 'https://ethereum-rpc.publicnode.com';
 const SOL = () => process.env.RPC_SOL ?? 'https://api.mainnet-beta.solana.com';
 const ESPLORA = (c: Cur) => c.chain === 'ltc' ? process.env.LTC_API ?? 'https://litecoinspace.org/api' : process.env.BTC_API ?? 'https://blockstream.info/api';
 const TRANSFER = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
@@ -25,7 +25,7 @@ export async function scanIncoming(c: Cur, address: string, sinceMs: number): Pr
       const r = await j(`${ESPLORA(c)}/address/${address}/txs`);
       hits = r.map((x: any) => ({ txid: x.txid, amount: BigInt(x.vout.filter((o: any) => o.scriptpubkey_address === address).reduce((a: number, o: any) => a + o.value, 0)), ts: (x.status?.block_time ?? Math.floor(Date.now() / 1000)) * 1000, confirmed: !!x.status?.confirmed })).filter((h: Hit) => h.amount > 0n && h.ts >= sinceMs - 3_600_000);
     } else if (c.chain === 'evm' && c.token) {
-      const u = RPC(c); const latest = parseInt(await rpc(u, 'eth_blockNumber', []), 16); const bt = c.evm === 'bsc' ? 3 : 12;
+      const u = RPC(c); const latest = parseInt(await rpc(u, 'eth_blockNumber', []), 16); const bt = c.evm === 'bsc' ? 3 : c.evm === 'polygon' ? 2 : 12;
       const blocks = Math.min(4000, Math.ceil((Date.now() - sinceMs) / 1000 / bt) + 30); const to = '0x' + address.slice(2).toLowerCase().padStart(64, '0');
       const logs = await rpc(u, 'eth_getLogs', [{ fromBlock: '0x' + (latest - blocks).toString(16), toBlock: 'latest', address: c.token, topics: [TRANSFER, null, to] }]);
       hits = logs.map((l: any) => ({ txid: l.transactionHash, amount: BigInt(l.data), ts: Date.now(), confirmed: true }));

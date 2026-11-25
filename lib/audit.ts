@@ -16,7 +16,8 @@ export async function merchantEmail(merchantId: string) {
 async function emailTo(merchantId: string, title: string, body: string) {
   const to = await merchantEmail(merchantId);
   if (!to || !process.env.BREVO_API_KEY || !process.env.SUPPORT_EMAIL) return;
-  const e = notificationEmail({ title, body }); await sendMail(to, e.subject, e.html);
+  const m = (await db.doc(`merchants/${merchantId}`).get()).data(); const nm = [m?.name, m?.businessName, m?.displayName].find(x => typeof x === 'string' && x.trim());
+  const e = notificationEmail({ title, body, name: nm }); await sendMail(to, e.subject, e.html);
 }
 export const notify = async (merchantId: string, title: string, body = '') => {
   const ref = await db.collection('notifications').add({ merchantId, title, body, read: false, createdAt: new Date() });

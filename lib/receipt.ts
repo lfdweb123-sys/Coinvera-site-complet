@@ -56,9 +56,10 @@ export function renderReceiptPdf(r: Receipt): Buffer {
 }
 
 const receiptEmailHtml = (r: Receipt) => simpleEmail({
-  title: r.heading,
-  paragraphs: [r.description, `${r.totalLabel} : ${r.total}`, `Votre reçu ${r.number} est joint à cet e-mail (PDF). Conservez-le : il n'est pas archivé sur notre site.`],
-  link: { href: `${SITE}/dashboard`, label: 'Ouvrir mon tableau de bord' }, note: 'Coinvera LLC — reçu généré automatiquement.',
+  title: r.heading, highlight: undefined,
+  paragraphs: [r.description, `Votre reçu ${r.number} est joint à cet e-mail (PDF). Conservez-le : il n'est pas archivé sur notre site.`],
+  rows: [['Numéro', r.number], ['Date', dateFr(r.date)], ...r.rows, [r.totalLabel, r.total]],
+  link: { href: `${SITE}/dashboard`, label: 'Ouvrir mon tableau de bord' }, note: 'Reçu généré automatiquement par Coinvera LLC.',
 });
 
 /**

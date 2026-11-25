@@ -27,10 +27,10 @@ export async function POST(req: Request) {
     const ref = await db.collection('support_tickets').add({ subject: b.subject, category: b.category, message: b.message, name, email, merchantId, status: 'New', priority: 'normal', assignedTo: null, replies: [], createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
     info('contact.ticket_created', { ticketId: ref.id, category: b.category, merchantId });
     await notify('admin', `Nouveau ticket : ${b.subject}`, ref.id);
-    const html = simpleEmail({ title: b.subject, paragraphs: [`${b.category} — ${name} (${email})${merchantId ? ' — marchand ' + merchantId : ''}`, b.message, `Ticket ${ref.id}`], note: 'Nouveau ticket reçu sur Coinvera.' });
+    const html = simpleEmail({ title: b.subject, paragraphs: [b.message], rows: [['Catégorie', b.category], ['De', `${name} (${email})`], ...(merchantId ? [['Marchand', merchantId] as [string, string]] : []), ['Ticket', ref.id]], note: 'Nouveau ticket reçu sur Coinvera.' });
     await Promise.allSettled([sendMail(process.env.SUPPORT_EMAIL!, `[Ticket] ${b.subject}`, html),
       // accusé de réception : seulement vers l'e-mail d'un compte connecté, jamais vers une adresse saisie par un visiteur (anti-relais d'e-mails)
-      ...(merchantId ? [sendMail(email, 'Nous avons bien reçu votre message', simpleEmail({ title: 'Nous avons bien reçu votre message', paragraphs: [`Bonjour ${name},`, `Votre demande « ${b.subject} » a bien été reçue (réf. ${ref.id}). Nous vous répondrons rapidement.`, 'L’équipe Coinvera'] }))] : [])]);
+      ...(merchantId ? [sendMail(email, 'Nous avons bien reçu votre message', simpleEmail({ title: 'Nous avons bien reçu votre message', name, paragraphs: ['Votre demande a bien été reçue. Nous vous répondrons rapidement.'], rows: [['Sujet', b.subject], ['Référence', ref.id]], note: 'Vous recevez ce message car vous avez écrit au support Coinvera.' }))] : [])]);
     return Response.json({ ok: true, id: ref.id }, { status: 201 });
   } catch (e) { return e instanceof z.ZodError ? Response.json({ error: 'invalid_request' }, { status: 400 }) : fail(e); }
 }

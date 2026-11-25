@@ -12,7 +12,7 @@ export async function PATCH(req: Request) {
     const up: any = { updatedAt: FieldValue.serverTimestamp(), assignedTo: a.uid };
     if (b.status) up.status = b.status; if (b.priority) up.priority = b.priority;
     if (b.reply) { up.replies = FieldValue.arrayUnion({ by: a.uid, text: b.reply, at: Date.now() }); if (!b.status) up.status = 'Waiting for Customer';
-      await sendMail(t.data()!.email, `Re: ${t.data()!.subject}`, simpleEmail({ title: `Re: ${t.data()!.subject}`, paragraphs: [b.reply, `Réf. ${b.id}`], note: 'Vous recevez ce message en réponse à votre demande auprès du support Coinvera.' })).catch(() => {}); }
+      await sendMail(t.data()!.email, `Re: ${t.data()!.subject}`, simpleEmail({ title: `Re: ${t.data()!.subject}`, name: t.data()!.name, paragraphs: [b.reply], rows: [['Référence', b.id]], note: 'Vous recevez ce message en réponse à votre demande auprès du support Coinvera.' })).catch(() => {}); }
     await r.update(up); await audit(a.uid, 'ticket.update', { id: b.id, status: b.status, replied: !!b.reply });
     return Response.json({ ok: true });
   } catch (e) { return e instanceof z.ZodError ? Response.json({ error: 'invalid_request' }, { status: 400 }) : fail(e); }

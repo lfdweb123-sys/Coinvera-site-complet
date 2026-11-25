@@ -10,3 +10,11 @@ describe('adresses de dépôt du prestataire', () => {
   it('adresse avec mémo ou crypto inconnue : écartée', () => { expect(mapDepositAddresses([{ network: 'trc20', asset: 'USDT', address: 'a', memo: '1' }, { network: 'trc20', asset: 'DOGE', address: 'b' }, { network: 'solana', asset: 'USDT', address: 'c' }])).toEqual({}); });
   it('chaque couple a un réseau surveillé', () => { for (const id of SCARAB_PAY) { const c = byId(id)!; expect(c.scan && c.token).toBeTruthy(); } });
 });
+import { stableFromAssetId } from '@/lib/cryptos';
+describe('identifiants crypto du prestataire (cartes standard)', () => {
+  it('toutes les écritures usuelles sont reconnues', () => {
+    expect(stableFromAssetId('usdt_trc20')).toBe('usdttrc20'); expect(stableFromAssetId('usdt_bep20')).toBe('usdtbsc'); expect(stableFromAssetId('usdt_erc20')).toBe('usdterc20'); expect(stableFromAssetId('usdt_polygon')).toBe('usdtpolygon');
+    expect(stableFromAssetId('usdc_trc20')).toBe('usdctrc20'); expect(stableFromAssetId('usdc_bsc')).toBe('usdcbsc'); expect(stableFromAssetId('USDC-ERC20')).toBe('usdc'); expect(stableFromAssetId('usdc_matic')).toBe('usdcpolygon');
+  });
+  it('inconnu : ignoré', () => { expect(stableFromAssetId('btc')).toBeUndefined(); expect(stableFromAssetId('usdt_solana')).toBeUndefined(); expect(stableFromAssetId('dai_erc20')).toBeUndefined(); });
+});

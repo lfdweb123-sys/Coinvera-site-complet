@@ -6,7 +6,7 @@ import { fromUnits, toUnits } from '../money';
 import { postEntry, readBal, writeBal } from '../ledger';
 import { notify } from '../audit';
 import { info, warn } from '../log';
-import { byId, fmt, Cur } from '../cryptos';
+import { byId, fmt, Cur, networkWarning } from '../cryptos';
 import { programme, grossUp, netOf } from './wallet';
 import { scanIncoming } from '../chains';
 import { quote, placeOrder, Spec } from './orders';
@@ -15,9 +15,9 @@ import { reserveAmount } from '../pay-amounts';
 //  - commander une carte / une recharge : l'USDT reçu entre directement dans la réservation de l'ordre ;
 //  - recharger son « crédit cartes » (kind = deposit) : l'USDT reçu est crédité sur un solde réservé aux cartes, non retirable.
 // Un paiement qui arrive APRÈS l'expiration (ou détecté tardivement) n'est jamais perdu : il est crédité sur le crédit cartes pendant 7 jours.
-export const CARD_PAY = ['usdttrc20', 'usdtbsc'];
+export const CARD_PAY = ['usdttrc20', 'usdtbsc', 'usdterc20', 'usdtpolygon', 'usdctrc20', 'usdcbsc', 'usdc', 'usdcpolygon'];
 export const DEPOSIT_MIN = 5, DEPOSIT_MAX = 10_000, GRACE_MS = 7 * 24 * 3600_000, VALID_MS = 60 * 60_000;
-export const payCurrencies = async () => { const { addresses } = await programme(); return CARD_PAY.map(id => byId(id)).filter((c): c is Cur => !!c && !!addresses[c.id]).map(c => ({ id: c.id, name: c.name, net: c.net })); };
+export const payCurrencies = async () => { const { addresses } = await programme(); return CARD_PAY.map(id => byId(id)).filter((c): c is Cur => !!c && !!addresses[c.id]).map(c => ({ id: c.id, sym: c.sym, name: c.name, net: c.net, warning: networkWarning(c) })); };
 export const payView = (id: string, o: Record<string, any>) => ({ id, status: o.status, kind: o.spec?.kind ?? 'issue', cur: o.cur, net: byId(o.cur)?.net ?? '', address: o.address, amount: fmt(BigInt(o.expected), o.decimals), amountUsd: fromUnits(o.chargeUnits), expiresAt: o.expiresAt, txid: o.txid ?? null, orderId: o.orderId ?? null, error: o.error ?? null });
 
 async function newPayOrder(uid: string, curId: string, spec: Spec | { kind: 'deposit'; amount: string }, base: { chargeUnits: number; ciTotalUnits: number; markupUnits: number }) {

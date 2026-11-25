@@ -33,7 +33,9 @@ export function mapDepositAddresses(rows: any[]): Record<string, string> {
 export async function depositAddresses(): Promise<Record<string, string>> {
   if (cache && Date.now() - cache.t < 60_000) return cache.a;
   let out: Record<string, string>;
-  try { out = mapDepositAddresses(((await spx('GET', '/deposit-addresses')).data ?? []) as any[]); }
+  try { const rows = ((await spx('GET', '/deposit-addresses')).data ?? []) as any[]; out = mapDepositAddresses(rows);
+    const seen = new Set(Object.keys(out).map(k => byId(k)!.net + byId(k)!.sym)); const lost = rows.filter(d => !d?.address || d.memo || !assetsOf(d).some(a => seen.has(String(d.network ?? '').toUpperCase() + a))).map(d => `${d?.network}/${assetsOf(d).join('+') || '?'}${d?.memo ? '(mémo)' : ''}`);
+    if (lost.length) warn('scarab.deposit_addresses_unmapped', { rows: lost.join(',') }); }
   catch (e) { warn('scarab.deposit_addresses_failed', { message: (e as Error).message }); return cache?.a ?? {}; }
   cache = { t: Date.now(), a: out }; return out;
 }

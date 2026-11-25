@@ -25,4 +25,12 @@ export const byId = (id: string) => CURS.find(c => c.id === id);
 // réseaux non interchangeables : envoyer sur le mauvais réseau fait perdre les fonds, sans recours possible).
 const NET_NAME: Record<string, string> = { TRC20: 'Tron', TRON: 'Tron', BEP20: 'BNB Smart Chain', BSC: 'BNB Smart Chain', POLYGON: 'Polygon', ERC20: 'Ethereum', ETH: 'Ethereum', SOL: 'Solana', BTC: 'Bitcoin', LTC: 'Litecoin' };
 export const networkWarning = (c: Pick<Cur, 'sym' | 'net'>) => `Envoyez uniquement ${c.sym} sur cette adresse, via le réseau ${NET_NAME[c.net] ?? c.net} (${c.net}). Tout envoi via un autre réseau peut entraîner la perte de vos fonds.`;
+// Identifie un stablecoin du prestataire à partir de son crypto et de son réseau, quelle que soit l'écriture (usdt_trc20, USDT/Tron, usdc_matic…). Renvoie l'identifiant Coinvera, ou undefined si inconnu.
+const NET_ALIAS: Record<string, string> = { trc20: 'TRC20', tron: 'TRC20', trx: 'TRC20', bep20: 'BEP20', bsc: 'BEP20', bnb: 'BEP20', bnbsmartchain: 'BEP20', erc20: 'ERC20', eth: 'ERC20', ethereum: 'ERC20', polygon: 'POLYGON', matic: 'POLYGON' };
+export function stableId(sym: string, net: string): string | undefined {
+  const n = NET_ALIAS[net.toLowerCase().replace(/[^a-z0-9]/g, '')], s = sym.toUpperCase();
+  return n ? CURS.find(c => c.stable && c.token && c.sym === s && c.net === n)?.id : undefined;
+}
+/** « usdt_trc20 » / « usdc-polygon » -> identifiant Coinvera. */
+export function stableFromAssetId(a: string): string | undefined { const m = /^([a-z]+)[_\-\s]+(.+)$/i.exec(String(a).trim()); return m ? stableId(m[1], m[2]) : undefined; }
 export function fmt(u: bigint, dec: number) { const s = u.toString().padStart(dec + 1, '0'); const i = s.slice(0, -dec) || '0', f = s.slice(-dec).replace(/0+$/, ''); return f ? `${i}.${f}` : i; }

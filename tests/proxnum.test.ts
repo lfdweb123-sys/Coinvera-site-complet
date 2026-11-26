@@ -14,12 +14,12 @@ vi.mock('@/lib/auth', () => ({ HttpError: class extends Error { constructor(publ
 vi.mock('@/lib/audit', () => ({ notify: async () => {} }));
 vi.mock('@/lib/log', () => ({ info: () => {}, warn: () => {}, error: () => {} }));
 import { buyRental, buyVirtual, cancelOrder, reconcileReview, reconcilePendingCancel, refreshOrder } from '@/lib/proxnum/orders';
-import { chargeOf, costUnits, rentalCatalog, virtualCountries, virtualServices } from '@/lib/proxnum/pricing';
+import { chargeOf, costUnits, rentalCatalog, virtualCountries, virtualServices, markup, _resetCaches } from '@/lib/proxnum/pricing';
 
 type Handler = (url: URL, init: any) => [number, any] | 'throw';
 let handler: Handler; const calls: string[] = [];
 beforeEach(() => {
-  for (const k of Object.keys(store)) delete store[k]; calls.length = 0; process.env.PROXNUM_API_KEY = 'k'; process.env.PROXNUM_MARKUP_BPS = '20000'; process.env.PROXNUM_MARKUP_FLAT_USD = '0';
+  _resetCaches(); for (const k of Object.keys(store)) delete store[k]; calls.length = 0; process.env.PROXNUM_API_KEY = 'k'; process.env.PROXNUM_MARKUP_BPS = '20000'; process.env.PROXNUM_MARKUP_FLAT_USD = '0';
   vi.stubGlobal('fetch', async (u: URL, init: any) => { const url = new URL(String(u)); calls.push(`${init.method} ${url.pathname}`); const r = handler(url, init); if (r === 'throw') throw new Error('timeout'); return { status: r[0], json: async () => r[1] }; });
 });
 const ledgerNet = (m: string) => Object.values(store).filter((e: any) => e?.lines).flatMap((e: any) => e.lines).filter((l: any) => l.account.startsWith(`merchant:${m}:`)).reduce((a: number, l: any) => a + (l.dir === 'credit' ? l.amount : -l.amount), 0);
@@ -137,6 +137,20 @@ describe('location', () => {
   });
 });
 
+describe('marge et pays', () => {
+  it('une marge à 0 (ou invalide) n’est jamais appliquée : la marge par défaut (3 ×) reste', () => {
+    process.env.PROXNUM_MARKUP_BPS = '0'; expect(markup().bps).toBe(20_000); process.env.PROXNUM_MARKUP_BPS = 'abc'; expect(markup().bps).toBe(20_000); process.env.PROXNUM_MARKUP_BPS = '5000'; expect(markup().bps).toBe(5000);
+  });
+  it('pays inconnu supprimé ; un pays connu seulement par ProxNum est conservé avec son nom', async () => {
+    handler = u => u.pathname.endsWith('/rental/catalog') ? [200, { ok: true, countries: [{ id: '4242', name: 'Atlantis' }] }]
+      : [200, { success: true, prices: { '6': { wa: { sell_price: 0.1, available: 5 } }, '9999': { wa: { sell_price: 0.1, available: 5 } }, '4242': { wa: { sell_price: 0.1, available: 5 } } } }];
+    expect((await virtualCountries()).map(c => c.id).sort()).toEqual(['4242', '6']);
+  });
+  it('location : un pays sans nom est supprimé', async () => {
+    handler = () => [200, { ok: true, country: '6', hours: 24, durations: [{ hours: 24, label: '1 day' }], countries: [{ id: '6', name: '' }, { id: '9999' }, { id: '4242', name: 'Atlantis' }], services: [] }];
+    expect((await rentalCatalog('6', 24)).countries.map((c: any) => c.id)).toEqual(['6', '4242']);
+  });
+});
 describe('services sans vrai nom', () => {
   it('numéros virtuels : seuls les services au nom connu sont proposés, et un pays sans service nommé disparaît', async () => {
     handler = u => u.searchParams.get('country') ? [200, { success: true, prices: { '6': { wa: { sell_price: 0.1, available: 5 }, zz: { sell_price: 0.1, available: 9 }, ig: { sell_price: 0.2, available: 0 } } } }]

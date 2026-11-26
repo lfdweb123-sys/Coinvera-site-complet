@@ -180,6 +180,8 @@ export default function CartePro() {
   const d = useData('/api/scarab'); const [m, setM] = useState<any>(null); const reload = d.reload; const pr = useData('/api/scarab/products');
   const timer = useRef<any>(null); useEffect(() => { timer.current = setInterval(() => { if (!document.hidden) reload(); }, 30000); return () => clearInterval(timer.current); }, [reload]);
   const close = useCallback(() => setM(null), []); const x = d.data; const products = pr.data?.products ?? []; const prod = (id: string) => products.find((p: any) => p.id === id);
+  // Liens depuis « Mes cartes » : ?topup=<carte> ouvre la recharge, ?new=1 l'achat d'une carte (une seule fois).
+  const deep = useRef(false); useEffect(() => { if (deep.current || !x || !pr.data) return; const q = new URLSearchParams(window.location.search), t = q.get('topup'); deep.current = true; if (t) { const c = x.cards?.find((k: any) => k.id === t && k.status === 'active'); if (c) setM({ t: 'topup', c }); } else if (q.get('new')) setM({ t: 'issue' }); if (t || q.get('new')) window.history.replaceState(null, '', window.location.pathname); }, [x, pr.data]);
   if (d.error && !x) return <><PageHead title="Virtuals cards pro" /><p className="err" role="alert">{d.error}</p></>;
   if (x && !x.enabled) return <><PageHead title="Virtuals cards pro" sub="Cartes Visa Pro rechargeables." /><Empty title="Bientôt disponible" hint="La Virtuals cards pro n’est pas encore ouverte. Revenez bientôt." /></>;
   const spend = x ? Number(x.balance) + Number(x.credit ?? 0) : 0;

@@ -20,7 +20,10 @@ async function bybit(method: 'GET' | 'POST', path: string, payload: Record<strin
   const r = await fetch(process.env.BYBIT_BASE_URL + path + (method === 'GET' ? '?' + qs : ''), {
     method, body: method === 'POST' ? qs : undefined, signal: AbortSignal.timeout(15_000),
     headers: { 'Content-Type': 'application/json', 'X-BAPI-API-KEY': key, 'X-BAPI-TIMESTAMP': ts, 'X-BAPI-RECV-WINDOW': rw, 'X-BAPI-SIGN': sign } });
-  const j = (await r.json()) as { retCode: number; retMsg: string; result: any };
+  // Réponse non JSON (page de blocage, proxy, panne) : erreur explicite avec le code HTTP et le début du texte, jamais « Expected property name… ». Le résultat reste « état inconnu » pour un retrait.
+  const text = await r.text(); let j: { retCode: number; retMsg: string; result: any };
+  try { j = JSON.parse(text); } catch { throw new Error(`bybit_reponse_illisible (HTTP ${r.status}) : ${text.replace(/\s+/g, ' ').slice(0, 120)}`); }
+  if (typeof j?.retCode !== 'number') throw new Error(`bybit_reponse_inattendue (HTTP ${r.status})`);
   log(j.retCode === 0 ? 'info' : 'warn', 'bybit.response', { path, httpStatus: r.status, retCode: j.retCode, retMsg: j.retMsg });
   return j;
 }

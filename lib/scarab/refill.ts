@@ -12,10 +12,20 @@ import { depositAddresses, depositRate } from './pay';
 // (une par cause et par jour) dès que l'alimentation automatique ne peut pas se faire : le virement se fait alors à la main.
 export const LOW_USD = 60;   // sous ce niveau, on réalimente
 const dayKey = () => new Date().toISOString().slice(0, 10);
+// Aucune alerte ni retrait « dans le vide » : (1) la tâche planifiée n'alimente que s'il y a eu une demande réelle (un achat bloqué faute de fonds) dans les dernières 24 h ;
+// (2) après un échec (retrait refusé ou état inconnu), tout est BLOQUÉ : ni nouveau retrait (risque de doublon) ni nouveau e-mail, jusqu'à ce que l'administrateur agisse (Admin > Virtuals cards pro).
+const DEMAND_MS = 24 * 3600_000;
+export const refillBlock = async () => { const l = (await db.doc('scarab_refill_lock/current').get()).data(); return l?.blocked ? { reason: String(l.reason ?? ''), requestId: String(l.requestId ?? ''), amount: l.amount ?? null, at: l.at ?? 0, message: String(l.message ?? '') } : null; };
+export const unblockRefill = () => db.doc('scarab_refill_lock/current').set({ until: 0, blocked: false, at: Date.now() });
+async function block(slot: number, reason: 'unknown' | 'refused', requestId: string, amount: string, message: string) { await db.doc('scarab_refill_lock/current').set({ until: slot + 30 * 60_000, blocked: true, reason, requestId, amount: Number(amount), at: slot, message: message.slice(0, 300) }); }
 export async function ensureScarabFunds(needUsd = 0) {
   if (!(await scarabSettings()).enabled) return;                                 // service fermé : rien à alimenter
   const w = await wallet(true).catch(() => null); if (!w) return; const have = w.availableMinor / 100;
   if (have >= Math.max(LOW_USD, needUsd)) return;
+  const demand = db.doc('scarab_refill_lock/demand');
+  if (needUsd > 0) await demand.set({ at: Date.now() }).catch(() => {});
+  else if (Date.now() - ((await demand.get()).data()?.at ?? 0) > DEMAND_MS) return;   // portefeuille bas mais personne n'a essayé d'acheter : rien à faire
+  if ((await db.doc('scarab_refill_lock/current').get()).data()?.blocked) return;       // en attente d'une action de l'administrateur
   const s = await cardSettings();
   const lowAlert = (why: string, lines: string[]) => alertRefill(`scarab_${why}_${dayKey()}`, 'Virtuals cards pro : portefeuille bas, action manuelle requise', [`Solde du portefeuille chez le prestataire : ${have.toFixed(2)} $ (seuil ${LOW_USD} $).`, ...lines]);
   if (!s.refillAuto) return void await lowAlert('off', ['L’alimentation automatique est désactivée : faites un virement USDT depuis Bybit vers l’adresse de dépôt du prestataire (page Deposit).']);
@@ -34,8 +44,8 @@ export async function ensureScarabFunds(needUsd = 0) {
   try {
     const r = await createWithdrawal({ coin: 'USDT', chain: 'TRX', address, amount: amt, requestId });
     if (r.retCode === 0) { await ref.update({ status: 'sent', bybitId: String(r.result?.id ?? '') }); info('scarab.refill_sent', { amount: amt }); }
-    else { await ref.update({ status: 'failed', error: `bybit_${r.retCode}` }); await lock.set({ until: 0, at: slot }); error('scarab.refill_refused', { retCode: r.retCode, retMsg: r.retMsg });
-      await alertRefill(`scarab_refused_${slot}`, 'Retrait Bybit refusé (Virtuals cards pro) : faites le virement à la main', [`Le site a demandé ${amt} USDT (TRC20) vers le portefeuille de la carte pro et Bybit l’a refusé : ${r.retMsg ?? ''} (code ${r.retCode}).`, `Faites un virement de ${amt} USDT, réseau TRON (TRC20), vers : ${address}`]); }
-  } catch (e) { await ref.update({ status: 'unknown' }); warn('scarab.refill_unknown_state', { message: (e as Error).message });
-    await alertRefill(`scarab_unknown_${slot}`, 'Retrait Bybit (Virtuals cards pro) : état inconnu, à vérifier', [`La demande de ${amt} USDT (TRC20) n’a pas reçu de réponse claire (${(e as Error).message}).`, 'Vérifiez dans Bybit si le retrait existe avant de refaire un virement.', `Adresse de dépôt : ${address}`]); }
+    else { await ref.update({ status: 'failed', error: `bybit_${r.retCode}` }); await block(slot, 'refused', requestId, amt, `${r.retMsg ?? ''} (code ${r.retCode})`); error('scarab.refill_refused', { retCode: r.retCode, retMsg: r.retMsg });
+      await alertRefill(`scarab_refused_${slot}`, 'Retrait Bybit refusé (Virtuals cards pro) : faites le virement à la main', [`Le site a demandé ${amt} USDT (TRC20) vers le portefeuille de la carte pro et Bybit l’a refusé : ${r.retMsg ?? ''} (code ${r.retCode}).`, `Faites un virement de ${amt} USDT, réseau TRON (TRC20), vers : ${address}`, 'Aucun autre retrait ni e-mail ne sera envoyé tant que vous n’aurez pas traité ce point : Admin > Virtuals cards pro > « Alimentation automatique ».']); }
+  } catch (e) { await ref.update({ status: 'unknown' }); await block(slot, 'unknown', requestId, amt, (e as Error).message); warn('scarab.refill_unknown_state', { message: (e as Error).message });
+    await alertRefill(`scarab_unknown_${slot}`, 'Retrait Bybit (Virtuals cards pro) : état inconnu, à vérifier', [`La demande de ${amt} USDT (TRC20) n’a pas reçu de réponse claire (${(e as Error).message}).`, 'Vérifiez dans Bybit si le retrait existe avant de refaire un virement.', `Adresse de dépôt : ${address}`, 'Aucun autre retrait ni e-mail ne sera envoyé tant que vous n’aurez pas traité ce point : Admin > Virtuals cards pro > « Alimentation automatique ».']); }
 }

@@ -5,29 +5,12 @@ import { createWithdrawal, queryWithdrawal } from '@/lib/bybit';
 import { postEntry, readBal, writeBal } from '@/lib/ledger';
 import { fromUnits, toUnits } from '@/lib/money';
 import { notify } from '@/lib/audit';
-import { requestWithdrawal } from '@/lib/withdraw';
+import { requestWithdrawal, finishWithdrawal } from '@/lib/withdraw';
 import { OPT } from '@/lib/payout-options';
 import { priceUsd } from '@/lib/price';
 import { receiptWithdrawal } from '@/lib/receipt-events';
 import { info, warn, error } from '@/lib/log';
-async function finish(id: string, ok: boolean, extra: object) {
-  await db.runTransaction(async tx => {
-    const r = db.doc(`withdrawals/${id}`); const w = (await tx.get(r)).data()!;
-    if (['completed', 'failed'].includes(w.status)) return;
-    const bal = await readBal(tx, w.merchantId); const a = w.amountUnits as number, fee = (w.feeUnits ?? 0) as number, sent = a - fee;
-    if (ok) {   // confirme : le reserve disparait ; l'envoi sort du compte central, les frais restent a la plateforme
-      postEntry(tx, `wd_done_${id}`, w.merchantId, 'withdrawal_completed', [{ account: `merchant:${w.merchantId}:reserved`, dir: 'debit', amount: a }, { account: 'central:funds', dir: 'credit', amount: sent }, ...(fee ? [{ account: 'platform:revenue', dir: 'credit' as const, amount: fee }] : [])]);
-      writeBal(tx, w.merchantId, { ...bal, reserved: bal.reserved - a, totalWithdrawn: bal.totalWithdrawn + a });
-    } else {    // echec confirme : liberation du reserve
-      postEntry(tx, `wd_release_${id}`, w.merchantId, 'withdrawal_released', [{ account: `merchant:${w.merchantId}:reserved`, dir: 'debit', amount: a }, { account: `merchant:${w.merchantId}:available`, dir: 'credit', amount: a }]);
-      writeBal(tx, w.merchantId, { ...bal, reserved: bal.reserved - a, available: bal.available + a });
-    }
-    tx.update(r, { status: ok ? 'completed' : 'failed', ...extra, updatedAt: FieldValue.serverTimestamp() });
-  });
-  const m = (await db.doc(`withdrawals/${id}`).get()).data()!.merchantId;
-  await notify(m, ok ? 'Retrait terminé' : 'Retrait échoué', `Retrait ${id}`);
-  if (ok) await receiptWithdrawal(id);
-}
+const finish = (id: string, ok: boolean, extra: object) => finishWithdrawal(id, ok, extra);
 export async function GET(req: Request) {
   if (!cronAllowed(req)) return new Response('forbidden', { status: 403 });
   let auto = 0;

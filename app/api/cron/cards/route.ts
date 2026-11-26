@@ -2,6 +2,7 @@ import { cronAllowed } from '@/lib/cron';
 import { db } from '@/lib/firebase-admin';
 import { warn } from '@/lib/log';
 import { pollFiat } from '@/lib/fiat/orders';
+import { pollTopups } from '@/lib/topups';
 import { checkPayOrder } from '@/lib/cards/pay';
 import { reconcile } from '@/lib/cards/orders';
 import { checkClose } from '@/lib/cards/cards';
@@ -14,5 +15,6 @@ export async function GET(req: Request) {
   for (const st of ['reserved', 'processing']) for (const d of (await db.collection('card_orders').where('status', '==', st).limit(50).get()).docs) await run('orders', () => reconcile(d.id));
   for (const d of (await db.collection('card_items').where('closeRequestedAt', '>', 0).limit(100).get()).docs) if (!d.data().closeCredited) await run('closes', () => checkClose(d.data().merchantId, Number(d.id)));
   const fiat = await pollFiat().catch(e => { warn('cron.fiat_failed', { message: (e as Error).message }); return 0; });   // dépôts mobile money / virement en attente : relus à la source
+  await pollTopups().catch(e => warn('cron.topups_failed', { message: (e as Error).message }));   // recharges de solde en crypto : relues sur la chaîne
   return Response.json({ ...out, fiat });
 }

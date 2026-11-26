@@ -25,6 +25,7 @@ export async function createOrder(uid: string, curId: string, purpose: 'api' | '
   // montant unique : permet d'identifier ce paiement precis sur l'adresse commune (aucun autre ordre ouvert n'a le meme montant)
   const span = c.stable ? BigInt(Math.max(1, Math.floor(0.009 * 10 ** c.decimals))) : base / 1000n + 1n;
   const taken = new Set((await db.collection('crypto_orders').where('cur', '==', c.id).where('status', '==', 'awaiting').get()).docs.map(d => d.data().expected));
+  for (const st of ['awaiting', 'expired']) (await db.collection('balance_topups').where('cur', '==', c.id).where('status', '==', st).get()).docs.forEach(d => taken.add(String(d.data().expected)));   // recharges de solde sur la même adresse
   let expected = base; for (let i = 0; i < 50; i++) { const cand = base + BigInt(crypto.randomInt(1, Number(span > 1_000_000_000n ? 1_000_000_000n : span) + 1)); if (!taken.has(cand.toString())) { expected = cand; break; } }
   const ref = db.collection('crypto_orders').doc();
   const o = { merchantId: uid, purpose, cur: c.id, address: addrOf(c), decimals: c.decimals, usd, expected: expected.toString(), status: 'awaiting', createdAt: Date.now(), expiresAt: Date.now() + VALID_MS };

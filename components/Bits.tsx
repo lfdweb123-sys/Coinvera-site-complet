@@ -2,8 +2,8 @@
 import { useState } from 'react';
 import { Inbox } from 'lucide-react';
 export const Badge = ({ s }: { s: string }) => {
-  const k = ['confirmed', 'completed', 'active', 'Resolved', 'Closed', 'live'].includes(s) ? 'ok' : ['failed', 'rejected', 'expired', 'revoked', 'suspended'].includes(s) ? 'bad' : ['needs_review', 'New', 'pending', 'queued'].includes(s) ? 'warn' : ['processing', 'broadcasted', 'Open', 'In Progress', 'test'].includes(s) ? 'info' : '';
-  return <span className={'badge ' + k}>{s}</span>;
+  const k = ['confirmed', 'completed', 'active', 'Resolved', 'Closed', 'live'].includes(s) ? 'ok' : ['failed', 'rejected', 'expired', 'revoked', 'suspended'].includes(s) ? 'bad' : ['needs_review', 'pending_admin', 'New', 'pending', 'queued'].includes(s) ? 'warn' : ['processing', 'broadcasted', 'Open', 'In Progress', 'test'].includes(s) ? 'info' : '';
+  return <span className={'badge ' + k}>{({ pending_admin: 'À valider' } as Record<string, string>)[s] ?? s}</span>;
 };
 export const Stat = ({ label, value, icon: I }: { label: string; value: React.ReactNode; icon?: any }) => <div className="card stat">{I && <div className="ic"><I size={22} /></div>}<div><small>{label}</small><b>{value}</b></div></div>;
 export const Empty = ({ title, hint, children }: { title: string; hint?: string; children?: React.ReactNode }) => <div className="empty"><div className="ic"><Inbox size={22} /></div><b>{title}</b><div>{hint}</div>{children && <div style={{ marginTop: 16 }}>{children}</div>}</div>;

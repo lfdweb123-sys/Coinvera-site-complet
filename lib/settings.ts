@@ -1,5 +1,7 @@
 import { db } from './firebase-admin';
 export const DEFAULTS = { platformFeeBps: 150, processingFeeBps: 150, apiActivationUsd: 50,
+  // Retraits par adresse : 'manual' = chaque retrait attend la validation de l'administrateur (Admin > Retraits) ; 'auto' = envoi automatique par Bybit (clé Bybit ou relais requis).
+  withdrawalMode: 'manual' as 'manual' | 'auto',
   minWithdrawalUsd: 10, withdrawalFeeTRX: 1.3, withdrawalFeeETH: 5, withdrawalFeeBSC: 1, maxWithdrawalUsd: 5000, freeTrials: 2, maxLicenseActivations: 1, pluginVersion: '0.1.0', chains: { USDT: ['TRX', 'ETH', 'BSC'] } as Record<string, string[]>,
   // Relances WhatsApp (plugin coinvera-reminders) : noms des modèles Meta pré-approuvés, partagés par tous les marchands.
   whatsappCartTemplate: 'cvr_cart_reminder', whatsappStatusTemplate: 'cvr_order_status', whatsappLang: 'fr',

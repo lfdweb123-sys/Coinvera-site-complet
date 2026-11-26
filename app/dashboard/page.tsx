@@ -6,7 +6,7 @@ import { useData } from '@/lib/client';
 import { Badge, day, Empty, PageHead, Stat, usd } from '@/components/Bits';
 import DataTable from '@/components/DataTable';
 export default function Overview() {
-  const b = useData('/api/balance'), t = useData('/api/transactions?size=100'), w = useData('/api/withdrawals?size=5');
+  const cs = useData('/api/cards-summary'), b = useData('/api/balance'), t = useData('/api/transactions?size=100'), w = useData('/api/withdrawals?size=5');
   const tx: any[] = t.data?.items ?? [], wd: any[] = w.data?.items ?? [];
   const per: Record<string, number> = {}; tx.filter(x => x.status === 'confirmed').forEach(x => { const k = x.createdAt?.slice(0, 10); per[k] = (per[k] ?? 0) + Number(x.amount); });
   const chart = Object.entries(per).sort().map(([d, v]) => ({ d: d.slice(5), v })); const d = b.data;
@@ -14,10 +14,10 @@ export default function Overview() {
     <section className="cpro" aria-label="Mes cartes">
       <div className="cpro-i"><div className="cpro-t"><span className="cpro-ic"><CreditCard size={22} /></span><h3>Virtuals cards standard</h3></div>
         <p>Carte virtuelle Visa ou Mastercard rechargeable pour payer en ligne, sans compte bancaire.</p>
-        <Link className="btn w" href="/dashboard/cards">Activer ma carte <ArrowRight size={16} /></Link></div>
+        <Link className="btn w" href="/dashboard/cards">{cs.data?.standard > 0 ? 'Voir ma carte' : 'Activer ma carte'} <ArrowRight size={16} /></Link></div>
       <div className="cpro-i pro"><div className="cpro-t"><span className="cpro-ic"><ShieldCheck size={22} /></span><h3>Virtuals cards pro</h3><span className="cpro-tag">Pro</span></div>
         <p>Carte virtuelle Visa vérifiée, avec des frais fixes affichés avant chaque paiement.</p>
-        <Link className="btn w" href="/dashboard/carte-pro">J’active ma carte <ArrowRight size={16} /></Link></div></section>
+        <Link className="btn w" href="/dashboard/carte-pro">{cs.data?.pro > 0 ? 'Voir ma carte' : 'J’active ma carte'} <ArrowRight size={16} /></Link></div></section>
     <div className="g6"><Stat icon={Wallet} label="Solde disponible" value={b.loading ? '…' : usd(d?.available)} /><Stat icon={Lock} label="Solde réservé" value={b.loading ? '…' : usd(d?.reserved)} /><Stat icon={ArrowDownToLine} label="Total reçu" value={b.loading ? '…' : usd(d?.totalReceived)} />
       <Stat icon={ArrowUpFromLine} label="Total retiré" value={b.loading ? '…' : usd(d?.totalWithdrawn)} /><Stat icon={Percent} label="Commissions payées" value={b.loading ? '…' : usd(d?.feesPaid)} /><Stat icon={ArrowLeftRight} label="Transactions" value={t.loading ? '…' : t.data?.total ?? 0} /></div>
     {!t.loading && tx.length === 0 ? <div className="card"><Empty title="Aucune transaction pour le moment" hint="Générez une clé API ou installez le plugin WooCommerce pour recevoir votre premier paiement."><Link className="btn p" href="/dashboard/api">Configurer l’API</Link></Empty></div> : <>

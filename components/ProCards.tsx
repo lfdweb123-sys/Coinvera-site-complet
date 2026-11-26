@@ -14,13 +14,16 @@ const initials = (n?: string | null) => (n ?? '').split(/\s+/).filter(Boolean).s
 const hue = (s: string) => AV[[...s].reduce((a, ch) => a + ch.charCodeAt(0), 0) % AV.length];
 const fdate = (iso?: string | null) => iso ? new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const typeOf = (c: any) => c.productName || 'Virtuals cards pro';
+// Nom du vrai titulaire (nom imprimé sur la carte, sinon nom complet du titulaire vérifié) ; le type de carte n'est qu'un repli.
+const who = (c: any): string => c.holderName || c.nameOnCard || typeOf(c);
+export const money = usd;
 export const StatusPill = ({ s }: { s: string }) => { const u = ST[s] ?? { label: s, cls: 'off', Icon: Clock }; return <span className={'pcs ' + u.cls}><u.Icon size={15} aria-hidden /> {u.label}</span>; };
 
 export function CardsList({ cards, onOpen }: { cards: any[]; onOpen: (c: any) => void }) {
   const [q, setQ] = useState(''), [st, setSt] = useState(''), [per, setPer] = useState('all');
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase(), now = Date.now(), from = per === 'month' ? Date.parse(new Date().toISOString().slice(0, 7) + '-01T00:00:00Z') : per === '30' ? now - 30 * 864e5 : per === '90' ? now - 90 * 864e5 : 0;
-    return cards.filter(c => (!st || c.status === st) && (!from || Date.parse(c.issuedAt ?? '') >= from) && (!needle || `${c.nameOnCard ?? ''} ${c.last4 ?? ''} ${typeOf(c)}`.toLowerCase().includes(needle)));
+    return cards.filter(c => (!st || c.status === st) && (!from || Date.parse(c.issuedAt ?? '') >= from) && (!needle || `${who(c)} ${c.last4 ?? ''} ${typeOf(c)}`.toLowerCase().includes(needle)));
   }, [cards, q, st, per]);
   const plural = (n: number) => `${n} carte${n > 1 ? 's' : ''}`;
   return <section className="pc-box" aria-label="Liste des cartes"><div className="pc-bar"><span className="pc-count">{plural(cards.length)}</span>
@@ -28,10 +31,10 @@ export function CardsList({ cards, onOpen }: { cards: any[]; onOpen: (c: any) =>
       <label className="pc-sel"><SlidersHorizontal size={18} aria-hidden /><select aria-label="Filtrer par statut" value={st} onChange={e => setSt(e.target.value)}><option value="">Filtres : tous les statuts</option>{Object.entries(ST).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select><ChevronDown size={16} aria-hidden /></label>
       <label className="pc-sel"><Calendar size={18} aria-hidden /><select aria-label="Filtrer par période" value={per} onChange={e => setPer(e.target.value)}><option value="all">Toute la période</option><option value="month">Ce mois-ci</option><option value="30">30 derniers jours</option><option value="90">90 derniers jours</option></select><ChevronDown size={16} aria-hidden /></label></div></div>
     <div className="pc-scroll"><table className="pc-t"><thead><tr><th>Titulaire</th><th>Type de carte</th><th>Date d’émission</th><th>Recharges ce mois-ci</th><th>Dépenses ce mois-ci</th><th>Solde de la carte</th><th>Statut</th><th><span className="sr">Actions</span></th></tr></thead>
-      <tbody>{rows.map(c => <tr key={c.id} tabIndex={0} aria-label={`Ouvrir la carte ${c.nameOnCard ?? ''} se terminant par ${c.last4 ?? ''}`} onClick={() => onOpen(c)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(c); } }}>
-        <td><div className="pc-who"><span className="pc-av" style={{ background: hue(c.id) }} aria-hidden>{initials(c.nameOnCard)}</span><span><b>{c.nameOnCard ?? typeOf(c)}</b><small>****{c.last4 ?? '····'}</small></span></div></td>
-        <td>{typeOf(c)}</td><td>{fdate(c.issuedAt)}</td><td>{usd(c.topupMonth ?? 0)}</td><td>{c.spentMonth != null ? usd(c.spentMonth) : '—'}</td><td>{c.balance != null ? usd(c.balance) : '—'}</td>
-        <td><StatusPill s={c.status} />{c.terminating ? <small className="mut"> (fermeture)</small> : null}</td>
+      <tbody>{rows.map(c => <tr key={c.id} tabIndex={0} aria-label={`Ouvrir la carte de ${who(c)} se terminant par ${c.last4 ?? ''}`} onClick={() => onOpen(c)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(c); } }}>
+        <td><div className="pc-who"><span className="pc-av" style={{ background: hue(c.id) }} aria-hidden>{initials(who(c))}</span><span><b>{who(c)}</b><small>****{c.last4 ?? '····'}</small></span></div></td>
+        <td data-label="Type de carte">{typeOf(c)}</td><td data-label="Date d’émission">{fdate(c.issuedAt)}</td><td data-label="Recharges ce mois-ci">{usd(c.topupMonth ?? 0)}</td><td data-label="Dépenses ce mois-ci">{c.spentMonth != null ? usd(c.spentMonth) : '—'}</td><td data-label="Solde de la carte"><b>{c.balance != null ? usd(c.balance) : '—'}</b></td>
+        <td data-label="Statut"><StatusPill s={c.status} />{c.terminating ? <small className="mut"> (fermeture)</small> : null}</td>
         <td><button type="button" className="pc-dots" aria-label="Ouvrir la carte" onClick={e => { e.stopPropagation(); onOpen(c); }}><EllipsisVertical size={20} aria-hidden /></button></td></tr>)}</tbody></table>
       {!rows.length && <p className="pc-none" role="status">Aucune carte ne correspond à votre recherche.</p>}</div>
     <div className="pc-foot">Affichage de {plural(rows.length)}</div></section>;
@@ -63,11 +66,17 @@ export function CardDrawer({ c, canTopup, billing, onClose, onChange, onTopup }:
   const close = () => { setShown(null); setOtp(null); onClose(); };
   const addr = (billing ?? '').split('\n').map(l => l.trim()).filter(Boolean);
   const item = (Icon: any, label: string, on: () => void, extra?: { disabled?: boolean; title?: string; dot?: boolean }) => <button type="button" role="menuitem" className="dw-mi" disabled={extra?.disabled} title={extra?.title} onClick={() => { setMenu(false); on(); }}><Icon size={18} aria-hidden /> <span>{label}</span>{extra?.dot && <i className="dw-dot" aria-label="en attente" />}</button>;
-  return <div className="dw-ov" onMouseDown={ev => ev.target === ev.currentTarget && close()}><aside className="dw" role="dialog" aria-modal="true" aria-label={`Carte ${d.nameOnCard ?? ''} se terminant par ${d.last4 ?? ''}`}>
+  return <div className="dw-ov" onMouseDown={ev => ev.target === ev.currentTarget && close()}><aside className="dw" role="dialog" aria-modal="true" aria-label={`Carte de ${who(d)} se terminant par ${d.last4 ?? ''}`}>
     <div className="dw-top"><StatusPill s={d.status} /><button ref={closeBtn} type="button" className="dw-x" aria-label="Fermer" onClick={close}><X size={22} aria-hidden /></button></div>
-    <div><h2>{d.nameOnCard ?? typeOf(d)}</h2><p className="mut" style={{ margin: '6px 0 0' }}>{typeOf(d)}</p></div>
-    <ProCard product={d.productName} name={d.nameOnCard} last4={d.last4} frozen={frozen} expiry={shown?.type === 'details' ? shown.expiry : null} pan={shown?.type === 'details' ? shown.pan : null} cvv={shown?.type === 'details' ? shown.cvv : null} />
-    {shown?.type === 'details' && <div className="btns" style={{ justifyContent: 'center' }}><button type="button" className="btn sm" onClick={() => copy(String(shown.pan ?? ''), 'pan')}>{copied === 'pan' ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />} Copier le numéro</button><button type="button" className="btn sm" onClick={() => setShown(null)}><EyeOff size={15} aria-hidden /> Masquer</button><small className="mut" style={{ alignSelf: 'center' }}>Masqué automatiquement après 1 minute.</small></div>}
+    <div><h2 className="dw-title">{who(d)}</h2><p className="mut" style={{ margin: '6px 0 0' }}>{typeOf(d)}{d.last4 ? ` · ****${d.last4}` : ''}</p></div>
+    <ProCard product={d.productName} name={who(d) === typeOf(d) ? null : who(d)} last4={d.last4} frozen={frozen} expiry={shown?.type === 'details' ? shown.expiry : d.expiry} pan={shown?.type === 'details' ? shown.pan : null} cvv={shown?.type === 'details' ? shown.cvv : null} />
+    {d.status === 'active' && !shown && <button type="button" className="btn p dw-wide dw-reveal" disabled={busy} onClick={() => run(async () => setShown(await act('details')))}><Eye size={18} aria-hidden /> Afficher les informations de la carte</button>}
+    {shown?.type === 'details' && <div className="dw-info" role="group" aria-label="Informations de la carte">
+      <div className="dw-row"><span>Titulaire</span><b>{(shown.name || who(d)).toUpperCase()}</b></div>
+      <div className="dw-row"><span>Numéro de carte</span><span className="dw-id mono">{(String(shown.pan ?? '').replace(/\D/g, '').match(/.{1,4}/g) ?? []).join(' ') || '—'}<button type="button" className="dw-cp" aria-label="Copier le numéro de carte" onClick={() => copy(String(shown.pan ?? '').replace(/\D/g, ''), 'pan')}>{copied === 'pan' ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />}</button></span></div>
+      <div className="dw-row"><span>Expiration</span><span className="dw-id mono">{shown.expiry ?? d.expiry ?? '—'}<button type="button" className="dw-cp" aria-label="Copier l’expiration" onClick={() => copy(String(shown.expiry ?? d.expiry ?? ''), 'exp')}>{copied === 'exp' ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />}</button></span></div>
+      <div className="dw-row"><span>Code CVV</span><span className="dw-id mono">{shown.cvv ?? '—'}<button type="button" className="dw-cp" aria-label="Copier le code CVV" onClick={() => copy(String(shown.cvv ?? ''), 'cvv')}>{copied === 'cvv' ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />}</button></span></div>
+      <div className="dw-row"><button type="button" className="btn sm" onClick={() => setShown(null)}><EyeOff size={15} aria-hidden /> Masquer</button><small className="mut">Masqué automatiquement après 1 minute.</small></div></div>}
     {shown?.type === 'secure_view' && /^https:\/\//.test(shown.url ?? '') && <iframe src={shown.url} title="Détails de la carte" referrerPolicy="no-referrer" allow="clipboard-write" className="dw-sv" />}
     {live ? <div className="dw-act"><button type="button" className="btn p" disabled={!canTopup || frozen || busy} title={!canTopup ? 'Déposez du solde avant de recharger' : frozen ? 'Dégelez la carte pour la recharger' : undefined} onClick={() => onTopup(d)}>Recharger la carte</button>
       <button type="button" className="btn soft" disabled={busy} onClick={() => run(async () => { await act(frozen ? 'unfreeze' : 'freeze'); det.reload(); onChange(); })}>{frozen ? 'Dégeler la carte' : 'Geler la carte'}</button>

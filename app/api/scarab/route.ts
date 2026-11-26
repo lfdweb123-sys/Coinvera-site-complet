@@ -12,9 +12,9 @@ export const GET = guard(async (_req, _c, u) => {
   const st = await scarabSettings(); if (!st.enabled) return Response.json({ enabled: false });
   let mode: 'merchant' | 'platform' | null = null;
   try { mode = needsCustomer(await wallet()) ? 'merchant' : 'platform'; } catch (e) { warn('scarab.overview_wallet_failed', { message: (e as Error).message }); }
-  let customer = customerView(await getCustomer(u.uid));
+  const rawCustomer = await getCustomer(u.uid); let customer = customerView(rawCustomer);
   if (customer && customer.kycStatus !== 'approved') customer = await refreshCustomer(u.uid).catch(() => customer);
-  const cards0 = await listCards(u.uid).catch(() => []);
+  const cards0 = await listCards(u.uid, rawCustomer).catch(() => []);
   const os = await db.collection('scarab_orders').where('merchantId', '==', u.uid).get();
   const orders = os.docs.map(d => orderView(d.id, d.data())).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)).slice(0, 20);
   // Recharges du mois par carte (ordres confirmés, calendrier UTC) et nom du type de carte, pour la liste des cartes.

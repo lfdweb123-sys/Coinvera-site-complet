@@ -2,14 +2,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { CopyRow } from '@/components/CopyBtn';
-import { Plus, ShieldCheck } from 'lucide-react';
+import { ArrowUpRight, CreditCard, Plus, ShieldCheck } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
 import CardArt, { KIND_LABEL, kindOf } from '@/components/CardArt';
 import { byId, networkWarning } from '@/lib/cryptos';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
 import { Err, Modal, Nav, Stepper } from '@/components/Wizard';
 import FiatPay from '@/components/FiatPay';
-import { CardDrawer, CardsList } from '@/components/ProCards';
+import { CardDrawer, CardsList, money, StatusPill } from '@/components/ProCards';
 // Virtuals cards pro : cartes Visa émises via ScarabPay, entièrement séparées des cartes virtuelles (/dashboard/cards). Le nom du prestataire n'apparaît jamais à l'écran.
 const ST: Record<string, string> = { pending: 'En création', active: 'Active', frozen: 'Gelée', terminated: 'Fermée', expired: 'Expirée', failed: 'Échouée' };
 const OS: Record<string, string> = { reserved: 'En cours', processing: 'En cours', confirmed: 'Terminée', failed: 'Échouée' };
@@ -185,15 +185,21 @@ export default function CartePro() {
   const spend = x ? Number(x.balance) + Number(x.credit ?? 0) : 0;
   const ready = x && !x.unavailable && (x.mode === 'platform' || x.customer?.kycStatus === 'approved');
   return <>
-    <PageHead title="Virtuals cards pro" sub="Cartes Visa rechargeables pour payer en ligne, avec des frais fixes affichés avant chaque paiement.">{ready && <button className="btn p" onClick={() => setM({ t: 'issue' })} disabled={!products.length}><Plus size={16} /> Nouvelle carte</button>}</PageHead>
+    <PageHead title="Virtuals cards pro" sub="Cartes Visa rechargeables pour payer en ligne, avec des frais fixes affichés avant chaque paiement."></PageHead>
     {x?.unavailable && <p className="err" role="status">Création et recharge de cartes momentanément indisponibles. Vos cartes existantes restent utilisables.</p>}
     {x && !x.unavailable && x.mode === 'merchant' && x.customer?.kycStatus !== 'approved' && <Identity cust={x.customer} email={x.email} onChange={reload} />}
     {ready && <>
-      <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}><span>Solde disponible pour payer vos cartes <b>{usd(Number(x.balance) + Number(x.credit ?? 0))}</b><br /><small className="mut">Crédit cartes pro {usd(x.credit ?? 0)} · solde Coinvera {usd(x.balance)}. Consultez les tarifs avec « Nouvelle carte » : le paiement s’active dès que le solde couvre le total (frais inclus).</small></span><button className="btn p" onClick={() => setM({ t: 'deposit' })}>Déposer</button></div>
+      <section className="cp-sum" aria-label="Solde pour payer vos cartes"><div><span className="cp-lbl">Solde disponible pour payer vos cartes</span><b className="cp-amt">{money(spend)}</b>
+        <div className="cp-split"><span>Crédit cartes pro <b>{money(x.credit ?? 0)}</b></span><span>Solde Coinvera <b>{money(x.balance)}</b></span></div></div>
+        <div className="cp-btns"><button className="btn w" onClick={() => setM({ t: 'deposit' })}><ArrowUpRight size={16} aria-hidden /> Déposer</button><button className="btn cp-o" onClick={() => setM({ t: 'issue' })} disabled={!products.length}><Plus size={16} aria-hidden /> Nouvelle carte</button></div>
+        <p className="cp-note">Consultez les tarifs avec « Nouvelle carte » : le paiement s’active dès que le solde couvre le total (frais inclus).</p></section>
+      <div className="cp-h"><h2>Mes cartes</h2></div>
       {x.cards.length ? <CardsList cards={x.cards} onOpen={(c: any) => setM({ t: 'card', c })} />
-        : <Empty title="Aucune carte pour le moment" hint="Créez votre première Virtuals cards pro en quelques instants." />}
-      <h2>Opérations récentes</h2>
-      {x.orders.length ? <div className="card stack">{x.orders.map((o: any) => <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{o.kind === 'issue' ? 'Nouvelle carte' : 'Recharge'} · {OS[o.status] ?? o.status}{o.status === 'failed' ? ' (remboursée)' : ''}<br /><small className="mut">{o.createdAt ? day(new Date(o.createdAt).toISOString()) : ''}</small></span><b>{usd(o.total)}</b></div>)}</div> : <p className="mut">Aucune opération.</p>}</>}
+        : <Empty title="Aucune carte pour le moment" hint="Créez votre première Virtuals cards pro en quelques instants."><button className="btn p" onClick={() => setM({ t: 'issue' })} disabled={!products.length}><Plus size={16} aria-hidden /> Nouvelle carte</button></Empty>}
+      <div className="cp-h"><h2>Opérations récentes</h2></div>
+      {x.orders.length ? <div className="card cp-ops">{x.orders.map((o: any) => <div key={o.id} className="cp-op"><span className="cp-oi" aria-hidden>{o.kind === 'issue' ? <CreditCard size={18} /> : <ArrowUpRight size={18} />}</span>
+        <span><b>{o.kind === 'issue' ? 'Nouvelle carte' : 'Recharge'}</b><br /><small>{o.createdAt ? day(new Date(o.createdAt).toISOString()) : ''}{o.status === 'failed' ? ' · remboursée' : ''}</small></span>
+        <span className="cp-oa"><b>{money(o.total)}</b><span className={'pcs ' + (o.status === 'confirmed' ? 'ok' : o.status === 'failed' ? 'bad' : 'warn')}>{OS[o.status] ?? o.status}</span></span></div>)}</div> : <div className="card"><p className="mut" style={{ margin: 0 }}>Aucune opération pour le moment.</p></div>}</>}
     {m?.t === 'issue' && <IssuePicker products={products} mode={x?.mode} spend={spend} onClose={close} onDone={reload} onDeposit={(a: number) => setM({ t: 'deposit', amount: a })} />}
     {m?.t === 'topup' && <Checkout kind="topup" card={m.c} mode={x?.mode} minAmount={prod(m.c.productId)?.minRecharge ?? 5} onClose={close} onDone={reload} onDeposit={(a: number) => setM({ t: 'deposit', amount: a })} />}
     {m?.t === 'deposit' && <Deposit amount={m.amount} onClose={close} onDone={reload} />}

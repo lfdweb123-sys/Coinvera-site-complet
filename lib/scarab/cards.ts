@@ -30,7 +30,9 @@ export async function refreshCard(uid: string, id: string) {
   await ownedCard(uid, id); const c = (await spx('GET', `/cards/${id}`)).data; if (c?.id) await cardRef(id).set(cardPatch(c), { merge: true }); return c;
 }
 const monthKey = (d = new Date()) => d.toISOString().slice(0, 7);   // « 2026-11 » (UTC)
-export const cardView = (c: Record<string, any>) => ({ spentMonth: c.statsMonth === monthKey() && c.spentMinor != null ? (c.spentMinor / 100).toFixed(2) : null, id: c.cardId, last4: c.last4, status: c.status, nameOnCard: c.nameOnCard, productId: c.productId, balance: c.balanceMinor != null ? (c.balanceMinor / 100).toFixed(2) : null, expiry: c.expiry,
+// Titulaire affiché : nom imprimé sur la carte s'il existe, sinon nom complet du titulaire vérifié (prénom + nom du dossier d'identité).
+export const holderOf = (c: Record<string, any>, cust?: Record<string, any> | null) => String(c.nameOnCard ?? '').trim() || [cust?.firstName, cust?.lastName].map(x => String(x ?? '').trim()).filter(Boolean).join(' ') || null;
+export const cardView = (c: Record<string, any>, cust?: Record<string, any> | null) => ({ holderName: holderOf(c, cust), spentMonth: c.statsMonth === monthKey() && c.spentMinor != null ? (c.spentMinor / 100).toFixed(2) : null, id: c.cardId, last4: c.last4, status: c.status, nameOnCard: c.nameOnCard, productId: c.productId, balance: c.balanceMinor != null ? (c.balanceMinor / 100).toFixed(2) : null, expiry: c.expiry,
   declineCount: c.declineCount ?? 0, codeWaiting: !!c.codeWaiting, terminating: !!c.terminateRequestedAt && !['terminated', 'expired'].includes(c.status), issuedAt: c.issuedAt });
 
 // Dépenses du mois en cours : achats réglés moins remboursements, d'après les opérations rapportées par le réseau carte. Calcul mis en cache sur la carte (10 min) ; 5 pages d'opérations au plus.
@@ -46,13 +48,13 @@ export async function refreshSpent(uid: string, id: string) {
   await cardRef(id).set({ statsMonth: monthKey(), spentMinor: Math.max(0, spent), statsAt: Date.now() }, { merge: true });
 }
 // Vue d'ensemble : on relit en parallèle les cartes dont la copie date de plus de 20 s (jamais plus de 12 appels).
-export async function listCards(uid: string) {
+export async function listCards(uid: string, cust?: Record<string, any> | null) {
   const docs = (await db.collection('scarab_cards').where('merchantId', '==', uid).get()).docs.map(d => d.data());
   const stale = docs.filter(c => !['terminated', 'expired', 'failed'].includes(c.status) && Date.now() - (c.updatedAt ?? 0) > 20_000).slice(0, 12);
   const needStats = docs.filter(c => ['active', 'frozen'].includes(c.status) && (c.statsMonth !== monthKey() || Date.now() - (c.statsAt ?? 0) > 600_000)).slice(0, 6);
   await Promise.allSettled([...stale.map(c => refreshCard(uid, c.cardId)), ...needStats.map(c => refreshSpent(uid, c.cardId))]);
   const fresh = stale.length || needStats.length ? (await db.collection('scarab_cards').where('merchantId', '==', uid).get()).docs.map(d => d.data()) : docs;
-  return fresh.map(cardView).sort((a, b) => String(b.issuedAt ?? '').localeCompare(String(a.issuedAt ?? '')));
+  return fresh.map(c => cardView(c, cust)).sort((a, b) => String(b.issuedAt ?? '').localeCompare(String(a.issuedAt ?? '')));
 }
 export const liveCount = async (uid: string) => (await db.collection('scarab_cards').where('merchantId', '==', uid).get()).docs.filter(d => LIVE.includes(d.data().status)).length;
 

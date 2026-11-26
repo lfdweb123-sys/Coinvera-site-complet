@@ -19,7 +19,7 @@ export type NavGroup = { title: string; items: NavItem[] };
 export default function Shell({ groups, admin, quick, children }: { groups: NavGroup[]; admin?: boolean; quick: string[]; children: React.ReactNode }) {
   const path = usePathname(), r = useRouter(); const pending = usePending();
   const [u, setU] = useState<User | null>(null), [me, setMe] = useState<any>(null), [col, setCol] = useState(false), [mob, setMob] = useState(false), [menu, setMenu] = useState(false), [bell, setBell] = useState(false), [notes, setNotes] = useState<any[]>([]), [settled, setSettled] = useState(''), [bootErr, setBootErr] = useState(false), [attempt, setAttempt] = useState(0);
-  const [opened, setOpened] = useState<Record<string, boolean>>({ 'Vue d’ensemble': true, 'Compte': true }), [mc, setMc] = useState(''), [mErr, setMErr] = useState(''), [mBusy, setMBusy] = useState(false);
+  const [opened, setOpened] = useState<Record<string, boolean>>({}), [mc, setMc] = useState(''), [mErr, setMErr] = useState(''), [mBusy, setMBusy] = useState(false);
   const refMenu = useRef<HTMLDivElement>(null), refBell = useRef<HTMLDivElement>(null);
   useEffect(() => onAuthStateChanged(auth, async x => {
     if (!x) { r.replace('/login'); return; }
@@ -27,6 +27,7 @@ export default function Shell({ groups, admin, quick, children }: { groups: NavG
     if (admin && (await x.getIdTokenResult()).claims.role !== 'admin') { r.replace('/dashboard'); return; }
     try { const m = await api('/api/me'); if (!admin && m.admin) { r.replace('/admin'); return; } setMe(m); setU(x); } catch (e) { if (isAuthFailure(e)) { await logout(); r.replace('/login'); } else setBootErr(true); }
   }), [admin, r, attempt]);
+  useEffect(() => { try { const v = JSON.parse(localStorage.getItem('cv_menu') || '{}'); if (v && typeof v === 'object') setOpened(v); } catch { /* sans stockage */ } }, []);   // choix de l'utilisateur (menus fermés) conservé ; par défaut tout est ouvert
   useEffect(() => { if (admin && me && !me.twoFactor && path !== '/admin/security') r.replace('/admin/security'); }, [admin, me, path, r]);   // 2FA obligatoire pour les administrateurs
   useEffect(() => { if (me && (!me.twoFactor || me.mfa)) api('/api/notifications').then(d => setNotes(d.items)).catch(() => {}); }, [me]);
   useEffect(() => { setMob(false); setMenu(false); setBell(false); setSettled(path); }, [path]);
@@ -50,7 +51,7 @@ export default function Shell({ groups, admin, quick, children }: { groups: NavG
     <div className={'scrim' + (mob ? ' on' : '')} onClick={() => setMob(false)} />
     <nav className={'side' + (col ? ' col' : '') + (mob ? ' mob' : '')} aria-label="Navigation principale">
       <Link href="/" className="logo"><LogoMark s={32} /><span>{admin ? 'Coinvera Admin' : 'Coinvera'}</span></Link>
-      <div className="scroll">{groups.map((g, gi) => { const isOpen = !!opened[g.title], has = g.items.some(n => on(n.href)), id = 'grp-' + gi; return <div key={g.title} className="gw"><button type="button" className={'gh' + (has ? ' has' : '') + (isOpen ? ' open' : '')} aria-expanded={isOpen} aria-controls={id} onClick={() => setOpened({ ...opened, [g.title]: !isOpen })}><span>{g.title}</span><ChevronDown size={15} /></button>
+      <div className="scroll">{groups.map((g, gi) => { const isOpen = opened[g.title] !== false, has = g.items.some(n => on(n.href)), id = 'grp-' + gi; return <div key={g.title} className="gw"><button type="button" className={'gh' + (has ? ' has' : '') + (isOpen ? ' open' : '')} aria-expanded={isOpen} aria-controls={id} onClick={() => setOpened(o => { const n = { ...o, [g.title]: !isOpen }; try { localStorage.setItem('cv_menu', JSON.stringify(n)); } catch { /* sans stockage */ } return n; })}><span>{g.title}</span><ChevronDown size={15} /></button>
         <div id={id} className={'gi' + (isOpen ? '' : ' shut')}>{g.items.map(n => { const I = ICONS[n.icon] ?? LayoutDashboard; return <Link key={n.href} href={n.href} className={'it' + (on(n.href) ? ' on' : '')} title={n.label} aria-current={on(n.href) ? 'page' : undefined}><I size={19} /><span className="t">{n.label}</span></Link>; })}</div></div>; })}</div>
       <div className="bot"><button onClick={out} title="Déconnexion"><LogOut size={18} /><span className="t">Déconnexion</span></button><p>© {new Date().getFullYear()} Coinvera LLC</p></div>
     </nav>

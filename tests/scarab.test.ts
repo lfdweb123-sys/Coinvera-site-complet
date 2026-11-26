@@ -116,3 +116,17 @@ describe('dossier d’identité', () => {
     expect(() => checkDocs({ id_type: 'national_id', country: 'BEN', id_front_image: 'x' })).toThrow(); expect(() => checkDocs({ id_type: 'national_id', country: 'BEN', id_front_image: 'x', id_back_image: 'y' })).not.toThrow();
   });
 });
+
+// Dépenses du mois affichées dans la liste des cartes : achats réglés moins remboursements, sans les autorisations en cours ni les refus.
+import { sumSpent } from '@/lib/scarab/cards';
+describe('dépenses du mois d\'une carte', () => {
+  const start = Date.parse('2026-11-01T00:00:00Z'), tx = (type: string, amount: string, status: string, at: string) => ({ type, amount, status, at });
+  it('compte les achats réglés, retranche les remboursements, ignore le reste', () => {
+    const r = sumSpent([tx('Paiement', '17.99', 'completed', '2026-11-20T10:00:00Z'), tx('Paiement', '5.01', 'completed', '2026-11-03T10:00:00Z'), tx('Remboursement', '2.00', 'completed', '2026-11-21T10:00:00Z'),
+      tx('Autorisation', '40.00', 'pending', '2026-11-22T10:00:00Z'), tx('Paiement refusé', '9.00', 'declined', '2026-11-22T10:00:00Z'), tx('Paiement', '8.00', 'pending', '2026-11-22T10:00:00Z'), tx('Rechargement', '50.00', 'completed', '2026-11-19T10:00:00Z')], start);
+    expect(r).toEqual({ spent: 2100, older: false });
+  });
+  it('s\'arrête (older) dès qu\'une opération est antérieure au mois et ne la compte pas', () => {
+    expect(sumSpent([tx('Paiement', '10.00', 'completed', '2026-11-02T00:00:00Z'), tx('Paiement', '99.00', 'completed', '2026-10-31T23:59:59Z')], start)).toEqual({ spent: 1000, older: true });
+  });
+});

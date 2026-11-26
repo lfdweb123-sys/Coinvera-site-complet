@@ -2,13 +2,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { CopyRow } from '@/components/CopyBtn';
-import { CreditCard, Eye, Plus, Snowflake, Trash2, ShieldCheck, KeyRound, Wallet } from 'lucide-react';
+import { Plus, ShieldCheck } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
 import CardArt, { KIND_LABEL, kindOf } from '@/components/CardArt';
 import { byId, networkWarning } from '@/lib/cryptos';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
 import { Err, Modal, Nav, Stepper } from '@/components/Wizard';
 import FiatPay from '@/components/FiatPay';
+import { CardDrawer, CardsList } from '@/components/ProCards';
 // Virtuals cards pro : cartes Visa émises via ScarabPay, entièrement séparées des cartes virtuelles (/dashboard/cards). Le nom du prestataire n'apparaît jamais à l'écran.
 const ST: Record<string, string> = { pending: 'En création', active: 'Active', frozen: 'Gelée', terminated: 'Fermée', expired: 'Expirée', failed: 'Échouée' };
 const OS: Record<string, string> = { reserved: 'En cours', processing: 'En cours', confirmed: 'Terminée', failed: 'Échouée' };
@@ -169,40 +170,6 @@ function Checkout({ kind, product, card, mode, minAmount, onClose, onDone, onDep
   {key === 'pay' && (!pay ? <Nav onBack={back} /> : stage === 'choose' ? <Nav onBack={() => setPay(false)} /> : null)}</Modal>;
 }
 
-// ---- Carte -------------------------------------------------------------------------------------------------------------------------------
-function CardModal({ c, onClose, onChange }: { c: any; onClose: () => void; onChange: () => void }) {
-  const det = useData(`/api/scarab/cards/${c.id}`), tx = useData(`/api/scarab/cards/${c.id}/transactions`); const [shown, setShown] = useState<any>(null), [e, setE] = useState(''), [otp, setOtp] = useState<any>(null), [term, setTerm] = useState(false), [reason, setReason] = useState('no_longer_needed'), [busy, setBusy] = useState(false);
-  const [wd, setWd] = useState<string | null>(null), [wdMsg, setWdMsg] = useState('');
-  const d = det.data?.card ?? c; const act = (action: string, extra: any = {}) => api(`/api/scarab/cards/${c.id}/action`, { method: 'POST', body: JSON.stringify({ action, ...extra }) });
-  const run = async (f: () => Promise<any>) => { setE(''); setBusy(true); try { await f(); } catch (x) { setE(msg(x)); } setBusy(false); };
-  useEffect(() => { if (!shown || shown.type !== 'details') return; const t = setTimeout(() => setShown(null), 60_000); return () => clearTimeout(t); }, [shown]);   // numéro et code ne restent jamais affichés plus d'une minute
-  const live = d.status === 'active' || d.status === 'frozen';
-  return <Modal title={`Virtuals cards pro •••• ${d.last4 ?? ''}`} onClose={() => { setShown(null); setOtp(null); onClose(); }}><div className="stack">
-    <div className="kv"><div>Statut <b>{ST[d.status] ?? d.status}</b></div><div>Solde disponible <b>{usd(d.balance)}</b></div>{d.expiry && <div>Expire <b>{d.expiry}</b></div>}</div>
-    {d.declineCount > 0 && <p className="mut">{d.declineCount} paiement(s) refusé(s) pour solde insuffisant : à partir du 2ᵉ refus des frais s’appliquent et la carte est fermée au 3ᵉ. Gardez-la approvisionnée.</p>}
-    <Err m={e || det.error} />
-    {live && <div className="btns">
-      {d.status === 'active' && <button className="btn" disabled={busy} onClick={() => run(async () => setShown(await act('details')))}><Eye size={15} /> Voir la carte</button>}
-      <button className="btn" disabled={busy} onClick={() => run(async () => { await act(d.status === 'frozen' ? 'unfreeze' : 'freeze'); det.reload(); onChange(); })}><Snowflake size={15} /> {d.status === 'frozen' ? 'Dégeler' : 'Geler'}</button>
-      <button className="btn" disabled={busy} onClick={() => run(async () => setOtp(await act('code')))}><KeyRound size={15} /> Code de vérification{d.codeWaiting ? ' •' : ''}</button></div>}
-    {live && (wd == null ? <button className="btn" disabled={busy} onClick={() => { setWd(''); setWdMsg(''); }}><Wallet size={15} /> Retirer vers mon solde</button> : <div className="stack" style={{ padding: 16, border: '1px solid var(--line)', borderRadius: 14 }}>
-      <label htmlFor="wda" style={{ margin: 0 }}>Montant à retirer (USD)</label><input id="wda" className="in" inputMode="decimal" value={wd} onChange={x => setWd(x.target.value)} placeholder="ex. 25" />
-      <p className="mut" style={{ margin: 0, fontSize: 13 }}>Minimum 1,00 $ et au moins 1,00 $ doit rester sur la carte{d.balance != null ? <> (maximum {usd(Math.max(0, Number(d.balance) - 1))})</> : null}. Un retrait toutes les 5 minutes par carte. Des frais du prestataire sont déduits : vous recevez le montant net, ajouté à votre solde dès que le réseau carte confirme.</p>
-      {wdMsg && <p className="okm" role="status" style={{ margin: 0 }}>{wdMsg}</p>}
-      <div className="btns"><button className="btn p" disabled={busy || !/^\d{1,6}(\.\d{1,2})?$/.test(wd) || Number(wd) < 1} onClick={() => run(async () => { const r = await act('withdraw', { amount: wd }); setWdMsg(r.status === 'confirmed' ? 'Retrait confirmé.' : 'Retrait demandé : le montant net sera ajouté à votre solde dès confirmation.'); setWd(null); det.reload(); onChange(); })}>Confirmer le retrait</button><button className="btn" onClick={() => setWd(null)}>Annuler</button></div></div>)}
-    {wd == null && wdMsg && <p className="okm" role="status" style={{ margin: 0 }}>{wdMsg}</p>}
-    {shown?.type === 'secure_view' && /^https:\/\//.test(shown.url ?? '') && <iframe src={shown.url} title="Détails de la carte" referrerPolicy="no-referrer" allow="clipboard-write" style={{ display: 'block', width: '100%', maxWidth: 400, aspectRatio: '1.589/1', border: 0, borderRadius: 14, colorScheme: 'light' }} />}
-    {shown?.type === 'details' && <div className="kv" role="status"><div>Numéro <b style={{ letterSpacing: 1 }}>{String(shown.pan ?? '').replace(/(\d{4})(?=\d)/g, '$1 ')}</b></div><div>Expiration <b>{shown.expiry}</b></div><div>Code de sécurité <b>{shown.cvv}</b></div><div>Titulaire <b>{shown.name}</b></div>
-      <button className="btn" onClick={() => navigator.clipboard?.writeText(String(shown.pan ?? ''))}>Copier le numéro</button> <button className="btn" onClick={() => setShown(null)}>Masquer</button><small className="mut"> Masqué automatiquement après 1 minute.</small></div>}
-    {otp && (otp.available ? <p role="status">Code <b style={{ fontSize: 22, letterSpacing: 2 }}>{otp.code}</b>{otp.merchant ? ` — ${otp.merchant}` : ''}{otp.amount ? ` ${otp.amount} ${otp.currency ?? ''}` : ''}. Valable {Math.max(1, Math.round((otp.expiresInSeconds ?? 0) / 60))} min, affiché une seule fois.{otp.purpose === 'wallet' ? ' (ajout à Apple Pay / Google Pay : choisissez « E-mail » comme mode de réception)' : ''}</p> : <p className="mut">Aucun code en attente.</p>)}
-    <h3 style={{ marginBottom: 0 }}>Dernières opérations</h3>
-    {tx.data?.transactions?.length ? <div className="stack">{tx.data.transactions.map((t: any) => <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span>{t.type}{t.merchant ? ` · ${t.merchant}` : ''}<br /><small className="mut">{day(t.at)}{t.status === 'declined' ? ` · refusée${t.reason ? ` (${t.reason})` : ''}` : t.status === 'pending' ? ' · en cours' : ''}</small></span><b>{t.direction === 'in' ? '+' : ''}{usd(t.amount)}</b></div>)}</div> : <p className="mut">{tx.loading ? 'Chargement…' : 'Aucune opération.'}</p>}
-    {live && (term ? <div className="stack"><p>En fermant la carte, son solde (moins les frais de fermeture) est <b>remboursé sur votre solde Coinvera</b>. Une carte ne peut être fermée que 24 heures après sa création. Action définitive.</p>
-      <label htmlFor="rs">Motif</label><select id="rs" className="in" value={reason} onChange={x => setReason(x.target.value)}><option value="no_longer_needed">Je n’en ai plus besoin</option><option value="lost">Carte perdue</option><option value="stolen">Carte volée</option><option value="fraud">Fraude</option></select>
-      <button className="btn p" disabled={busy} onClick={() => run(async () => { await act('terminate', { reason }); setTerm(false); det.reload(); onChange(); })}>Fermer définitivement la carte</button></div> :
-      <button className="btn" disabled={busy} onClick={() => setTerm(true)}><Trash2 size={15} /> Fermer la carte</button>)}
-  </div></Modal>;
-}
 function IssuePicker({ products, mode, spend, onClose, onDone, onDeposit }: any) {
   const ok = (x: any) => spend >= Number(x.issueTotalAtMin ?? 0);   // sans le solde nécessaire, la carte reste visible (tarifs) mais ne peut pas être choisie
   const [p, setP] = useState<any>(products.length === 1 && ok(products[0]) ? products[0] : null);
@@ -223,17 +190,13 @@ export default function CartePro() {
     {x && !x.unavailable && x.mode === 'merchant' && x.customer?.kycStatus !== 'approved' && <Identity cust={x.customer} email={x.email} onChange={reload} />}
     {ready && <>
       <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}><span>Solde disponible pour payer vos cartes <b>{usd(Number(x.balance) + Number(x.credit ?? 0))}</b><br /><small className="mut">Crédit cartes pro {usd(x.credit ?? 0)} · solde Coinvera {usd(x.balance)}. Consultez les tarifs avec « Nouvelle carte » : le paiement s’active dès que le solde couvre le total (frais inclus).</small></span><button className="btn p" onClick={() => setM({ t: 'deposit' })}>Déposer</button></div>
-      {x.cards.length ? <div className="g2">{x.cards.map((c: any) => <button key={c.id} className="card" style={{ textAlign: 'left', cursor: 'pointer' }} onClick={() => setM({ t: 'card', c })}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}><CreditCard size={22} /><span className={'badge ' + (c.status === 'active' ? 'ok' : 'info')}>{ST[c.status] ?? c.status}{c.terminating ? ' (fermeture)' : ''}</span></div>
-        <h3 style={{ margin: '12px 0 2px' }}>•••• {c.last4 ?? '····'}</h3><p className="mut" style={{ margin: 0 }}>{c.nameOnCard ?? prod(c.productId)?.name ?? 'Virtuals cards pro'}</p>
-        <p style={{ margin: '8px 0 0' }}><b>{c.balance != null ? usd(c.balance) : '—'}</b>{c.codeWaiting ? ' · code en attente' : ''}</p>
-        {c.status === 'active' && <span className="btn" role="button" tabIndex={spend >= Number(prod(c.productId)?.minRecharge ?? 5) ? 0 : -1} aria-disabled={spend < Number(prod(c.productId)?.minRecharge ?? 5)} title={spend < Number(prod(c.productId)?.minRecharge ?? 5) ? 'Déposez du solde avant de recharger' : undefined} style={{ marginTop: 8, ...(spend < Number(prod(c.productId)?.minRecharge ?? 5) ? { opacity: .55, cursor: 'not-allowed' } : {}) }} onClick={ev => { ev.stopPropagation(); if (spend >= Number(prod(c.productId)?.minRecharge ?? 5)) setM({ t: 'topup', c }); }} onKeyDown={ev => { if (ev.key === 'Enter') { ev.stopPropagation(); if (spend >= Number(prod(c.productId)?.minRecharge ?? 5)) setM({ t: 'topup', c }); } }}>Recharger</span>}</button>)}</div>
+      {x.cards.length ? <CardsList cards={x.cards} onOpen={(c: any) => setM({ t: 'card', c })} />
         : <Empty title="Aucune carte pour le moment" hint="Créez votre première Virtuals cards pro en quelques instants." />}
       <h2>Opérations récentes</h2>
       {x.orders.length ? <div className="card stack">{x.orders.map((o: any) => <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{o.kind === 'issue' ? 'Nouvelle carte' : 'Recharge'} · {OS[o.status] ?? o.status}{o.status === 'failed' ? ' (remboursée)' : ''}<br /><small className="mut">{o.createdAt ? day(new Date(o.createdAt).toISOString()) : ''}</small></span><b>{usd(o.total)}</b></div>)}</div> : <p className="mut">Aucune opération.</p>}</>}
     {m?.t === 'issue' && <IssuePicker products={products} mode={x?.mode} spend={spend} onClose={close} onDone={reload} onDeposit={(a: number) => setM({ t: 'deposit', amount: a })} />}
     {m?.t === 'topup' && <Checkout kind="topup" card={m.c} mode={x?.mode} minAmount={prod(m.c.productId)?.minRecharge ?? 5} onClose={close} onDone={reload} onDeposit={(a: number) => setM({ t: 'deposit', amount: a })} />}
     {m?.t === 'deposit' && <Deposit amount={m.amount} onClose={close} onDone={reload} />}
-    {m?.t === 'card' && <CardModal c={m.c} onClose={close} onChange={reload} />}
+    {m?.t === 'card' && (() => { const fc = x?.cards.find((k: any) => k.id === m.c.id) ?? m.c; return <CardDrawer c={fc} billing={x?.billingAddress} canTopup={spend >= Number(prod(fc.productId)?.minRecharge ?? 5)} onClose={close} onChange={reload} onTopup={(k: any) => setM({ t: 'topup', c: k })} />; })()}
   </>;
 }

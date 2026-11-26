@@ -10,7 +10,7 @@ import { categoryOf, customerFee, feeOf, liveCost, centsToUsd, MARGIN_MAX, START
 import { resolveOrder } from '@/lib/scarab/orders';
 import { resolveWithdrawal } from '@/lib/scarab/withdraw';
 import { refillBlock, unblockRefill } from '@/lib/scarab/refill';
-const Body = z.object({ enabled: z.boolean(), issueFlat: z.number().min(0).max(MARGIN_MAX.flat), issueBps: z.number().int().min(0).max(MARGIN_MAX.bps), loadFlat: z.number().min(0).max(MARGIN_MAX.flat), loadBps: z.number().int().min(0).max(MARGIN_MAX.bps), hidden: z.array(z.string().length(26)).max(50) }).partial();
+const Body = z.object({ enabled: z.boolean(), issueFlat: z.number().min(0).max(MARGIN_MAX.flat), issueBps: z.number().int().min(0).max(MARGIN_MAX.bps), loadFlat: z.number().min(0).max(MARGIN_MAX.flat), loadBps: z.number().int().min(0).max(MARGIN_MAX.bps), hidden: z.array(z.string().length(26)).max(50), billingAddress: z.string().trim().max(300) }).partial();
 const SAMPLES = [1000, 5000, 10000, 20000, 50000];
 // Réglages Virtuals cards pro + état du portefeuille du programme (celui qui paie réellement chaque carte chez ScarabPay) + marge réelle par produit au plan actuel.
 export async function GET(req: Request) {

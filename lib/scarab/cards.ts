@@ -29,15 +29,29 @@ export async function ownedCard(uid: string, id: string) {
 export async function refreshCard(uid: string, id: string) {
   await ownedCard(uid, id); const c = (await spx('GET', `/cards/${id}`)).data; if (c?.id) await cardRef(id).set(cardPatch(c), { merge: true }); return c;
 }
-export const cardView = (c: Record<string, any>) => ({ id: c.cardId, last4: c.last4, status: c.status, nameOnCard: c.nameOnCard, productId: c.productId, balance: c.balanceMinor != null ? (c.balanceMinor / 100).toFixed(2) : null, expiry: c.expiry,
+const monthKey = (d = new Date()) => d.toISOString().slice(0, 7);   // « 2026-11 » (UTC)
+export const cardView = (c: Record<string, any>) => ({ spentMonth: c.statsMonth === monthKey() && c.spentMinor != null ? (c.spentMinor / 100).toFixed(2) : null, id: c.cardId, last4: c.last4, status: c.status, nameOnCard: c.nameOnCard, productId: c.productId, balance: c.balanceMinor != null ? (c.balanceMinor / 100).toFixed(2) : null, expiry: c.expiry,
   declineCount: c.declineCount ?? 0, codeWaiting: !!c.codeWaiting, terminating: !!c.terminateRequestedAt && !['terminated', 'expired'].includes(c.status), issuedAt: c.issuedAt });
 
+// Dépenses du mois en cours : achats réglés moins remboursements, d'après les opérations rapportées par le réseau carte. Calcul mis en cache sur la carte (10 min) ; 5 pages d'opérations au plus.
+// Somme des achats réglés moins les remboursements depuis `startMs` ; `older` = une opération antérieure à cette date a été vue (inutile de lire les pages suivantes, la liste est triée du plus récent au plus ancien).
+export function sumSpent(txs: { at?: string | null; amount: string; status?: string; type: string }[], startMs: number) {
+  let spent = 0, older = false;
+  for (const t of txs) { const at = Date.parse(t.at ?? ''); if (Number.isFinite(at) && at < startMs) { older = true; continue; } if (t.status !== 'completed') continue; const a = Math.round(Number(t.amount) * 100); if (t.type === TYPES.capture) spent += a; else if (t.type === TYPES.refund) spent -= a; }
+  return { spent, older };
+}
+export async function refreshSpent(uid: string, id: string) {
+  const start = Date.parse(monthKey() + '-01T00:00:00Z'); let cursor: string | undefined, spent = 0;
+  for (let i = 0; i < 5; i++) { const r = await cardTransactions(uid, id, cursor), x = sumSpent(r.transactions, start); spent += x.spent; if (x.older || !r.next) break; cursor = r.next; }
+  await cardRef(id).set({ statsMonth: monthKey(), spentMinor: Math.max(0, spent), statsAt: Date.now() }, { merge: true });
+}
 // Vue d'ensemble : on relit en parallèle les cartes dont la copie date de plus de 20 s (jamais plus de 12 appels).
 export async function listCards(uid: string) {
   const docs = (await db.collection('scarab_cards').where('merchantId', '==', uid).get()).docs.map(d => d.data());
   const stale = docs.filter(c => !['terminated', 'expired', 'failed'].includes(c.status) && Date.now() - (c.updatedAt ?? 0) > 20_000).slice(0, 12);
-  await Promise.allSettled(stale.map(c => refreshCard(uid, c.cardId)));
-  const fresh = stale.length ? (await db.collection('scarab_cards').where('merchantId', '==', uid).get()).docs.map(d => d.data()) : docs;
+  const needStats = docs.filter(c => ['active', 'frozen'].includes(c.status) && (c.statsMonth !== monthKey() || Date.now() - (c.statsAt ?? 0) > 600_000)).slice(0, 6);
+  await Promise.allSettled([...stale.map(c => refreshCard(uid, c.cardId)), ...needStats.map(c => refreshSpent(uid, c.cardId))]);
+  const fresh = stale.length || needStats.length ? (await db.collection('scarab_cards').where('merchantId', '==', uid).get()).docs.map(d => d.data()) : docs;
   return fresh.map(cardView).sort((a, b) => String(b.issuedAt ?? '').localeCompare(String(a.issuedAt ?? '')));
 }
 export const liveCount = async (uid: string) => (await db.collection('scarab_cards').where('merchantId', '==', uid).get()).docs.filter(d => LIVE.includes(d.data().status)).length;

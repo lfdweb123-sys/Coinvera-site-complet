@@ -130,3 +130,15 @@ describe('dépenses du mois d\'une carte', () => {
     expect(sumSpent([tx('Paiement', '10.00', 'completed', '2026-11-02T00:00:00Z'), tx('Paiement', '99.00', 'completed', '2026-10-31T23:59:59Z')], start)).toEqual({ spent: 1000, older: true });
   });
 });
+
+// Dépenses du mois d'une carte virtuelle standard (codes du réseau : 170 paiement, 171 remboursement, statut 2 = réussi).
+import { sumSpent as sumSpentStd } from '@/lib/cards/stats';
+describe('dépenses du mois d\'une carte virtuelle standard', () => {
+  const start = Date.parse('2026-11-01T00:00:00Z'), tx = (type: number | string, status: string, amount: string, at: string) => ({ type, status, amount, occurred_at: at });
+  it('paiements réussis moins remboursements, sans refus ni frais ni rechargements', () => {
+    expect(sumSpentStd([tx(170, '2', '12.50', '2026-11-20T10:00:00Z'), tx('170', '2', '7.5', '2026-11-05T10:00:00Z'), tx(171, '2', '3.00', '2026-11-21T10:00:00Z'), tx(170, '3', '99', '2026-11-22T10:00:00Z'), tx(172, '2', '1', '2026-11-22T10:00:00Z'), tx(150, '2', '50', '2026-11-19T10:00:00Z')], start)).toEqual({ cents: 1700, older: false });
+  });
+  it('signale une opération antérieure au mois sans la compter', () => {
+    expect(sumSpentStd([tx(170, '2', '4', '2026-11-02T00:00:00Z'), tx(170, '2', '50', '2026-10-31T23:00:00Z')], start)).toEqual({ cents: 400, older: true });
+  });
+});

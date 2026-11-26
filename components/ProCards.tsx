@@ -37,7 +37,7 @@ export function CardsList({ cards, onOpen }: { cards: any[]; onOpen: (c: any) =>
     <div className="pc-foot">Affichage de {plural(rows.length)}</div></section>;
 }
 
-function Sec({ title, children, open: o = true }: { title: string; children: React.ReactNode; open?: boolean }) {
+export function Sec({ title, children, open: o = true }: { title: string; children: React.ReactNode; open?: boolean }) {
   const [open, setOpen] = useState(o);
   return <section className="dw-sec"><button type="button" className="dw-sh" aria-expanded={open} onClick={() => setOpen(!open)}><h3>{title}</h3>{open ? <ChevronUp size={20} aria-hidden /> : <ChevronDown size={20} aria-hidden />}</button>{open && <div>{children}</div>}</section>;
 }
@@ -93,5 +93,49 @@ export function CardDrawer({ c, canTopup, billing, onClose, onChange, onTopup }:
       <div className="dw-row"><span>Numéro de carte</span><b>****{d.last4 ?? '····'}</b></div><div className="dw-row"><span>Expiration</span><b>{d.expiry ?? '—'}</b></div><div className="dw-row"><span>Devise</span><b>USD</b></div><div className="dw-row"><span>Date d’émission</span><b>{fdate(d.issuedAt)}</b></div></Sec>
     {addr.length > 0 && <Sec title="Adresse de facturation"><div className="dw-addr"><address>{addr.map((l, i) => <span key={i}>{l}<br /></span>)}</address><button type="button" className="dw-cp" aria-label="Copier l’adresse de facturation" onClick={() => copy(addr.join(', '), 'addr')}>{copied === 'addr' ? <Check size={18} aria-hidden /> : <Copy size={18} aria-hidden />}</button></div><p className="mut" style={{ margin: '10px 0 0', fontSize: 13 }}>Indiquez cette adresse lorsqu’un site vous demande l’adresse de facturation de la carte.</p></Sec>}
     <button type="button" className="btn soft dw-wide" aria-expanded={ops} onClick={() => setOps(!ops)}>{ops ? 'Masquer les opérations' : 'Voir les opérations'}</button>{ops && <Ops id={c.id} />}
+  </aside></div>;
+}
+
+// ---- Cartes virtuelles standard : même panneau, avec les actions propres à ces cartes (voir, geler, code, fermer) ----
+const STD: Record<string, string> = { issuing: 'pending', closed: 'terminated', suspended: 'frozen' };
+function OpsStd({ id }: { id: string }) {
+  const tx = useData(`/api/cards/${id}/transactions`);
+  return tx.data?.transactions?.length ? <div className="dw-ops">{tx.data.transactions.map((t: any) => <div key={t.id}><span>{t.type}{t.merchant ? ` · ${t.merchant}` : ''}<br /><small className="mut">{t.at ? new Date(t.at).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }) : ''}{t.status === 'failed' ? ' · refusée' : t.status === 'processing' ? ' · en cours' : ''}</small></span><b>{t.amount ? usd(t.amount) : '—'}</b></div>)}</div> : <p className="mut" role="status">{tx.loading ? 'Chargement…' : 'Aucune opération.'}</p>;
+}
+export function StdCardDrawer({ c, canTopup, onClose, onChange, onTopup }: { c: any; canTopup: boolean; onClose: () => void; onChange: () => void; onTopup: (c: any) => void }) {
+  const det = useData(`/api/cards/${c.id}`), raw = det.data ?? {}; const d = { ...c, ...raw, status: STD[raw.status ?? c.status] ?? raw.status ?? c.status, balance: raw.balance ?? c.balance };
+  const [url, setUrl] = useState(''), [e, setE] = useState(''), [otp, setOtp] = useState<any>(null), [cq, setCq] = useState<any>(null), [busy, setBusy] = useState(false), [menu, setMenu] = useState(false), [ops, setOps] = useState(false), [copied, setCopied] = useState('');
+  const closeBtn = useRef<HTMLButtonElement>(null), menuRef = useRef<HTMLDivElement>(null);
+  const run = async (f: () => Promise<any>) => { setE(''); setBusy(true); try { await f(); } catch (x) { setE(msg(x)); } setBusy(false); };
+  const live = d.status === 'active' || d.status === 'frozen', frozen = d.status === 'frozen', closing = !!c.closing;
+  const copy = (t: string, k: string) => { navigator.clipboard?.writeText(t).then(() => { setCopied(k); setTimeout(() => setCopied(''), 1500); }).catch(() => {}); };
+  useEffect(() => { closeBtn.current?.focus(); const prev = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = prev; }; }, []);
+  useEffect(() => { const k = (ev: KeyboardEvent) => { if (ev.key !== 'Escape') return; if (menu) setMenu(false); else { setUrl(''); setOtp(null); onClose(); } }; document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [menu, onClose]);
+  useEffect(() => { if (!menu) return; const h = (ev: MouseEvent) => { if (!menuRef.current?.contains(ev.target as Node)) setMenu(false); }; document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h); }, [menu]);
+  useEffect(() => { if (!url) return; const t = setTimeout(() => setUrl(''), 60_000); return () => clearTimeout(t); }, [url]);   // la vue sécurisée expire : on la retire au bout d'une minute
+  const close = () => { setUrl(''); setOtp(null); onClose(); };
+  const item = (Icon: any, label: string, on: () => void, extra?: { disabled?: boolean; title?: string; dot?: boolean }) => <button type="button" role="menuitem" className="dw-mi" disabled={extra?.disabled} title={extra?.title} onClick={() => { setMenu(false); on(); }}><Icon size={18} aria-hidden /> <span>{label}</span>{extra?.dot && <i className="dw-dot" aria-label="en attente" />}</button>;
+  return <div className="dw-ov" onMouseDown={ev => ev.target === ev.currentTarget && close()}><aside className="dw" role="dialog" aria-modal="true" aria-label={`Carte ${d.nameOnCard ?? ''} se terminant par ${d.last4 ?? ''}`}>
+    <div className="dw-top"><StatusPill s={d.status} /><button ref={closeBtn} type="button" className="dw-x" aria-label="Fermer" onClick={close}><X size={22} aria-hidden /></button></div>
+    <div><h2>{d.nameOnCard ?? typeOf(d)}</h2><p className="mut" style={{ margin: '6px 0 0' }}>{typeOf(d)}</p></div>
+    <ProCard product={d.productName} name={d.nameOnCard} last4={d.last4} frozen={frozen} expiry={d.expire ?? null} />
+    {url && /^https:\/\//.test(url) && <><iframe src={url} title="Détails de la carte" referrerPolicy="no-referrer" allow="clipboard-write" className="dw-sv" /><div className="btns" style={{ justifyContent: 'center' }}><button type="button" className="btn sm" onClick={() => setUrl('')}><EyeOff size={15} aria-hidden /> Masquer</button><small className="mut" style={{ alignSelf: 'center' }}>Masqué automatiquement après 1 minute.</small></div></>}
+    {live ? <div className="dw-act"><button type="button" className="btn p" disabled={!canTopup || frozen || closing || busy} title={!canTopup ? 'Rechargez votre crédit cartes avant de recharger' : frozen ? 'Dégelez la carte pour la recharger' : undefined} onClick={() => onTopup(d)}>Recharger la carte</button>
+      <button type="button" className="btn soft" disabled={busy || closing} onClick={() => run(async () => { await api(`/api/cards/${c.id}/freeze`, { method: 'POST', body: JSON.stringify({ action: frozen ? 'unfreeze' : 'freeze' }) }); det.reload(); onChange(); })}>{frozen ? 'Dégeler la carte' : 'Geler la carte'}</button>
+      <div className="dw-more" ref={menuRef}><button type="button" className="btn soft dw-ic" aria-label="Plus d’actions" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)}><EllipsisVertical size={20} aria-hidden /></button>
+        {menu && <div className="dw-menu" role="menu">{url ? item(EyeOff, 'Masquer les détails de la carte', () => setUrl('')) : item(Eye, 'Voir les détails de la carte', () => run(async () => { const r = await api(`/api/cards/${c.id}/reveal`, { method: 'POST' }); setUrl(r.revealUrl ?? ''); }))}
+          {item(KeyRound, 'Code de vérification', () => run(async () => setOtp(await api(`/api/cards/${c.id}/otp`))), { dot: !!c.otpWaiting })}<hr />
+          {item(Clock, 'Fermer la carte', () => run(async () => setCq(await api(`/api/cards/${c.id}/close`))), { disabled: closing, title: closing ? 'Fermeture déjà en cours' : undefined })}</div>}</div></div>
+      : <p className="mut" role="status" style={{ textAlign: 'center', margin: 0 }}>{d.status === 'pending' ? 'Votre carte est en cours de création : elle sera disponible dans quelques instants.' : 'Cette carte n’est plus utilisable.'}</p>}
+    {closing && <div className="dw-note" role="status">Fermeture en cours{c.refundPending ? ' : le remboursement sera crédité dès confirmation par l’émetteur.' : '.'}</div>}
+    <Err m={e || det.error} />
+    {otp && (otp.available ? <div className="dw-note" role="status">Code <b style={{ fontSize: 22, letterSpacing: 2 }}>{otp.code}</b>{otp.merchantName ? ` — ${otp.merchantName}` : ''}{otp.amount ? ` ${otp.amount} ${otp.currency ?? ''}` : ''}. Valable {Math.max(1, Math.round((otp.expiresIn ?? 0) / 60))} min, affiché une seule fois.</div> : <div className="dw-note" role="status">Aucun code en attente.</div>)}
+    {cq && <div className="dw-panel"><p style={{ margin: 0 }}>En fermant la carte, son solde (<b>{usd(cq.cardBalance)}</b>, moins les frais de fermeture) sera <b>remboursé sur votre compte Coinvera</b> : {usd(cq.refund)} estimés{cq.live ? '' : ' (estimation indisponible pour l’instant)'}. {cq.advance && cq.live ? 'Ce montant est crédité dès que la carte est fermée, puis ajusté au centime près quand l’émetteur confirme le remboursement réel' : 'Le montant est crédité quand l’émetteur confirme le remboursement'} (en général {cq.etaTypical ?? '24 à 48 h'}, jusqu’à {cq.etaMaxDays ?? 45} jours au plus). Action définitive.</p>
+      <div className="btns"><button type="button" className="btn p" disabled={busy} onClick={() => run(async () => { await api(`/api/cards/${c.id}/close`, { method: 'POST' }); setCq(null); det.reload(); onChange(); })}>Fermer définitivement la carte</button><button type="button" className="btn" onClick={() => setCq(null)}>Annuler</button></div></div>}
+    <div className="dw-bal"><span className="mut">Solde de la carte</span><b>{d.balance != null ? usd(d.balance) : '—'}</b></div>
+    <div className="dw-stats"><div><span>Recharges ce mois-ci</span><b>{usd(c.topupMonth ?? 0)}</b></div><div><span>Dépenses ce mois-ci</span><b>{c.spentMonth != null ? usd(c.spentMonth) : '—'}</b></div></div>
+    <Sec title="Détails de la carte"><div className="dw-row"><span>Identifiant de la carte</span><span className="dw-id">{d.id}<button type="button" className="dw-cp" aria-label="Copier l’identifiant" onClick={() => copy(d.id, 'id')}>{copied === 'id' ? <Check size={15} aria-hidden /> : <Copy size={15} aria-hidden />}</button></span></div>
+      <div className="dw-row"><span>Numéro de carte</span><b>****{d.last4 ?? '····'}</b></div><div className="dw-row"><span>Expiration</span><b>{d.expire ?? '—'}</b></div><div className="dw-row"><span>Devise</span><b>USD</b></div><div className="dw-row"><span>Date d’émission</span><b>{fdate(d.issuedAt)}</b></div></Sec>
+    <button type="button" className="btn soft dw-wide" aria-expanded={ops} onClick={() => setOps(!ops)}>{ops ? 'Masquer les opérations' : 'Voir les opérations'}</button>{ops && <OpsStd id={c.id} />}
   </aside></div>;
 }

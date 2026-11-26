@@ -267,3 +267,8 @@ html[data-theme=dark] .hv-bars i{background:#2B3856}
 
 .drawer .dr-row{display:flex;align-items:center;border-bottom:1px solid var(--line)}.drawer .dr-row a.l{flex:1;border-bottom:0}.drawer .dr-tgl{display:grid;place-items:center;width:44px;height:44px;border:0;background:none;color:var(--ink2);cursor:pointer}.drawer .dr-tgl[aria-expanded=true] svg{transform:rotate(180deg)}
 .drawer .dr-ddm{margin:8px 0 12px;padding:8px;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh)}.drawer .dr-ddm a{display:block;padding:12px;border-radius:8px;color:var(--ink2);font-size:15.5px;font-weight:500}.drawer .dr-ddm a.on{background:var(--soft);color:var(--brand);font-weight:600}
+/* ---- Coinvera AI sur les pages publiques : bouton flottant, chat fermé par défaut ---- */
+.ai-fab{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:80}
+.ai-fab .ai-btn{height:50px;padding:0 20px;box-shadow:0 10px 28px rgba(34,85,232,.38)}
+@media(max-width:560px){.ai-fab .ai-btn{width:52px;height:52px;padding:0;justify-content:center}}
+body:has(.ai-fab) .totop{bottom:calc(max(18px,env(safe-area-inset-bottom)) + 66px)}

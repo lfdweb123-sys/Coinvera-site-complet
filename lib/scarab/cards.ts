@@ -30,8 +30,8 @@ export async function refreshCard(uid: string, id: string) {
   await ownedCard(uid, id); const c = (await spx('GET', `/cards/${id}`)).data; if (c?.id) await cardRef(id).set(cardPatch(c), { merge: true }); return c;
 }
 const monthKey = (d = new Date()) => d.toISOString().slice(0, 7);   // « 2026-11 » (UTC)
-// Titulaire affiché : nom imprimé sur la carte s'il existe, sinon nom complet du titulaire vérifié (prénom + nom du dossier d'identité).
-export const holderOf = (c: Record<string, any>, cust?: Record<string, any> | null) => String(c.nameOnCard ?? '').trim() || [cust?.firstName, cust?.lastName].map(x => String(x ?? '').trim()).filter(Boolean).join(' ') || null;
+// Titulaire affiché : toujours celui que renvoie l'API de la carte (cardholder_name, lu à l'ouverture des détails puis conservé : seul le nom est gardé, jamais le numéro ni le code). Repli avant la première lecture : nom donné à l'émission, puis nom du dossier d'identité.
+export const holderOf = (c: Record<string, any>, cust?: Record<string, any> | null) => String(c.holderName ?? '').trim() || String(c.nameOnCard ?? '').trim() || [cust?.firstName, cust?.lastName].map(x => String(x ?? '').trim()).filter(Boolean).join(' ') || null;
 export const cardView = (c: Record<string, any>, cust?: Record<string, any> | null) => ({ holderName: holderOf(c, cust), spentMonth: c.statsMonth === monthKey() && c.spentMinor != null ? (c.spentMinor / 100).toFixed(2) : null, id: c.cardId, last4: c.last4, status: c.status, nameOnCard: c.nameOnCard, productId: c.productId, balance: c.balanceMinor != null ? (c.balanceMinor / 100).toFixed(2) : null, expiry: c.expiry,
   declineCount: c.declineCount ?? 0, codeWaiting: !!c.codeWaiting, terminating: !!c.terminateRequestedAt && !['terminated', 'expired'].includes(c.status), issuedAt: c.issuedAt });
 
@@ -52,8 +52,10 @@ export async function listCards(uid: string, cust?: Record<string, any> | null) 
   const docs = (await db.collection('scarab_cards').where('merchantId', '==', uid).get()).docs.map(d => d.data());
   const stale = docs.filter(c => !['terminated', 'expired', 'failed'].includes(c.status) && Date.now() - (c.updatedAt ?? 0) > 20_000).slice(0, 12);
   const needStats = docs.filter(c => ['active', 'frozen'].includes(c.status) && (c.statsMonth !== monthKey() || Date.now() - (c.statsAt ?? 0) > 600_000)).slice(0, 6);
-  await Promise.allSettled([...stale.map(c => refreshCard(uid, c.cardId)), ...needStats.map(c => refreshSpent(uid, c.cardId))]);
-  const fresh = stale.length || needStats.length ? (await db.collection('scarab_cards').where('merchantId', '==', uid).get()).docs.map(d => d.data()) : docs;
+  // Titulaire réel (API) des cartes actives qui n'en ont pas encore : une lecture par carte, réessayée au plus toutes les 10 min (3 cartes par appel).
+  const needHolder = docs.filter(c => c.status === 'active' && !c.holderName && Date.now() - (c.holderTry ?? 0) > 600_000).slice(0, 3);
+  await Promise.allSettled([...stale.map(c => refreshCard(uid, c.cardId)), ...needStats.map(c => refreshSpent(uid, c.cardId)), ...needHolder.map(async c => { await cardRef(c.cardId).set({ holderTry: Date.now() }, { merge: true }); await cardDetails(uid, c.cardId); })]);
+  const fresh = stale.length || needStats.length || needHolder.length ? (await db.collection('scarab_cards').where('merchantId', '==', uid).get()).docs.map(d => d.data()) : docs;
   return fresh.map(c => cardView(c, cust)).sort((a, b) => String(b.issuedAt ?? '').localeCompare(String(a.issuedAt ?? '')));
 }
 export const liveCount = async (uid: string) => (await db.collection('scarab_cards').where('merchantId', '==', uid).get()).docs.filter(d => LIVE.includes(d.data().status)).length;
@@ -61,6 +63,7 @@ export const liveCount = async (uid: string) => (await db.collection('scarab_car
 // Détails complets (numéro, code, date) : seulement à l'ouverture de la carte, jamais stockés ni journalisés. Une carte Platinum renvoie une page sécurisée (secure_view_url) valable ~1 minute.
 export async function cardDetails(uid: string, id: string) {
   await ownedCard(uid, id); const d = (await spx('GET', `/cards/${id}/details`)).data ?? {};
+  const hn = String(d.cardholder_name ?? '').trim(); if (hn) await cardRef(id).set({ holderName: hn.slice(0, 80), holderAt: Date.now() }, { merge: true }).catch(() => {});
   return d.type === 'secure_view' ? { type: 'secure_view', url: d.secure_view_url ?? null, expiresAt: d.secure_view_expires_at ?? null, name: d.cardholder_name ?? null }
     : { type: 'details', pan: d.pan ?? null, cvv: d.security_code ?? null, expiry: d.expiry ?? null, name: d.cardholder_name ?? null };
 }

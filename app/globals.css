@@ -320,7 +320,7 @@ body:has(.ai-fab) .totop{bottom:calc(max(18px,env(safe-area-inset-bottom)) + 66p
 .cp-note{grid-column:1/-1;margin:0;color:#9FB1D1;font-size:13px}.cp-h h2{margin:6px 0 0}
 .cp-ops{display:grid;padding-block:6px}.cp-op{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px 0;border-top:1px solid var(--line)}.cp-op:first-child{border-top:0}
 .cp-oi{width:42px;height:42px;border-radius:12px;background:var(--brandsoft);color:var(--navy);display:grid;place-items:center}.cp-op small{color:var(--mut)}.cp-oa{display:grid;gap:6px;justify-items:end}
-.dw-title{overflow-wrap:anywhere;font-size:clamp(22px,5vw,30px)}.dw-reveal{min-height:52px}.dw-info{border:1px solid var(--line);border-radius:14px;padding:4px 16px;background:var(--bg)}.dw-info .dw-row+.dw-row{border-top:1px solid var(--line)}.dw-id.mono{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;letter-spacing:.04em;font-weight:600;overflow-wrap:anywhere}
+.dw-title{overflow-wrap:anywhere;font-size:clamp(22px,5vw,30px)}.dw-reveal{min-height:50px;align-self:center;width:auto;padding-inline:28px}@media(max-width:480px){.dw-reveal{align-self:stretch;padding-inline:16px}}.dw-info{border:1px solid var(--line);border-radius:14px;padding:4px 16px;background:var(--bg)}.dw-info .dw-row+.dw-row{border-top:1px solid var(--line)}.dw-id.mono{white-space:nowrap;font-size:clamp(12px,3.7vw,14px);letter-spacing:0;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;letter-spacing:.04em;font-weight:600;overflow-wrap:anywhere}
 @media(max-width:900px){
  .pc-scroll{overflow:visible}.pc-t{min-width:0;display:block}.pc-t thead{display:none}.pc-t tbody{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px}
  .pc-t tbody tr{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;position:relative;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--bg)}
@@ -329,3 +329,4 @@ body:has(.ai-fab) .totop{bottom:calc(max(18px,env(safe-area-inset-bottom)) + 66p
 }
 @media(max-width:700px){.cp-sum{grid-template-columns:1fr}.cp-btns .btn{flex:1 1 140px}.dw{padding:18px 16px 28px}.dw-menu{min-width:0;width:min(280px,calc(100vw - 32px))}.cp-op{gap:12px}}
 @media(max-width:620px){.pc-t tbody{grid-template-columns:1fr}.pc-count{width:100%;text-align:center}}
+@media(max-width:400px){.dw-info .dw-row{flex-wrap:wrap;gap:2px 12px}.dw-info .dw-row>span:first-child{flex:1 0 100%;font-size:13px;color:var(--mut)}.dw-info .dw-row>b,.dw-info .dw-row>.dw-id{margin-left:0}}

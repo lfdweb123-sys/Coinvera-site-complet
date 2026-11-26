@@ -6,7 +6,7 @@ import { Check, Copy, Eye, EyeOff, Plus, Settings2, Snowflake, Flame } from 'luc
 import { api, msg, useData } from '@/lib/client';
 import { Empty, PageHead } from '@/components/Bits';
 import ProCard from '@/components/ProCard';
-import { CardDrawer, StatusPill, money } from '@/components/ProCards';
+import { CardDrawer, StdCardDrawer, StatusPill, money } from '@/components/ProCards';
 import { Err } from '@/components/Wizard';
 
 // Mes cartes : chaque carte achetée est affichée en carte, avec ses actions directes (afficher, recharger, geler, gérer).
@@ -32,17 +32,42 @@ function Tile({ c, canTopup, onTopup, onManage, onChange }: { c: any; canTopup: 
       : <p className="mut" role="status" style={{ margin: 0 }}>{c.status === 'pending' ? 'Carte en cours de création : disponible dans quelques instants.' : 'Cette carte n’est plus utilisable.'}</p>}
     <Err m={e} /></article>;
 }
+// Cartes virtuelles standard : même présentation ; les détails s'ouvrent dans la vue sécurisée du fournisseur (intégrée, retirée après 1 minute).
+const STD: Record<string, string> = { issuing: 'pending', closed: 'terminated', suspended: 'frozen' };
+function StdTile({ c, canTopup, onTopup, onManage, onChange }: { c: any; canTopup: boolean; onTopup: () => void; onManage: () => void; onChange: () => void }) {
+  const [url, setUrl] = useState(''), [busy, setBusy] = useState(false), [e, setE] = useState('');
+  const run = async (f: () => Promise<any>) => { setE(''); setBusy(true); try { await f(); } catch (x) { setE(msg(x)); } setBusy(false); };
+  useEffect(() => { if (!url) return; const t = setTimeout(() => setUrl(''), 60_000); return () => clearTimeout(t); }, [url]);
+  const st = STD[c.status] ?? c.status, frozen = st === 'frozen', live = st === 'active' || frozen, secure = /^https:\/\//.test(url);
+  return <article className="mc-t" aria-label={`Carte virtuelle se terminant par ${c.last4 ?? ''}`}>
+    <div className="mc-top"><StatusPill s={st} /><span className="mut mc-bal">Solde <b>{c.balance != null ? money(c.balance) : '—'}</b></span></div>
+    {secure ? <iframe src={url} title="Détails de la carte" referrerPolicy="no-referrer" allow="clipboard-write" className="dw-sv" /> : <ProCard product={c.productName} name={c.nameOnCard || null} last4={c.last4} frozen={frozen} />}
+    <div className="mc-st"><div><span>Recharges ce mois-ci</span><b>{money(c.topupMonth ?? 0)}</b></div><div><span>Dépenses ce mois-ci</span><b>{c.spentMonth != null ? money(c.spentMonth) : '—'}</b></div></div>
+    {live ? <div className="mc-act">
+      {st === 'active' && (secure ? <button type="button" className="btn" onClick={() => setUrl('')}><EyeOff size={16} aria-hidden /> Masquer</button> : <button type="button" className="btn p" disabled={busy} onClick={() => run(async () => setUrl((await api(`/api/cards/${c.id}/reveal`, { method: 'POST' })).revealUrl ?? ''))}><Eye size={16} aria-hidden /> Afficher la carte</button>)}
+      <button type="button" className="btn" disabled={!canTopup || frozen || c.closing || busy} title={!canTopup ? 'Rechargez votre crédit cartes avant de recharger' : frozen ? 'Dégelez la carte pour la recharger' : undefined} onClick={onTopup}><Plus size={16} aria-hidden /> Recharger</button>
+      <button type="button" className="btn soft" disabled={busy || c.closing} onClick={() => run(async () => { await api(`/api/cards/${c.id}/freeze`, { method: 'POST', body: JSON.stringify({ action: frozen ? 'unfreeze' : 'freeze' }) }); onChange(); })}>{frozen ? <Flame size={16} aria-hidden /> : <Snowflake size={16} aria-hidden />} {frozen ? 'Dégeler' : 'Geler'}</button>
+      <button type="button" className="btn soft" onClick={onManage}><Settings2 size={16} aria-hidden /> Gérer</button></div>
+      : <p className="mut" role="status" style={{ margin: 0 }}>{st === 'pending' ? 'Carte en cours de création : disponible dans quelques instants.' : 'Cette carte n’est plus utilisable.'}</p>}
+    <Err m={e} /></article>;
+}
 export default function MesCartes() {
-  const d = useData('/api/scarab'), pr = useData('/api/scarab/products'), r = useRouter(); const [m, setM] = useState<any>(null); const reload = d.reload;
-  useEffect(() => { const t = setInterval(() => { if (!document.hidden) reload(); }, 30000); return () => clearInterval(t); }, [reload]);
+  const d = useData('/api/scarab'), pr = useData('/api/scarab/products'), sd = useData('/api/cards'), sp = useData('/api/cards/products'), r = useRouter(); const [m, setM] = useState<any>(null); const reload = d.reload;
+  const reloadStd = sd.reload; useEffect(() => { const t = setInterval(() => { if (!document.hidden) { reload(); reloadStd(); } }, 30000); return () => clearInterval(t); }, [reload, reloadStd]);
   const close = useCallback(() => setM(null), []); const x = d.data, products = pr.data?.products ?? [], prod = (id: string) => products.find((p: any) => p.id === id);
   const spend = x ? Number(x.balance) + Number(x.credit ?? 0) : 0, can = (c: any) => spend >= Number(prod(c.productId)?.minRecharge ?? 5);
+  const sx = sd.data, sprod = (code: string) => (sp.data?.products ?? []).find((p: any) => p.code === code), stdNoFunds = !sx || !(Number(sx.credit ?? 0) + Number(sx.balance ?? 0) > 0);
+  const stdCards: any[] = (sx?.cards ?? []).filter((c: any) => c.status !== 'closed' && c.status !== 'failed').map((c: any) => ({ ...c, productName: sprod(c.productCode)?.title ?? 'Carte virtuelle' }));
   if (d.error && !x) return <><PageHead title="Mes cartes" /><p className="err" role="alert">{d.error}</p></>;
   const cards: any[] = (x?.cards ?? []).filter((c: any) => c.status !== 'terminated' && c.status !== 'failed');
   return <>
-    <PageHead title="Mes cartes" sub="Vos Virtuals cards pro : affichez, rechargez et gérez chaque carte directement."><Link href="/dashboard/carte-pro?new=1" className="btn p"><Plus size={16} aria-hidden /> Nouvelle carte</Link></PageHead>
-    {!x ? <p className="mut" role="status">Chargement…</p> : !cards.length ? <Empty title="Aucune carte pour le moment" hint="Achetez votre première carte depuis Virtuals cards pro." />
-      : <div className="mc-g">{cards.map(c => <Tile key={c.id} c={c} canTopup={can(c)} onTopup={() => r.push(`/dashboard/carte-pro?topup=${c.id}`)} onManage={() => setM(c)} onChange={reload} />)}</div>}
-    {m && (() => { const fc = cards.find(k => k.id === m.id) ?? m; return <CardDrawer c={fc} billing={x?.billingAddress} canTopup={can(fc)} onClose={close} onChange={reload} onTopup={(k: any) => r.push(`/dashboard/carte-pro?topup=${k.id}`)} />; })()}
+    <PageHead title="Mes cartes" sub="Vos cartes virtuelles standard et Virtuals cards pro : affichez, rechargez et gérez chaque carte directement."><Link href="/dashboard/cards" className="btn"><Plus size={16} aria-hidden /> Carte standard</Link><Link href="/dashboard/carte-pro?new=1" className="btn p"><Plus size={16} aria-hidden /> Carte pro</Link></PageHead>
+    {!x && !sx ? <p className="mut" role="status">Chargement…</p> : !cards.length && !stdCards.length ? <Empty title="Aucune carte pour le moment" hint="Achetez votre première carte depuis Virtuals cards pro ou Virtuals cards standard." /> : <>
+      {(cards.length > 0 || stdCards.length > 0) && <section aria-labelledby="mc-pro"><div className="mc-h"><h2 id="mc-pro">Virtuals cards pro</h2><span className="mc-n">{cards.length}</span><Link href="/dashboard/carte-pro" className="mc-l">Ouvrir la page</Link></div>
+        {cards.length ? <div className="mc-g">{cards.map(c => <Tile key={c.id} c={c} canTopup={can(c)} onTopup={() => r.push(`/dashboard/carte-pro?topup=${c.id}`)} onManage={() => setM(c)} onChange={reload} />)}</div> : <p className="mut">Aucune carte pro.</p>}</section>}
+      <section aria-labelledby="mc-std" style={{ marginTop: 28 }}><div className="mc-h"><h2 id="mc-std">Cartes virtuelles standard</h2><span className="mc-n">{stdCards.length}</span><Link href="/dashboard/cards" className="mc-l">Ouvrir la page</Link></div>
+        {stdCards.length ? <div className="mc-g">{stdCards.map(c => <StdTile key={c.id} c={c} canTopup={!stdNoFunds} onTopup={() => r.push(`/dashboard/cards?topup=${c.id}`)} onManage={() => setM({ std: true, ...c })} onChange={reloadStd} />)}</div> : <p className="mut">Aucune carte standard.</p>}</section></>}
+    {m?.std && (() => { const fc = stdCards.find(k => k.id === m.id) ?? m; return <StdCardDrawer c={fc} canTopup={!stdNoFunds} onClose={close} onChange={reloadStd} onTopup={(k: any) => r.push(`/dashboard/cards?topup=${k.id}`)} />; })()}
+    {m && !m.std && (() => { const fc = cards.find(k => k.id === m.id) ?? m; return <CardDrawer c={fc} billing={x?.billingAddress} canTopup={can(fc)} onClose={close} onChange={reload} onTopup={(k: any) => r.push(`/dashboard/carte-pro?topup=${k.id}`)} />; })()}
   </>;
 }

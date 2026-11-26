@@ -127,6 +127,8 @@ export default function Cards() {
   const h = d.data?.holder; const products = pr.data?.products ?? []; const prod = (code: string) => products.find((p: any) => p.code === code);
   const close = useCallback(() => setM(null), []);
   const noFunds = !!d.data && !(Number(d.data.credit ?? 0) + Number(d.data.balance ?? 0) > 0);   // sans crédit ni solde : création et recharge grisées
+  // Lien depuis « Mes cartes » : ?topup=<carte> ouvre la recharge de cette carte (une seule fois).
+  const deep = useRef(false); useEffect(() => { if (deep.current || !d.data || !pr.data) return; deep.current = true; const t = new URLSearchParams(window.location.search).get('topup'); if (!t) return; const c = d.data.cards?.find((k: any) => k.id === t && k.status === 'active'); if (c) setM({ t: 'topup', c }); window.history.replaceState(null, '', window.location.pathname); }, [d.data, pr.data]);
   if (d.error && !d.data) return <><PageHead title="Cartes virtuelles" /><p className="err" role="alert">{d.error}</p></>;
   return <>
     <PageHead title="Cartes virtuelles" sub="Payez en ligne avec une carte rechargée depuis votre solde ou en USDT.">{h?.registered && <button className="btn p" onClick={() => setM({ t: 'issue' })} disabled={d.data?.maintenance || !products.length || noFunds} title={noFunds ? 'Rechargez votre crédit cartes avant de créer une carte' : undefined}><Plus size={16} /> Nouvelle carte</button>}</PageHead>

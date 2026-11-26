@@ -6,7 +6,7 @@ import { fromUnits } from '../money';
 import { notify } from '../audit';
 import { error as logError, info, warn } from '../log';
 import { codeOf, failure, isOk, px, PxError, underfunded } from './api';
-import { chargeOf, costUnits, countryName, rentalCatalog, serviceName, virtualQuote } from './pricing';
+import { chargeOf, costUnits, countryName, knownService, rentalCatalog, serviceName, virtualQuote } from './pricing';
 // Commandes ProxNum payées uniquement avec le solde disponible. Même mécanique que les cartes :
 //  1) RÉSERVATION dans le registre (disponible -> proxnum_reserved) AVANT tout appel au prestataire ;
 //  2) achat chez ProxNum ; 3) succès = fonds dépensés (coût prestataire + marge), échec définitif = fonds rendus.
@@ -92,7 +92,7 @@ const checkPrice = (expected: number | undefined, charge: number) => { if (expec
 
 // ---------- Numéro virtuel (activation unique) ----------
 export async function buyVirtual(uid: string, p: { ref: string; service: string; country: number; token?: string; expected?: number }) {
-  if (!SERVICE.test(p.service) || !Number.isInteger(p.country) || p.country < 0) throw new HttpError(400, 'invalid_request');
+  if (!SERVICE.test(p.service) || !knownService(p.service) || !Number.isInteger(p.country) || p.country < 0) throw new HttpError(400, 'invalid_request');
   const id = idFor(uid, p.ref); const q = await virtualQuote(p.service, p.country, p.token);   // prix reverifié ICI, côté serveur
   checkPrice(p.expected, q.chargeUnits);
   const created = await reserve(uid, id, { kind: 'virtual', service: p.service, country: String(p.country), priceToken: q.token ?? null, costUnits: q.costUnits, chargeUnits: q.chargeUnits, markupUnits: q.chargeUnits - q.costUnits });

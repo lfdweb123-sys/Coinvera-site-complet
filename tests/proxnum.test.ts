@@ -14,12 +14,12 @@ vi.mock('@/lib/auth', () => ({ HttpError: class extends Error { constructor(publ
 vi.mock('@/lib/audit', () => ({ notify: async () => {} }));
 vi.mock('@/lib/log', () => ({ info: () => {}, warn: () => {}, error: () => {} }));
 import { buyRental, buyVirtual, cancelOrder, reconcileReview, reconcilePendingCancel, refreshOrder } from '@/lib/proxnum/orders';
-import { chargeOf, costUnits } from '@/lib/proxnum/pricing';
+import { chargeOf, costUnits, rentalCatalog, virtualCountries, virtualServices } from '@/lib/proxnum/pricing';
 
 type Handler = (url: URL, init: any) => [number, any] | 'throw';
 let handler: Handler; const calls: string[] = [];
 beforeEach(() => {
-  for (const k of Object.keys(store)) delete store[k]; calls.length = 0; process.env.PROXNUM_API_KEY = 'k'; process.env.PROXNUM_MARKUP_BPS = '2000'; process.env.PROXNUM_MARKUP_FLAT_USD = '0';
+  for (const k of Object.keys(store)) delete store[k]; calls.length = 0; process.env.PROXNUM_API_KEY = 'k'; process.env.PROXNUM_MARKUP_BPS = '20000'; process.env.PROXNUM_MARKUP_FLAT_USD = '0';
   vi.stubGlobal('fetch', async (u: URL, init: any) => { const url = new URL(String(u)); calls.push(`${init.method} ${url.pathname}`); const r = handler(url, init); if (r === 'throw') throw new Error('timeout'); return { status: r[0], json: async () => r[1] }; });
 });
 const ledgerNet = (m: string) => Object.values(store).filter((e: any) => e?.lines).flatMap((e: any) => e.lines).filter((l: any) => l.account.startsWith(`merchant:${m}:`)).reduce((a: number, l: any) => a + (l.dir === 'credit' ? l.amount : -l.amount), 0);
@@ -38,7 +38,7 @@ const virt = (over: Partial<Record<string, [number, any] | 'throw'>> = {}): Hand
 };
 
 describe('prix', () => {
-  it('arrondit le coût au-dessus et ajoute la marge', () => { expect(costUnits(0.1114892)).toBe(111490); expect(chargeOf(111490)).toBe(111490 + 22298); });
+  it('arrondit le coût au-dessus et ajoute la marge', () => { expect(costUnits(0.1114892)).toBe(111490); expect(chargeOf(111490)).toBe(111490 * 3);   });
   it('refuse un prix invalide', () => { expect(() => costUnits(0)).toThrow(); expect(() => costUnits('x')).toThrow(); });
 });
 describe('achat d’un numéro virtuel', () => {
@@ -115,24 +115,36 @@ describe('location', () => {
     if (u.pathname.endsWith('/rental/cancel')) return over.cancel ?? [202, { ok: true, pending: true }]; if (u.pathname.endsWith('/status')) return over.status ?? [200, { ok: true, rental: { status: 'active', expires_at: '2026-10-10T12:00:00+03:00', can_cancel: true, can_extend: true, messages: [{ sender: 'WhatsApp', text: 'Your code: 123-456', code: '123456', date: 'd' }] } }]; return [404, {}];
   };
   it('achat : max_price envoyé, durée validée, solde débité', async () => {
-    let sent: any; handler = (u, i) => { if (u.pathname.endsWith('/rental/buy')) sent = JSON.parse(i.body); return rent()(u, i) as any; }; seed('r1', 10);
+    let sent: any; handler = (u, i) => { if (u.pathname.endsWith('/rental/buy')) sent = JSON.parse(i.body); return rent()(u, i) as any; }; seed('r1', 20);
     const o = await buyRental('r1', { ref: 'rental000001', service: 'wa', country: 187, hours: 168 }); expect(o).toMatchObject({ status: 'confirmed', phone: '14155550123', hours: 168 }); expect(sent).toMatchObject({ service: 'wa', country: 187, hours: 168, max_price: 4.2 });
-    expect(store['balances/r1'].available).toBe(10e6 - chargeOf(4_200_000)); expect(balanced()).toBe(true);
+    expect(store['balances/r1'].available).toBe(20e6 - chargeOf(4_200_000)); expect(balanced()).toBe(true);
     await expect(buyRental('r1', { ref: 'rental000002', service: 'wa', country: 187, hours: 5 })).rejects.toMatchObject({ code: 'invalid_period' });
   });
   it('price_changed chez ProxNum : aucun débit', async () => {
-    handler = rent({ buy: [409, { ok: false, error: 'price_changed' }] }); seed('r2', 10);
-    expect(await buyRental('r2', { ref: 'rental000003', service: 'wa', country: 187, hours: 168 })).toMatchObject({ status: 'failed', error: 'price_changed' }); expect(store['balances/r2'].available).toBe(10e6);
+    handler = rent({ buy: [409, { ok: false, error: 'price_changed' }] }); seed('r2', 20);
+    expect(await buyRental('r2', { ref: 'rental000003', service: 'wa', country: 187, hours: 168 })).toMatchObject({ status: 'failed', error: 'price_changed' }); expect(store['balances/r2'].available).toBe(20e6);
   });
   it('annulation « en attente » (202) : remboursement uniquement quand ProxNum confirme', async () => {
-    handler = rent(); seed('r3', 10); const o = await buyRental('r3', { ref: 'rental000004', service: 'wa', country: 187, hours: 168 });
-    await cancelOrder('r3', o.id); expect(store['proxnum_orders/' + o.id].cancel).toBe('pending'); expect(store['balances/r3'].available).toBe(10e6 - chargeOf(4_200_000));
-    handler = rent({ status: [200, { ok: true, rental: { status: 'cancelling' } }] }); await reconcilePendingCancel(o.id); expect(store['balances/r3'].available).toBe(10e6 - chargeOf(4_200_000));
+    handler = rent(); seed('r3', 20); const o = await buyRental('r3', { ref: 'rental000004', service: 'wa', country: 187, hours: 168 });
+    await cancelOrder('r3', o.id); expect(store['proxnum_orders/' + o.id].cancel).toBe('pending'); expect(store['balances/r3'].available).toBe(20e6 - chargeOf(4_200_000));
+    handler = rent({ status: [200, { ok: true, rental: { status: 'cancelling' } }] }); await reconcilePendingCancel(o.id); expect(store['balances/r3'].available).toBe(20e6 - chargeOf(4_200_000));
     handler = rent({ status: [200, { ok: true, rental: { status: 'cancelled' } }] }); await reconcilePendingCancel(o.id); await reconcilePendingCancel(o.id);
-    expect(store['balances/r3'].available).toBe(10e6); expect(consistent('r3')).toBe(true); expect(balanced()).toBe(true);
+    expect(store['balances/r3'].available).toBe(20e6); expect(consistent('r3')).toBe(true); expect(balanced()).toBe(true);
   });
   it('SMS reçus : messages et codes remontés', async () => {
-    handler = rent(); seed('r4', 10); const o = await buyRental('r4', { ref: 'rental000005', service: 'wa', country: 187, hours: 168 });
+    handler = rent(); seed('r4', 20); const o = await buyRental('r4', { ref: 'rental000005', service: 'wa', country: 187, hours: 168 });
     expect((await refreshOrder('r4', o.id)).messages[0]).toMatchObject({ code: '123456' });
+  });
+});
+
+describe('services sans vrai nom', () => {
+  it('numéros virtuels : seuls les services au nom connu sont proposés, et un pays sans service nommé disparaît', async () => {
+    handler = u => u.searchParams.get('country') ? [200, { success: true, prices: { '6': { wa: { sell_price: 0.1, available: 5 }, zz: { sell_price: 0.1, available: 9 }, ig: { sell_price: 0.2, available: 0 } } } }]
+      : [200, { success: true, prices: { '6': { wa: { sell_price: 0.1, available: 5 } }, '99': { zz: { sell_price: 0.1, available: 9 } } } }];
+    expect((await virtualServices(6)).map(x => x.code)).toEqual(['wa']); expect((await virtualCountries()).map(c => c.id)).toEqual(['6']);
+  });
+  it('location : un service dont le nom est vide ou égal au code est supprimé ; prix = 3 × ProxNum', async () => {
+    handler = () => [200, { ok: true, country: '187', hours: 24, durations: [{ hours: 24, label: '1 day' }], countries: [], cancel_window_seconds: 120, services: [{ code: 'wa', name: 'WhatsApp', price: 2, stock: 1 }, { code: 'xx', name: 'xx', price: 2, stock: 1 }, { code: 'yy', price: 2, stock: 1 }] }];
+    const c = await rentalCatalog('187', 24); expect(c.services.map((x: any) => x.code)).toEqual(['wa']); expect(c.services[0].price).toBe('6.000000');
   });
 });

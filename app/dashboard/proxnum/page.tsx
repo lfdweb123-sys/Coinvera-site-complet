@@ -1,11 +1,12 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Clock, MessageSquare, Phone, RefreshCw, Wallet, X } from 'lucide-react';
 import { CopyRow } from '@/components/CopyBtn';
 import { api, msg, useData } from '@/lib/client';
 import { day, Empty, PageHead, Stat } from '@/components/Bits';
 import DataTable from '@/components/DataTable';
 import { Err } from '@/components/Wizard';
+import Combo from '@/components/Combo';
 // Numéros virtuels ProxNum, payés uniquement avec le solde disponible. Les prix affichés viennent du serveur (prix prestataire + marge) et sont revérifiés à l'achat.
 const money = (s: string | number | null | undefined) => s == null || s === '' || isNaN(Number(s)) ? '—' : Number(s).toLocaleString('fr-FR', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
 const units = (s: string) => Math.round(Number(s) * 1e6);   // total exact en unités 1e-6 USD, envoyé pour refuser tout achat si le prix a augmenté entre-temps
@@ -47,45 +48,53 @@ function Order({ first, onChange }: { first: any; onChange?: () => void }) {
           {!o.code && <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><button className="btn" disabled={busy} onClick={() => act(`/api/proxnum/orders/${o.id}/resend`)}><RefreshCw size={15} /> Renvoyer le SMS</button><button className="btn" disabled={busy} onClick={() => act(`/api/proxnum/orders/${o.id}/cancel`)}><X size={15} /> Annuler et être remboursé</button></div>}</>}</>}
     <Err m={e} /></div>;
 }
+// Récapitulatif toujours visible à côté des choix : le bouton d'achat ne se retrouve jamais en bas d'une longue liste.
+function Summary({ rows, total, avail, busy, label, onBuy, error, note }: { rows: [string, string][]; total?: string; avail: number; busy: boolean; label: string; onBuy: () => void; error: string; note: string }) {
+  const ready = total !== undefined, enough = ready && avail >= Number(total);
+  return <div className="card pxs stack" style={{ gap: 14 }}><h3 style={{ margin: 0 }}>Récapitulatif</h3>
+    <div className="kv">{rows.map(([k, v]) => <div key={k}>{k} <b>{v}</b></div>)}<div className="tot">Total à payer <b>{ready ? money(total) : '—'}</b></div><div className="mut">Solde disponible : {money(avail)}</div></div>
+    {ready && !enough && <p className="err" role="alert">Solde disponible insuffisant pour cet achat.</p>}<Err m={error} />
+    <button className="btn p lg full" disabled={busy || !enough} onClick={onBuy}>{busy ? 'Achat en cours…' : label}</button><p className="mut" style={{ margin: 0, fontSize: 13 }}>{note}</p></div>;
+}
 function Virtual({ avail, onOrder }: { avail: number; onOrder: (o: any) => void }) {
   const [country, setCountry] = useState(''), [service, setService] = useState(''), [token, setToken] = useState(''), [e, setE] = useState(''), [busy, setBusy] = useState(false), [pref, setPref] = useState(newRef);
   const cs = useGet<{ countries: any[] }>('/api/proxnum/virtual/countries'), ss = useGet<{ services: any[] }>(country ? `/api/proxnum/virtual/services?country=${country}` : null), q = useGet<any>(country && service ? `/api/proxnum/virtual/quote?service=${service}&country=${country}` : null);
-  const opt = q.d?.options?.find((o: any) => o.token === token); const price: string | undefined = opt?.price ?? q.d?.price; const enough = price !== undefined && avail >= Number(price);
-  return <div className="stack"><p className="mut" style={{ margin: 0 }}>Un numéro temporaire pour recevoir un seul SMS de vérification. Payé avec votre solde disponible ; si aucun SMS n’arrive, annulez pour être remboursé quand l’annulation est acceptée.</p>
-    <label htmlFor="pc">Pays</label><select id="pc" className="in" value={country} onChange={x => { setCountry(x.target.value); setService(''); setToken(''); }}><option value="">{cs.l ? 'Chargement…' : 'Choisir…'}</option>{(cs.d?.countries ?? []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><Err m={cs.e} />
-    {country && <><label htmlFor="ps">Service</label><select id="ps" className="in" value={service} onChange={x => { setService(x.target.value); setToken(''); }}><option value="">{ss.l ? 'Chargement…' : 'Choisir…'}</option>{(ss.d?.services ?? []).map(s => <option key={s.code} value={s.code}>{s.name} — {money(s.price)} ({s.available} dispo.)</option>)}</select><Err m={ss.e} />{!ss.l && ss.d && !ss.d.services.length && <p className="mut">Aucun service disponible pour ce pays.</p>}</>}
-    {service && q.d?.options?.length > 1 && <><label htmlFor="pr">Qualité de numéro</label><select id="pr" className="in" value={token} onChange={x => setToken(x.target.value)}><option value="">{q.d.options.find((o: any) => o.recommended)?.label ?? 'Recommandé'} (recommandé) — {money(q.d.price)}</option>{q.d.options.filter((o: any) => !o.recommended).map((o: any) => <option key={o.token} value={o.token}>{o.label} — {money(o.price)}{o.count != null ? ` (${o.count} dispo.)` : ''}</option>)}</select></>}
-    <Err m={q.e} />
-    {price !== undefined && <div className="kv"><div className="tot">Total à payer <b>{money(price)}</b></div><div className="mut">Solde disponible : {money(avail)}</div></div>}
-    {price !== undefined && !enough && <p className="err" role="alert">Solde disponible insuffisant pour cet achat.</p>}<Err m={e} />
-    <button className="btn p" disabled={busy || !enough} onClick={async () => { setE(''); setBusy(true); try { const o = await api('/api/proxnum/virtual/buy', { method: 'POST', body: JSON.stringify({ ref: pref, service, country: Number(country), ...(token ? { priceToken: token } : {}), expected: units(price!) }) }); setPref(newRef()); onOrder(o); } catch (x) { setE(msg(x)); } setBusy(false); }}>{busy ? 'Achat en cours…' : 'Acheter le numéro'}</button></div>;
+  const cOpts = useMemo(() => (cs.d?.countries ?? []).map(c => ({ value: c.id, label: c.name })), [cs.d]), sOpts = useMemo(() => (ss.d?.services ?? []).map(x => ({ value: x.code, label: x.name, hint: `${money(x.price)} · ${x.available} dispo.` })), [ss.d]);
+  const svc = ss.d?.services.find(x => x.code === service), opt = q.d?.options?.find((o: any) => o.token === token), price: string | undefined = opt?.price ?? q.d?.price ?? svc?.price;
+  const qOpts = (q.d?.options ?? []).map((o: any) => ({ value: o.recommended ? '' : o.token, label: `${o.label}${o.recommended ? ' (recommandé)' : ''}`, hint: `${money(o.price)}${o.count != null ? ` · ${o.count} dispo.` : ''}` }));
+  const buy = async () => { setE(''); setBusy(true); try { const o = await api('/api/proxnum/virtual/buy', { method: 'POST', body: JSON.stringify({ ref: pref, service, country: Number(country), ...(token ? { priceToken: token } : {}), expected: units(price!) }) }); setPref(newRef()); onOrder(o); } catch (x) { setE(msg(x)); } setBusy(false); };
+  return <div className="pxg"><div className="card stack" style={{ gap: 16 }}><p className="mut" style={{ margin: 0 }}>Un numéro temporaire pour recevoir un seul SMS de vérification. Si aucun SMS n’arrive, annulez pour être remboursé (quand l’annulation est acceptée).</p>
+      <Combo label="Pays" value={country} options={cOpts} loading={cs.l} onChange={v => { setCountry(v); setService(''); setToken(''); }} /><Err m={cs.e} />
+      <Combo label="Service" value={service} options={sOpts} loading={ss.l} disabled={!country} placeholder={country ? 'Choisir un service…' : 'Choisissez d’abord un pays'} emptyText="Aucun service disponible" onChange={v => { setService(v); setToken(''); }} /><Err m={ss.e} />
+      {service && qOpts.length > 1 && <Combo label="Qualité de numéro" value={token} options={qOpts} onChange={setToken} placeholder="Recommandé" />}<Err m={q.e} /></div>
+    <Summary rows={[['Pays', cOpts.find(c => c.value === country)?.label ?? '—'], ['Service', svc?.name ?? '—']]} total={service ? price : undefined} avail={avail} busy={busy} label="Acheter le numéro" onBuy={buy} error={e} note="Débité de votre solde disponible, uniquement à l’achat." /></div>;
 }
 function Rental({ avail, onOrder }: { avail: number; onOrder: (o: any) => void }) {
   const [country, setCountry] = useState(''), [hours, setHours] = useState(0), [pick, setPick] = useState(''), [e, setE] = useState(''), [busy, setBusy] = useState(false), [pref, setPref] = useState(newRef);
   const c = useGet<any>(`/api/proxnum/rental/catalog?${country ? `country=${country}&` : ''}${hours ? `hours=${hours}` : ''}`);
   useEffect(() => { if (c.d) { if (!country && c.d.country) setCountry(c.d.country); if (!hours && c.d.hours) setHours(c.d.hours); } }, [c.d]); // eslint-disable-line react-hooks/exhaustive-deps
-  const s = c.d?.services?.find((x: any) => x.code === pick), enough = s && avail >= Number(s.price);
-  return <div className="stack"><p className="mut" style={{ margin: 0 }}>Gardez un numéro plusieurs jours et recevez tous les SMS qu’il reçoit. Annulation possible dans les {Math.round((c.d?.cancelWindowSeconds ?? 120) / 60)} minutes suivant l’achat, tant qu’aucun SMS n’est arrivé et que la location n’a pas été prolongée.</p>
-    {c.d && <><label htmlFor="rc">Pays</label><select id="rc" className="in" value={country} onChange={x => { setCountry(x.target.value); setPick(''); }}>{c.d.countries.map((x: any) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
-      <label htmlFor="rh">Durée</label><select id="rh" className="in" value={hours} onChange={x => { setHours(Number(x.target.value)); setPick(''); }}>{c.d.durations.map((d: any) => <option key={d.hours} value={d.hours}>{d.label}</option>)}</select></>}
-    <Err m={c.e} />{c.l && !c.d && <p className="mut">Chargement…</p>}
-    {c.d && (c.d.services.length ? <div className="stack" style={{ gap: 8 }}>{c.d.services.map((x: any) => <button key={x.code} type="button" className={'btn' + (pick === x.code ? ' p' : '')} disabled={x.stock <= 0} aria-pressed={pick === x.code} onClick={() => setPick(x.code)} style={{ justifyContent: 'space-between', display: 'flex', width: '100%' }}><span>{x.name}</span><span>{money(x.price)} · {x.stock > 0 ? `${x.stock} dispo.` : 'épuisé'}</span></button>)}</div> : <p className="mut">Aucun service disponible pour ce pays et cette durée.</p>)}
-    {s && <div className="kv"><div className="tot">Total à payer <b>{money(s.price)}</b></div><div className="mut">Solde disponible : {money(avail)}</div></div>}
-    {s && !enough && <p className="err" role="alert">Solde disponible insuffisant pour cette location.</p>}<Err m={e} />
-    <button className="btn p" disabled={busy || !enough} onClick={async () => { setE(''); setBusy(true); try { const o = await api('/api/proxnum/rental/buy', { method: 'POST', body: JSON.stringify({ ref: pref, service: pick, country: Number(country), hours, expected: units(s.price) }) }); setPref(newRef()); setPick(''); onOrder(o); } catch (x) { setE(msg(x)); } setBusy(false); }}>{busy ? 'Achat en cours…' : 'Louer le numéro'}</button></div>;
+  const cOpts = useMemo(() => (c.d?.countries ?? []).map((x: any) => ({ value: x.id, label: x.name })), [c.d]), dOpts = useMemo(() => (c.d?.durations ?? []).map((d: any) => ({ value: String(d.hours), label: d.label })), [c.d]);
+  const sOpts = useMemo(() => (c.d?.services ?? []).map((x: any) => ({ value: x.code, label: x.name, hint: x.stock > 0 ? `${money(x.price)} · ${x.stock} dispo.` : 'épuisé', disabled: x.stock <= 0 })), [c.d]);
+  const s = c.d?.services?.find((x: any) => x.code === pick);
+  const buy = async () => { setE(''); setBusy(true); try { const o = await api('/api/proxnum/rental/buy', { method: 'POST', body: JSON.stringify({ ref: pref, service: pick, country: Number(country), hours, expected: units(s.price) }) }); setPref(newRef()); setPick(''); onOrder(o); } catch (x) { setE(msg(x)); } setBusy(false); };
+  return <div className="pxg"><div className="card stack" style={{ gap: 16 }}><p className="mut" style={{ margin: 0 }}>Gardez un numéro plusieurs jours et recevez tous ses SMS. Annulation possible dans les {Math.round((c.d?.cancelWindowSeconds ?? 120) / 60)} minutes suivant l’achat, tant qu’aucun SMS n’est arrivé et que la location n’est pas prolongée.</p>
+      <Combo label="Pays" value={country} options={cOpts} loading={c.l && !c.d} onChange={v => { setCountry(v); setPick(''); }} />
+      <Combo label="Durée" value={String(hours || '')} options={dOpts} loading={c.l && !c.d} onChange={v => { setHours(Number(v)); setPick(''); }} />
+      <Combo label="Service" value={pick} options={sOpts} loading={c.l} placeholder="Choisir un service…" emptyText="Aucun service disponible" onChange={setPick} /><Err m={c.e} /></div>
+    <Summary rows={[['Pays', cOpts.find((x: any) => x.value === country)?.label ?? '—'], ['Durée', dOpts.find((x: any) => x.value === String(hours))?.label ?? '—'], ['Service', s?.name ?? '—']]} total={s?.price} avail={avail} busy={busy} label="Louer le numéro" onBuy={buy} error={e} note="Débité de votre solde disponible, uniquement à l’achat." /></div>;
 }
 export default function ProxNum() {
   const [tab, setTab] = useState<'virtual' | 'rental' | 'history'>('virtual'), [page, setPage] = useState(1), [cur, setCur] = useState<any>(null), [open, setOpen] = useState<any>(null);
-  const bal = useData('/api/balance'), h = useData(`/api/proxnum/orders?page=${page}&size=10`); const avail = Number(bal.data?.available ?? 0);
+  const curRef = useRef<HTMLDivElement>(null), bal = useData('/api/balance'), h = useData(`/api/proxnum/orders?page=${page}&size=10`); const avail = Number(bal.data?.available ?? 0);
   const refresh = useCallback(() => { bal.reload(); h.reload(); }, [bal.reload, h.reload]); // eslint-disable-line react-hooks/exhaustive-deps
-  const done = (o: any) => { setCur(o); refresh(); };
+  const done = (o: any) => { setCur(o); refresh(); setTimeout(() => curRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); };
   if (h.error === msg({ message: 'proxnum_disabled' })) return <div className="stack"><PageHead title="ProxNum" sub="Numéros virtuels pour recevoir vos SMS de vérification." /><Empty title="Service bientôt disponible" hint="Les numéros virtuels ne sont pas encore activés sur ce compte." /></div>;
   return <div className="stack"><PageHead title="ProxNum" sub="Numéros virtuels pour recevoir vos SMS de vérification, payés avec votre solde disponible." />
     <div className="g4"><Stat icon={Wallet} label="Solde disponible" value={money(bal.data?.available)} /></div>
     <div className="tabs" role="tablist">{([['virtual', 'Numéro temporaire', Phone], ['rental', 'Location', Clock], ['history', 'Mes numéros', MessageSquare]] as const).map(([k, l, I]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}><I size={15} style={{ verticalAlign: -2, marginRight: 6 }} />{l}</button>)}</div>
-    {cur && tab !== 'history' && <Order key={cur.id} first={cur} onChange={refresh} />}
-    {tab === 'virtual' && <div className="card"><Virtual avail={avail} onOrder={done} /></div>}
-    {tab === 'rental' && <div className="card"><Rental avail={avail} onOrder={done} /></div>}
+    {tab === 'virtual' && <Virtual avail={avail} onOrder={done} />}
+    {tab === 'rental' && <Rental avail={avail} onOrder={done} />}
+    {cur && tab !== 'history' && <div ref={curRef}><Order key={cur.id} first={cur} onChange={refresh} /></div>}
     {tab === 'history' && <>{open && <Order key={open.id} first={open} onChange={refresh} />}
       <DataTable loading={h.loading} rows={h.data?.items ?? []} empty="Aucun numéro pour le moment" server={{ total: h.data?.total ?? 0, page, size: 10, onPage: setPage }} cols={[
         { key: 'service', label: 'Service', render: (o: any) => `${o.serviceName} · ${o.countryName}` }, { key: 'kind', label: 'Type', render: (o: any) => o.kind === 'rental' ? `Location ${o.hours ?? ''} h` : 'Temporaire' },

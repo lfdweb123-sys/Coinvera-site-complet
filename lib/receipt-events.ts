@@ -67,3 +67,12 @@ export const receiptScarabDeposit = (id: string) => safe('scarab_deposit', async
   await sendReceipt(path, { number: receiptNumber(id), date: new Date(), heading: 'Reçu de dépôt', description: 'Dépôt sur votre crédit Virtuals cards pro',
     rows: [['Montant payé', usd(o.chargeUnits ?? 0)]], totalLabel: 'Crédit ajouté', total: usd(o.creditedUnits ?? 0) }, [], { merchantId: o.merchantId });
 });
+
+/** Dépôt en mobile money / virement (cartes virtuelles et Virtuals cards pro). */
+export const receiptFiatDeposit = (id: string) => safe('fiat_deposit', async () => {
+  const path = `fiat_orders/${id}`; const o = (await db.doc(path).get()).data();
+  if (!o || o.status !== 'fulfilled') return;
+  const local = `${String(Math.round(o.local ?? 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} ${o.label ?? ''}`.trim();
+  await sendReceipt(path, { number: receiptNumber(id), date: new Date(), heading: 'Reçu de dépôt', description: o.scope === 'scarab' ? 'Dépôt sur votre crédit Virtuals cards pro' : 'Dépôt sur votre crédit cartes',
+    rows: [['Montant payé', local]], totalLabel: 'Crédit ajouté', total: usd(o.creditedUnits ?? 0) }, [], { merchantId: o.merchantId });
+});

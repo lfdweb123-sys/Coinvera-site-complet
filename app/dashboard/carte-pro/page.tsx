@@ -8,6 +8,7 @@ import CardArt, { KIND_LABEL, kindOf } from '@/components/CardArt';
 import { byId, networkWarning } from '@/lib/cryptos';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
 import { Err, Modal, Nav, Stepper } from '@/components/Wizard';
+import FiatPay from '@/components/FiatPay';
 // Virtuals cards pro : cartes Visa émises via ScarabPay, entièrement séparées des cartes virtuelles (/dashboard/cards). Le nom du prestataire n'apparaît jamais à l'écran.
 const ST: Record<string, string> = { pending: 'En création', active: 'Active', frozen: 'Gelée', terminated: 'Fermée', expired: 'Expirée', failed: 'Échouée' };
 const OS: Record<string, string> = { reserved: 'En cours', processing: 'En cours', confirmed: 'Terminée', failed: 'Échouée' };
@@ -124,16 +125,17 @@ function PayDirect({ spec, onOrder, deposit, onDone, onStage }: { spec: any; onO
     {qr && <img src={qr} alt="QR code de l’adresse de paiement" width={160} height={160} style={{ justifySelf: 'center' }} />}<p className="mut" role="status" style={{ margin: 0 }}>En attente du paiement… (vérification automatique)</p></div>;
 }
 function Deposit({ amount: a0, onClose, onDone }: { amount?: number; onClose: () => void; onDone: () => void }) {
-  const [a, setA] = useState(String(a0 && a0 >= 5 ? a0 : 20)), [st, setSt] = useState(0), [stage, setStage] = useState<'choose' | 'pay' | 'done'>('choose'); const ok = AMT.test(a) && Number(a) >= 5 && Number(a) <= 10000;
-  const cur = st === 0 ? 0 : stage === 'choose' ? 1 : stage === 'pay' ? 2 : 3;
+  const [a, setA] = useState(String(a0 && a0 >= 5 ? a0 : 20)), [st, setSt] = useState(0), [stage, setStage] = useState<'choose' | 'pay' | 'done'>('choose'), [via, setVia] = useState<'' | 'crypto' | 'momo'>(''), fm = useData('/api/fiat/methods?scope=scarab'); const momo = !!fm.data?.enabled; const ok = AMT.test(a) && Number(a) >= 5 && Number(a) <= 10000;
+  const cur = st === 0 ? 0 : (via === '' && momo) ? 1 : stage === 'choose' ? 1 : stage === 'pay' ? 2 : 3;
   return <Modal title="Déposer pour payer ma carte" onClose={() => { onClose(); onDone(); }}><Stepper steps={['Montant', 'Réseau', 'Paiement', 'Terminé']} cur={cur} /><div className="sbody">
     {st === 0 ? <>
-      <p className="mut" style={{ margin: 0 }}>Le dépôt se fait en USDT ou USDC et sert uniquement à payer vos Virtuals cards pro (émission et recharges). Il n’est pas retirable. Le montant crédité est exactement celui demandé.</p>
+      <p className="mut" style={{ margin: 0 }}>Le dépôt se fait en crypto (USDT, USDC) ou par mobile money / virement bancaire, et sert uniquement à payer vos Virtuals cards pro (émission et recharges). Il n’est pas retirable. Le montant crédité est exactement celui demandé.</p>
       <label htmlFor="da">Montant à créditer (USD, de 5 à 10 000)</label><input id="da" className="in" inputMode="decimal" autoFocus value={a} onChange={x => setA(x.target.value)} onKeyDown={x => x.key === 'Enter' && ok && setSt(1)} />
       {!ok && a !== '' && <p className="err" role="alert">Saisissez un montant entre 5 et 10 000 USD (deux décimales au plus).</p>}</> : <>
       {stage !== 'done' && <div className="kv"><div>Montant à créditer <b>{usd(a)}</b></div></div>}
-      <PayDirect spec={{ amount: Number(a).toFixed(2) }} deposit onDone={onDone} onStage={setStage} /></>}
-  </div>{st === 0 ? <Nav onNext={() => setSt(1)} disabled={!ok} /> : stage === 'choose' ? <Nav onBack={() => setSt(0)} /> : null}</Modal>;
+      {via === '' && momo && stage === 'choose' ? <div className="stack"><p className="mut" style={{ margin: 0 }}>Comment voulez-vous payer ?</p><button type="button" className="btn p" onClick={() => setVia('crypto')}>Crypto (USDT / USDC)</button><button type="button" className="btn" onClick={() => setVia('momo')}>Mobile money / virement bancaire</button></div>
+        : via === 'momo' ? <FiatPay scope="scarab" amount={a} onDone={onDone} onStage={setStage} /> : <PayDirect spec={{ amount: Number(a).toFixed(2) }} deposit onDone={onDone} onStage={setStage} />}</>}
+  </div>{st === 0 ? <Nav onNext={() => setSt(1)} disabled={!ok} /> : stage === 'choose' ? <Nav onBack={() => via && momo ? setVia('') : setSt(0)} /> : null}</Modal>;
 }
 function Checkout({ kind, product, card, mode, minAmount, onClose, onDone, onDeposit }: any) {
   const [amount, setAmount] = useState(String(minAmount ?? 5)), [name, setName] = useState(''), [q, setQ] = useState<any>(null), [e, setE] = useState(''), [pay, setPay] = useState(false), [orderId, setOrderId] = useState(''), [busy, setBusy] = useState(false), [st, setSt] = useState(0), [stage, setStage] = useState<'choose' | 'pay' | 'done'>('choose');

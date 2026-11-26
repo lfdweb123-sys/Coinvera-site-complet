@@ -1,5 +1,5 @@
 import { warn } from './log';
-const NEEDED: [string, string[]][] = [['Firebase', ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY']], ['Chiffrement', ['API_SECRET_ENC_KEY']], ['E-mails (code de verification)', ['BREVO_API_KEY', 'SUPPORT_EMAIL']], ['Encaissement carte', ['PROCESSOR_BASE_URL', 'PROCESSOR_API_KEY', 'PROCESSOR_WEBHOOK_SECRET']], ['Retraits', ['BYBIT_API_KEY', 'BYBIT_API_SECRET', 'CRON_SECRET']], ['WhatsApp (relances)', ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_APP_SECRET', 'WHATSAPP_VERIFY_TOKEN']]];
+const NEEDED: [string, string[]][] = [['Firebase', ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY']], ['Chiffrement', ['API_SECRET_ENC_KEY']], ['E-mails (code de verification)', ['BREVO_API_KEY', 'SUPPORT_EMAIL']], ['Encaissement carte', ['PROCESSOR_BASE_URL', 'PROCESSOR_API_KEY', 'PROCESSOR_WEBHOOK_SECRET']], ['Retraits', ['BYBIT_API_KEY', 'BYBIT_API_SECRET', 'CRON_SECRET']], ['Paiements mobile money (cartes)', ['FEEXPAY_API_KEY', 'FEEXPAY_SHOP_ID']], ['WhatsApp (relances)', ['WHATSAPP_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_APP_SECRET', 'WHATSAPP_VERIFY_TOKEN']]];
 let done = false;
 // Journalise (une fois par demarrage) les variables d'environnement manquantes, sans jamais afficher leurs valeurs.
 export function checkEnv() {

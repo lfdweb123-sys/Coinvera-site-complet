@@ -1,6 +1,7 @@
 import { cronAllowed } from '@/lib/cron';
 import { db } from '@/lib/firebase-admin';
 import { warn } from '@/lib/log';
+import { pollFiat } from '@/lib/fiat/orders';
 import { checkPayOrder } from '@/lib/scarab/pay';
 import { reconcile } from '@/lib/scarab/orders';
 import { refreshCustomer } from '@/lib/scarab/customers';
@@ -18,5 +19,6 @@ export async function GET(req: Request) {
   await ensureScarabFunds().catch(e => warn('cron.scarab_refill_failed', { message: (e as Error).message }));   // niveau bas : alimentation Bybit + alerte e-mail
   await flagStaleWithdrawals().catch(() => 0);
   out.codes = await purgeExpiredCodes().catch(() => 0);
+  await pollFiat().catch(e => warn('cron.fiat_failed', { message: (e as Error).message }));
   return Response.json({ ok: true, ...out });
 }

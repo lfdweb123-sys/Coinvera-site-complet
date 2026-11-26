@@ -6,7 +6,7 @@ import { fiatSettings, sanitize } from '@/lib/fiat/settings';
 import { FIAT_LIMITS } from '@/lib/fiat/quote';
 import { feexConfigured } from '@/lib/fiat/feexpay';
 import { liveRate } from '@/lib/fiat/rates';
-import { resolveFiat } from '@/lib/fiat/orders';
+import { reconcileFiat, resolveFiat } from '@/lib/fiat/orders';
 import { fromUnits } from '@/lib/money';
 // Réglages des paiements FeexPay pour les cartes, taux du jour, gains estimés et commandes à trancher.
 const num = (k: keyof typeof FIAT_LIMITS) => z.number().min(FIAT_LIMITS[k][0]).max(FIAT_LIMITS[k][1]);
@@ -31,7 +31,9 @@ export async function PUT(req: Request) {
 }
 export async function POST(req: Request) {
   try {
-    const a = await requireAdmin(req); const b = z.object({ action: z.literal('resolve'), id: z.string().max(40), decision: z.enum(['credit', 'reject']) }).parse(await req.json());
+    const a = await requireAdmin(req); const raw = await req.json();
+    if (raw?.action === 'reconcile') { const r = await reconcileFiat(true); await audit(a.uid, 'fiat.reconcile', r as object).catch(() => {}); return Response.json({ ok: true, ...r }); }
+    const b = z.object({ action: z.literal('resolve'), id: z.string().max(40), decision: z.enum(['credit', 'reject']) }).parse(raw);
     await resolveFiat(b.id, b.decision); await audit(a.uid, 'fiat.resolve', { id: b.id, decision: b.decision }).catch(() => {});
     return Response.json({ ok: true });
   } catch (e) { return e instanceof z.ZodError ? Response.json({ error: 'invalid_request' }, { status: 400 }) : fail(e); }

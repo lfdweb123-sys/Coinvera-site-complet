@@ -13,14 +13,14 @@ import { fiatSettings } from './settings';
 import { effectiveRate, fmtLocal, gainEstimateUsd, quoteLocal } from './quote';
 import { liveRate } from './rates';
 import { METHODS, Method, methodById, methodView, needsPhone, normalizePhone } from './methods';
-import { banks, bmoCancel, bmoConfirm, buildBody, feexConfigured, initiate, statusOf, Init } from './feexpay';
+import { banks, bmoCancel, bmoConfirm, buildBody, feexConfigured, history, initiate, statusOf, Init } from './feexpay';
 // Dépôts en mobile money / virement (FeexPay) pour les cartes virtuelles (scope « cards ») et les Virtuals cards pro (scope « scarab »), uniquement.
 // Le montant crédité est exactement celui demandé, en dollars, sur le crédit réservé aux cartes (jamais retirable). Il sert ensuite à acheter une carte ou à la recharger.
 // Collection fiat_orders ; la référence FeexPay est réservée une seule fois (fiat_refs) : un même paiement ne peut jamais créditer deux commandes.
 export type Scope = 'cards' | 'scarab';
 export const BUCKET: Record<Scope, string> = { cards: 'card_credit', scarab: 'scarab_credit' };
 export const VALID_MS = 30 * 60_000, BMO_MS = 3 * 60_000, WATCH_MS = 24 * 3600_000, MAX_PENDING = 5;
-const END = ['fulfilled', 'failed', 'rejected', 'closed', 'review'];
+const END = ['fulfilled', 'failed', 'rejected', 'closed', 'review', 'unknown'];
 const ref = (id: string) => db.doc(`fiat_orders/${id}`);
 
 export async function quoteFiat(methodId: string, amount: string) {
@@ -78,7 +78,7 @@ export async function createFiatOrder(u: U, scope: Scope, methodId: string, amou
   await ref(id).set(o);
   let r: Init;
   try { r = await initiate(m, bodyFor(m, id, o, u.merchant, u.email, input.otp)); }
-  catch (e) { await ref(id).update({ status: 'failed', error: (e as HttpError).code ?? 'provider_unavailable' }); throw e; }
+  catch (e) { const code = (e as HttpError).code ?? 'provider_unavailable'; await ref(id).update({ status: code === 'provider_unavailable' ? 'unknown' : 'failed', error: code === 'provider_unavailable' ? 'provider_timeout' : code }); throw e; }   // réponse perdue : la demande a peut-être abouti, le rapprochement avec l'historique tranche
   return applyInit(id, m, { ...o }, r);
 }
 // Résultat de la création (ou de l'étape 2 Coris) : enregistre la référence, l'étape suivante et, pour un virement, le compte temporaire.
@@ -143,7 +143,7 @@ export async function checkFiatOrder(uid: string | null, id: string, opt: { forc
   let o = (await ref(id).get()).data(); if (!o || (uid && o.merchantId !== uid)) throw new HttpError(404, 'not_found');
   if (END.includes(o.status)) return view(id, o);
   const now = Date.now();
-  if (o.status === 'creating') { if (now - o.createdAt > 120_000) { await ref(id).update({ status: 'failed', error: 'provider_timeout' }); warn('fiat.creating_timeout', { orderId: id }); return view(id, { ...o, status: 'failed', error: 'provider_timeout' }); } return view(id, o); }
+  if (o.status === 'creating') { if (now - o.createdAt > 120_000) { await ref(id).update({ status: 'unknown', error: 'provider_timeout' }); warn('fiat.creating_timeout', { orderId: id }); return view(id, { ...o, status: 'unknown', error: 'provider_timeout' }); } return view(id, o); }
   if (o.status === 'otp') { if (o.expiresAt < now) { await expire(id, o); return view(id, { ...o, status: 'expired' }); } return view(id, o); }
   if (!opt.force && now - (o.checkedAt ?? 0) < 4000) return view(id, o);
   await ref(id).update({ checkedAt: now });
@@ -172,5 +172,28 @@ export async function resolveFiat(id: string, decision: 'credit' | 'reject') {
 export async function pollFiat() {
   let n = 0;
   for (const st of ['creating', 'awaiting', 'otp', 'expired']) for (const d of (await db.collection('fiat_orders').where('status', '==', st).limit(100).get()).docs) { try { await checkFiatOrder(null, d.id); n++; } catch (e) { warn('cron.fiat_item_failed', { id: d.id, message: (e as Error).message }); } }
+  await reconcileFiat().catch(e => warn('cron.fiat_reconcile_failed', { message: (e as Error).message }));   // au plus toutes les 10 min
   return n;
+}
+
+// Rapprochement avec l'historique FeexPay (2 derniers jours, encaissements réussis) : aucun paiement réussi ne reste sans crédit, même si une réponse s'est perdue.
+//  - commande « unknown » (création sans réponse, donc sans référence) : retrouvée par son identifiant (callback_info) et un montant au moins égal ; la référence est alors rattachée puis le statut relu à la source ;
+//  - commande connue mais pas encore créditée : relue à la source.
+export async function reconcileFiat(force = false) {
+  const meta = db.doc('fiat_meta/reconcile'); const last = (await meta.get()).data()?.at ?? 0; if (!force && Date.now() - last < 10 * 60_000) return { skipped: true };
+  await meta.set({ at: Date.now() });
+  const day = (t: number) => new Date(t).toISOString().slice(0, 10); const rows = await history(day(Date.now() - 2 * 86400_000), day(Date.now() + 86400_000), 'SUCCESSFUL');
+  let linked = 0, checked = 0;
+  const unknown = (await db.collection('fiat_orders').where('status', '==', 'unknown').limit(200).get()).docs;
+  for (const d of unknown) { const o = d.data();
+    if (Date.now() - o.createdAt > WATCH_MS) { await ref(d.id).update({ status: 'failed', error: 'provider_timeout' }); continue; }
+    const hit = rows.find(r => r.status === 'SUCCESSFUL' && (r.callbackId === d.id || r.customId === d.id) && (r.amount == null || r.amount >= o.local));
+    if (!hit) continue;
+    try { await mapRef(hit.reference, d.id); await ref(d.id).update({ reference: hit.reference, status: 'awaiting', error: null }); linked++; await checkFiatOrder(null, d.id, { force: true }); }
+    catch (e) { warn('fiat.reconcile_link_failed', { orderId: d.id, message: (e as Error).message }); }
+  }
+  for (const r of rows) { const m = (await db.doc(`fiat_refs/${r.reference.replace(/\//g, '_')}`).get()).data(); if (!m?.orderId) continue;
+    const o = (await ref(m.orderId).get()).data(); if (!o || ['fulfilled', 'failed', 'rejected', 'review'].includes(o.status)) continue;
+    try { await checkFiatOrder(null, m.orderId, { force: true }); checked++; } catch (e) { warn('fiat.reconcile_check_failed', { orderId: m.orderId, message: (e as Error).message }); } }
+  return { rows: rows.length, linked, checked };
 }

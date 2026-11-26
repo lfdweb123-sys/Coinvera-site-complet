@@ -3,10 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 const { store, ref } = vi.hoisted(() => { const store: Record<string, any> = {};
 const ref = (p: string): any => ({ path: p, id: p.split('/').pop(), get: async () => ({ exists: p in store, data: () => store[p] }), update: async (u: any) => { store[p] = { ...store[p], ...u }; }, create: async (u: any) => { if (p in store) throw new Error('exists'); store[p] = u; }, set: async (u: any, o?: any) => { store[p] = o?.merge ? { ...store[p], ...u } : u; } });
 return { store, ref }; });
-vi.mock('@/lib/firebase-admin', () => ({ db: { doc: ref, collection: (c: string) => ({ doc: (id = 'auto' + Math.random().toString(36).slice(2)) => ref(`${c}/${id}`) }), runTransaction: async (fn: any) => fn({ get: async (r: any) => r.get(), set: (r: any, u: any, o?: any) => { store[r.path] = o?.merge ? { ...store[r.path], ...u } : u; }, create: (r: any, u: any) => { if (r.path in store) throw new Error('exists'); store[r.path] = u; }, update: (r: any, u: any) => { store[r.path] = { ...store[r.path], ...u }; } }) } }));
+vi.mock('@/lib/firebase-admin', () => ({ db: { doc: ref, collection: (c: string) => ({ doc: (id = 'auto' + Math.random().toString(36).slice(2)) => ref(`${c}/${id}`), where: (f: string, _op: string, v: any) => { const q: any = { limit: () => q, get: async () => ({ docs: Object.keys(store).filter(k => k.startsWith(c + '/') && store[k][f] === v).map(k => ({ id: k.slice(c.length + 1), data: () => store[k] })) }) }; return q; } }), runTransaction: async (fn: any) => fn({ get: async (r: any) => r.get(), set: (r: any, u: any, o?: any) => { store[r.path] = o?.merge ? { ...store[r.path], ...u } : u; }, create: (r: any, u: any) => { if (r.path in store) throw new Error('exists'); store[r.path] = u; }, update: (r: any, u: any) => { store[r.path] = { ...store[r.path], ...u }; } }) } }));
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS' } }));
 const status = vi.hoisted(() => ({ next: { status: 'PENDING', reference: null as string | null, amount: null as number | null } }));
-vi.mock('@/lib/fiat/feexpay', async orig => ({ ...(await orig<any>()), statusOf: vi.fn(async () => status.next), feexConfigured: () => true, bmoCancel: vi.fn(async () => {}) }));
+const hist = vi.hoisted(() => ({ rows: [] as any[] }));
+vi.mock('@/lib/fiat/feexpay', async orig => ({ ...(await orig<any>()), statusOf: vi.fn(async () => status.next), history: vi.fn(async () => hist.rows), feexConfigured: () => true, bmoCancel: vi.fn(async () => {}) }));
 vi.mock('@/lib/audit', () => ({ notify: vi.fn(async () => {}), merchantEmail: vi.fn(async () => 'client@example.com') }));
 vi.mock('@/lib/receipt-events', () => ({ receiptFiatDeposit: vi.fn(async () => {}) }));
 vi.mock('@/lib/brevo', () => ({ sendMail: vi.fn(async () => {}) }));
@@ -15,7 +16,9 @@ import { normalizePhone, methodById, METHODS } from '@/lib/fiat/methods';
 import { parseRates, mergeRates } from '@/lib/fiat/rates';
 import { normalizeInit, parseStatus, buildBody } from '@/lib/fiat/feexpay';
 import { sanitize } from '@/lib/fiat/settings';
-import { checkFiatOrder, creditFiat, onWebhook, resolveFiat } from '@/lib/fiat/orders';
+import { checkFiatOrder, creditFiat, onWebhook, resolveFiat, reconcileFiat } from '@/lib/fiat/orders';
+import { verifyFeexWebhook, sign } from '@/lib/fiat/webhook';
+import { mapError } from '@/lib/fiat/feexpay';
 
 describe('conversion : jamais de perte, toujours un gain', () => {
   it('pire cas (frais + monnaie qui perd la valeur du coussin) : on récupère au moins dollars + marge', () => {
@@ -105,5 +108,49 @@ describe('crédit des dépôts', () => {
   });
   it('refusé par l’admin : plus jamais de crédit', async () => {
     order('a7', { status: 'review' }); await resolveFiat('a7', 'reject'); expect(await creditFiat('a7', 'x')).toBe(false);
+  });
+});
+
+describe('signature du webhook (vecteur de test FeexPay)', () => {
+  const secret = 'fxp_whsec_test_9vQ2kXr7LmN4pT8wZ1yB6cD3fH5jK0sA', ts = '1762790400', id = '9b2f6c1e-4d7a-4b8e-a1c3-5e6f7a8b9c0d', raw = '{"reference":"1e636dff-6b81-499e-bf8b-64b4a07a02a8","status":"SUCCESSFUL","amount":250}', good = 'eea4da5dab69a92b2daf07af713c0a474b7bcc1fdaf5b4bea38ff22b63300664';
+  const now = 1762790400_000;
+  it('retrouve exactement la signature de la documentation', () => { expect(sign(secret, ts, id, raw)).toBe(good); });
+  it('accepte une signature valide, y compris parmi deux (renouvellement)', () => {
+    expect(verifyFeexWebhook(raw, { timestamp: ts, deliveryId: id, signature: 'v1=' + good }, secret, now)).toBe(true);
+    expect(verifyFeexWebhook(raw, { timestamp: ts, deliveryId: id, signature: 'v1=' + 'a'.repeat(64) + ', v1=' + good }, secret, now + 200_000)).toBe(true);
+  });
+  it('refuse : corps modifié, mauvais secret, identifiant modifié, absent, trop ancien, mauvais format', () => {
+    const h = { timestamp: ts, deliveryId: id, signature: 'v1=' + good };
+    expect(verifyFeexWebhook(raw.replace('250', '999999'), h, secret, now)).toBe(false); expect(verifyFeexWebhook(raw, h, secret + 'x', now)).toBe(false);
+    expect(verifyFeexWebhook(raw, { ...h, deliveryId: 'autre' }, secret, now)).toBe(false); expect(verifyFeexWebhook(raw, { ...h, signature: null }, secret, now)).toBe(false);
+    expect(verifyFeexWebhook(raw, h, secret, now + 301_000)).toBe(false); expect(verifyFeexWebhook(raw, h, secret, now - 301_000)).toBe(false);
+    expect(verifyFeexWebhook(raw, { ...h, signature: good }, secret, now)).toBe(false); expect(verifyFeexWebhook(raw, { ...h, signature: 'v2=' + good }, secret, now)).toBe(false);
+    expect(verifyFeexWebhook(raw, { ...h, timestamp: 'abc' }, secret, now)).toBe(false);
+  });
+});
+describe('codes d’erreur FeexPay', () => {
+  it('traduits en codes Coinvera', () => {
+    expect(mapError(400, 'ERR_INVALID_PHONE_NUMBER', '').code).toBe('invalid_phone'); expect(mapError(400, 'ERR_INVALID_AMOUNT', '').code).toBe('amount_invalid'); expect(mapError(503, 'NETWORK_UNAVAILABLE', '').code).toBe('network_unavailable');
+    expect(mapError(403, 'IP_NOT_ALLOWED', '').code).toBe('fiat_unavailable'); expect(mapError(401, '', '').code).toBe('fiat_unavailable'); expect(mapError(502, '', 'Bad Gateway').code).toBe('provider_unavailable'); expect(mapError(400, '', 'x').code).toBe('payment_rejected');
+  });
+  it('statut « IN PENDING STATE » = en attente', () => { expect(parseStatus({ status: 'IN PENDING STATE' }).status).toBe('PENDING'); });
+});
+describe('rapprochement avec l’historique', () => {
+  it('retrouve une commande sans référence (réponse perdue), la crédite une seule fois ; ignore montant trop faible ou autre commande', async () => {
+    store['balances/u9'] = {}; order('r1', { status: 'unknown', reference: null, merchantId: 'u9' }); delete store['fiat_refs/ref_r1'];
+    order('r2', { status: 'unknown', reference: null, merchantId: 'u9' }); delete store['fiat_refs/ref_r2'];
+    hist.rows = [{ reference: 'FP-1', status: 'SUCCESSFUL', amount: 13450, type: 'PAYMENT_API', customId: null, callbackId: 'r1' }, { reference: 'FP-2', status: 'SUCCESSFUL', amount: 100, type: 'PAYMENT_API', customId: null, callbackId: 'r2' }, { reference: 'FP-3', status: 'SUCCESSFUL', amount: 13450, type: 'PAYMENT_API', customId: null, callbackId: 'inconnu' }];
+    status.next = { status: 'SUCCESSFUL', reference: 'FP-1', amount: 13450 };
+    const r: any = await reconcileFiat(true); expect(r.linked).toBe(1);
+    expect(store['fiat_orders/r1']).toMatchObject({ status: 'fulfilled', reference: 'FP-1' }); expect(store['balances/u9'].scarab_credit).toBe(20_000_000); expect(store['fiat_orders/r2'].status).toBe('unknown');
+    await reconcileFiat(true); expect(store['balances/u9'].scarab_credit).toBe(20_000_000);
+  });
+  it('commande connue restée en attente alors que l’historique la montre réussie : revérifiée et créditée', async () => {
+    store['balances/u8'] = {}; order('r3', { merchantId: 'u8' }); hist.rows = [{ reference: 'ref_r3', status: 'SUCCESSFUL', amount: 13450, type: 'PAYMENT_API', customId: null, callbackId: 'r3' }]; status.next = { status: 'SUCCESSFUL', reference: 'ref_r3', amount: 13450 };
+    await reconcileFiat(true); expect(store['fiat_orders/r3'].status).toBe('fulfilled'); expect(store['balances/u8'].scarab_credit).toBe(20_000_000);
+  });
+  it('si le statut à la source n’est pas réussi, rien n’est crédité malgré l’historique', async () => {
+    store['balances/u7'] = {}; order('r4', { merchantId: 'u7' }); hist.rows = [{ reference: 'ref_r4', status: 'SUCCESSFUL', amount: 13450, type: 'PAYMENT_API', customId: null, callbackId: 'r4' }]; status.next = { status: 'PENDING', reference: 'ref_r4', amount: null };
+    await reconcileFiat(true); expect(store['fiat_orders/r4'].status).toBe('awaiting'); expect(store['balances/u7']).toEqual({});
   });
 });

@@ -8,5 +8,6 @@ export const FIAT_ERR: Record<string, string> = {
   payment_rejected: 'Le paiement a été refusé par l’opérateur. Vérifiez le numéro et le solde, puis réessayez.', payment_failed: 'Le paiement a échoué. Vous n’avez pas été débité.',
   provider_unavailable: 'Le service de paiement ne répond pas. Réessayez dans quelques instants.', provider_error: 'Le service de paiement a renvoyé une réponse inattendue. Vous n’avez pas été débité.',
   provider_timeout: 'Le service de paiement n’a pas répondu. Si vous avez été débité, contactez le support avec l’heure et le numéro utilisé.', reference_conflict: 'Conflit de paiement : contactez le support.',
+  network_unavailable: 'Ce réseau de paiement est momentanément indisponible. Essayez un autre moyen ou la crypto.', amount_invalid: 'Montant refusé par le moyen de paiement : modifiez le montant.', duplicate_payment: 'Un paiement identique est déjà en cours.', provider_busy: 'Trop de demandes. Réessayez dans une minute.',
   not_awaiting_code: 'Cette demande n’attend plus de code.', amount_mismatch: 'Le montant demandé par l’opérateur ne correspond pas : paiement annulé.',
 };

@@ -6,7 +6,7 @@ import { usd } from '@/components/Bits';
 import { Err } from '@/components/Wizard';
 // Dépôt par mobile money ou virement bancaire (FeexPay), pour les cartes virtuelles (scope « cards ») et les Virtuals cards pro (scope « scarab »).
 // Le montant en monnaie locale est calculé par le serveur ; le crédit est exactement le montant en dollars (= USDT) demandé.
-const TERMINAL = ['fulfilled', 'failed', 'expired', 'rejected', 'closed', 'review'];
+const TERMINAL = ['fulfilled', 'failed', 'expired', 'rejected', 'closed', 'review', 'unknown'];
 export default function FiatPay({ scope, amount, onDone, onStage }: { scope: 'cards' | 'scarab'; amount: string; onDone?: () => void; onStage?: (s: 'choose' | 'pay' | 'done') => void }) {
   const meth = useData(`/api/fiat/methods?scope=${scope}`);
   const [cc, setCc] = useState(''), [mid, setMid] = useState(''), [phone, setPhone] = useState(''), [otp, setOtp] = useState(''), [bank, setBank] = useState(''), [e, setE] = useState(''), [busy, setBusy] = useState(false);
@@ -39,6 +39,7 @@ export default function FiatPay({ scope, amount, onDone, onStage }: { scope: 'ca
   }
   if (po.status === 'fulfilled') return <p className="okm" role="status">Paiement reçu : {usd(po.creditUsd)} ({Number(po.usdt).toFixed(2)} USDT) ont été crédités. Vous pouvez maintenant payer votre carte.</p>;
   if (po.status === 'review') return <p className="mut" role="status">Paiement reçu, en cours de vérification par notre équipe. Votre crédit sera ajouté dès validation.</p>;
+  if (po.status === 'unknown') return <p className="mut" role="status">Le service de paiement n’a pas répondu. Si vous avez reçu une demande de paiement et validé, votre crédit sera ajouté automatiquement après vérification ; sinon, vous n’avez pas été débité et vous pouvez réessayer.</p>;
   if (po.status === 'failed' || po.status === 'rejected') return <Err m={msg({ message: po.error ?? 'payment_failed' })} />;
   if (po.status === 'expired' || po.status === 'closed') return <p className="err" role="alert">Cette demande a expiré. Si vous avez payé, le crédit sera ajouté automatiquement dès réception : sinon contactez le support avec le numéro utilisé.</p>;
   if (po.status === 'otp') return <div className="stack"><p className="mut" style={{ margin: 0 }}>Un code vous a été envoyé par SMS. Saisissez-le pour confirmer le paiement de <b>{po.localText} {po.label}</b>.</p>

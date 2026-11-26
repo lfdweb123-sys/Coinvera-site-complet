@@ -55,6 +55,7 @@ async function uniqueExpected(c: Cur, need: number) {
   const k = 10n ** BigInt(c.decimals - 6);     // 1 unité interne (1e-6 USD) = k unités de la monnaie
   const taken = new Set<string>();
   for (const col of ['scarab_pay_orders', 'card_pay_orders', 'crypto_orders']) (await db.collection(col).where('cur', '==', c.id).where('status', '==', 'awaiting').get()).docs.forEach(d => taken.add(String(d.data().expected)));
+  (await db.collection('scarab_pay_orders').where('cur', '==', c.id).where('status', '==', 'expired').get()).docs.forEach(d => taken.add(String(d.data().expected)));   // dépôts expirés encore surveillés (période de grâce)
   let expected = 0n;                           // centimes aléatoires (jusqu'à 0,009 $) : deux commandes en attente n'ont jamais le même montant
   for (let i = 0; i < 30; i++) { const e = BigInt(need) * k + BigInt(crypto.randomInt(1, 9001)) * k; if (!taken.has(e.toString()) && await reserveAmount('scarab', c.id, e.toString(), Date.now() + 8 * 24 * 3600_000)) { expected = e; break; } }
   if (!expected) throw new HttpError(503, 'network_unavailable');
@@ -72,6 +73,7 @@ export async function createPayOrder(uid: string, curId: string, spec: Spec) {
 
 // Dépôt seul (comme les cartes standard) : l'USDT reçu alimente le CRÉDIT CARTES PRO de l'utilisateur, utilisable uniquement pour créer ou recharger une carte (jamais retirable).
 // L'utilisateur envoie le montant + une petite majoration (taux de conversion du prestataire + centimes d'unicité) : le crédit est exactement le montant demandé.
+export const DEPOSIT_GRACE_MS = 7 * 24 * 3600_000;
 export const DEPOSIT_MIN = 5, DEPOSIT_MAX = 10_000;
 export async function createDepositOrder(uid: string, curId: string, amount: string) {
   const c = byId(curId), address = c ? (await depositAddresses())[c.id] : undefined; if (!c || !SCARAB_PAY.includes(c.id) || !address) throw new HttpError(400, 'currency_unavailable');
@@ -105,20 +107,23 @@ export async function fulfillPayOrder(id: string) {
 }
 
 export async function checkPayOrder(uid: string | null, id: string) {
-  const ref = db.doc(`scarab_pay_orders/${id}`); const o = (await ref.get()).data();
+  const ref = db.doc(`scarab_pay_orders/${id}`); let o = (await ref.get()).data();
   if (!o || (uid && o.merchantId !== uid)) throw new HttpError(404, 'not_found');
   if (o.status === 'paid') { await fulfillPayOrder(id).catch(e => warn('scarab.fulfill_failed', { payOrderId: id, message: (e as Error).message })); return payView(id, (await ref.get()).data()!); }
-  if (o.status !== 'awaiting') return payView(id, o);
-  if (o.expiresAt < Date.now()) { await ref.update({ status: 'expired' }); return payView(id, { ...o, status: 'expired' }); }
+  if (o.status !== 'awaiting' && !(o.status === 'expired' && o.deposit)) return payView(id, o);
+  const now = Date.now();
+  // Dépôt seul : un paiement arrivé après les 60 minutes est quand même crédité pendant 7 jours (montant exact unique, donc sans ambiguïté). Les commandes d'achat gardent la validité de 60 min (devis figé).
+  if (o.status === 'awaiting' && o.expiresAt < now) { await ref.update({ status: 'expired' }); o = { ...o, status: 'expired' }; if (!o.deposit) return payView(id, o); }
+  if (o.status === 'expired' && o.createdAt + DEPOSIT_GRACE_MS < now) { await ref.update({ status: 'closed' }); return payView(id, { ...o, status: 'closed' }); }
   const c = byId(o.cur)!; let hits;
   try { hits = await scanIncoming(c, o.address, o.createdAt - 120_000); } catch { throw new HttpError(502, 'network_unavailable'); }
   const hit = hits.find(h => h.confirmed && h.amount === BigInt(o.expected) && h.ts >= o.createdAt - 120_000);
   if (!hit) return payView(id, o);
   try {
     await db.runTransaction(async tx => {
-      const cur = (await tx.get(ref)).data(); if (!cur || cur.status !== 'awaiting') return;
+      const cur = (await tx.get(ref)).data(); if (!cur || (cur.status !== 'awaiting' && !(cur.status === 'expired' && cur.deposit))) return;
       tx.create(db.doc(`used_txids/${o.cur}_${hit.txid}`), { payOrderId: id, scope: 'scarab', createdAt: Date.now() });   // un même transfert ne paie jamais deux fois
-      tx.update(ref, { status: 'paid', txid: hit.txid, paidAt: Date.now() });
+      tx.update(ref, { status: 'paid', txid: hit.txid, paidAt: Date.now(), ...(cur.status === 'expired' ? { late: true } : {}) });
     });
   } catch { throw new HttpError(409, 'tx_already_used'); }
   await fulfillPayOrder(id).catch(e => warn('scarab.fulfill_failed', { payOrderId: id, message: (e as Error).message }));

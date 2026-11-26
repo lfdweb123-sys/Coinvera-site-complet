@@ -3,13 +3,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import QRCode from 'qrcode';
 import { CopyRow } from '@/components/CopyBtn';
-import { CreditCard, Eye, Plus, Snowflake, Trash2, ShieldCheck, KeyRound } from 'lucide-react';
+import { Eye, Plus, Snowflake, Trash2, ShieldCheck, KeyRound } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
 import CardArt, { KIND_LABEL, kindOf } from '@/components/CardArt';
 import { byId, networkWarning } from '@/lib/cryptos';
 import { PageHead, usd, day, Empty } from '@/components/Bits';
 import { Err, Modal, Nav, Stepper } from '@/components/Wizard';
 import FiatPay from '@/components/FiatPay';
+import ProCard from '@/components/ProCard';
+import { CardsList } from '@/components/ProCards';
 const ST: Record<string, string> = { issuing: 'En création', active: 'Active', frozen: 'Gelée', suspended: 'Suspendue', closed: 'Fermée', expired: 'Expirée' };
 const OS: Record<string, string> = { reserved: 'En cours', processing: 'En cours', confirmed: 'Terminée', failed: 'Échouée' };
 const AMT = /^\d{1,6}(\.\d{1,2})?$/;
@@ -102,15 +104,17 @@ function Checkout({ kind, product, card, kyc, minAmount, onClose, onDone, onDepo
   {key === 'recap' && <Nav onBack={back} onNext={next} next="Continuer vers le paiement" disabled={!q} />}
   {key === 'pay' && (mode === '' ? <Nav onBack={back} /> : stage === 'choose' ? <Nav onBack={() => setMode('')} /> : null)}</Modal>;
 }
-function CardModal({ c, onClose, onChange }: { c: any; onClose: () => void; onChange: () => void }) {
+function CardModal({ c, product, canTopup, onTopup, onClose, onChange }: { c: any; product?: string; canTopup: boolean; onTopup: () => void; onClose: () => void; onChange: () => void }) {
   const det = useData(`/api/cards/${c.id}`), tx = useData(`/api/cards/${c.id}/transactions`); const [url, setUrl] = useState(''), [e, setE] = useState(''), [otp, setOtp] = useState<any>(null), [cq, setCq] = useState<any>(null), [busy, setBusy] = useState(false);
   const d = det.data; const run = async (f: () => Promise<any>) => { setE(''); setBusy(true); try { await f(); } catch (x) { setE(msg(x)); } setBusy(false); };
   return <Modal title={`Carte •••• ${c.last4 ?? ''}`} onClose={onClose}><div className="stack">
+    <ProCard product={product ?? c.productName} name={c.nameOnCard ?? d?.nameOnCard} last4={c.last4} expiry={d?.expire} frozen={d?.status === 'frozen'} />
     {d && <div className="kv"><div>Statut <b>{ST[d.status] ?? d.status}</b></div><div>Solde disponible <b>{usd(d.balance)}</b></div>{d.expire && <div>Expire <b>{d.expire}</b></div>}</div>}
     <Err m={e || det.error} />
     {d?.status === 'active' || d?.status === 'frozen' ? <div className="btns">
       <button className="btn" disabled={busy} onClick={() => run(async () => { const r = await api(`/api/cards/${c.id}/reveal`, { method: 'POST' }); setUrl(r.revealUrl ?? ''); })}><Eye size={15} /> Voir la carte</button>
       <button className="btn" disabled={busy} onClick={() => run(async () => { await api(`/api/cards/${c.id}/freeze`, { method: 'POST', body: JSON.stringify({ action: d.status === 'frozen' ? 'unfreeze' : 'freeze' }) }); det.reload(); onChange(); })}><Snowflake size={15} /> {d.status === 'frozen' ? 'Dégeler' : 'Geler'}</button>
+      {d?.status === 'active' && <button className="btn" disabled={!canTopup} title={canTopup ? undefined : 'Rechargez votre crédit cartes avant de recharger'} onClick={onTopup}>Recharger</button>}
       <button className="btn" disabled={busy} onClick={() => run(async () => setOtp(await api(`/api/cards/${c.id}/otp`)))}><KeyRound size={15} /> Code de vérification{c.otpWaiting ? ' •' : ''}</button></div> : null}
     {url && /^https:\/\//.test(url) && <iframe src={url} title="Détails de la carte" referrerPolicy="no-referrer" allow="clipboard-write" style={{ display: 'block', width: '100%', maxWidth: 400, aspectRatio: '1.589/1', border: 0, borderRadius: 14, colorScheme: 'light' }} />}
     {otp && (otp.available ? <p role="status">Code <b style={{ fontSize: 22, letterSpacing: 2 }}>{otp.code}</b>{otp.merchantName ? ` — ${otp.merchantName}` : ''}{otp.amount ? ` ${otp.amount} ${otp.currency ?? ''}` : ''}. Valable {Math.round((otp.expiresIn ?? 0) / 60)} min, affiché une seule fois.</p> : <p className="mut">Aucun code en attente.</p>)}
@@ -151,18 +155,14 @@ export default function Cards() {
     {d.data && !h?.registered && <Onboard onDone={reload} />}
     {h?.registered && <>
       <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}><span>Crédit cartes <b>{usd(d.data?.credit)}</b> · solde Coinvera <b>{usd(d.data?.balance)}</b><br /><small className="mut">Les frais d’émission et de recharge sont affichés avant chaque paiement. Le crédit cartes est dépensé en premier.</small>{noFunds ? <><br /><b role="status" style={{ color: 'var(--warn)' }}>Rechargez votre crédit cartes ou ajoutez du solde avant de créer ou recharger une carte : ces boutons sont désactivés tant que vous n’avez aucun solde.</b></> : <><br /><small className="mut">Avant de créer ou recharger une carte, vérifiez que votre crédit cartes ou votre solde couvre le total.</small></>}</span><button className="btn" onClick={() => setM({ t: 'deposit' })}>Recharger mon crédit cartes</button></div>
-      {d.data.cards.length ? <div className="g2">{d.data.cards.map((c: any) => <button key={c.id} className="card" style={{ textAlign: 'left', cursor: 'pointer' }} onClick={() => setM({ t: 'card', c })}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}><CreditCard size={22} /><span className={'badge ' + (c.status === 'active' ? 'ok' : 'info')}>{ST[c.status] ?? c.status}{c.closing ? ' (fermeture)' : ''}</span></div>
-        <h3 style={{ margin: '12px 0 2px' }}>•••• {c.last4 ?? '····'}</h3><p className="mut" style={{ margin: 0 }}>{c.nameOnCard ?? 'Carte virtuelle'}</p>
-        <p style={{ margin: '8px 0 0' }}><b>{c.balance != null ? usd(c.balance) : '—'}</b>{c.otpWaiting ? ' · code en attente' : ''}{c.refundPending && c.status === 'closed' ? (c.advanced ? ' · solde crédité, ajustement à venir' : ' · remboursement en cours') : ''}</p>
-        {c.status === 'active' && <span className="btn" role="button" tabIndex={0} style={{ marginTop: 8 }} aria-disabled={noFunds} title={noFunds ? 'Rechargez votre crédit cartes avant de recharger' : undefined} onClick={ev => { ev.stopPropagation(); if (!noFunds) setM({ t: 'topup', c }); }} onKeyDown={ev => { if (ev.key === 'Enter') { ev.stopPropagation(); if (!noFunds) setM({ t: 'topup', c }); } }}>Recharger</span>}</button>)}</div>
+      {d.data.cards.length ? <CardsList cards={d.data.cards.map((c: any) => ({ ...c, status: ({ issuing: 'pending', closed: 'terminated', suspended: 'frozen' } as Record<string, string>)[c.status] ?? c.status, productName: prod(c.productCode)?.title ?? 'Carte virtuelle', terminating: !!c.closing }))} onOpen={(c: any) => setM({ t: 'card', c })} />
         : <Empty title="Aucune carte pour le moment" hint="Créez votre première carte virtuelle en quelques minutes." />}
       <h2>Opérations récentes</h2>
       {d.data.orders.length ? <div className="card stack">{d.data.orders.map((o: any) => <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{o.kind === 'issue' ? 'Nouvelle carte' : 'Recharge'} · {OS[o.status] ?? o.status}{o.status === 'failed' ? ' (remboursée)' : ''}<br /><small className="mut">{o.createdAt ? day(new Date(o.createdAt).toISOString()) : ''}</small></span><b>{usd(o.total)}</b></div>)}</div> : <p className="mut">Aucune opération.</p>}</>}
     {m?.t === 'issue' && <IssuePicker products={products} kyc={h?.kycStatus} onClose={close} onDone={() => { reload(); }} onDeposit={(a: number) => setM({ t: 'deposit', amount: a })} />}
     {m?.t === 'topup' && <Checkout kind="topup" card={m.c} minAmount={prod(m.c.productCode)?.rechargeMin ?? 5} onClose={close} onDone={reload} onDeposit={(a: number) => setM({ t: 'deposit', amount: a })} />}
     {m?.t === 'deposit' && <Deposit amount={m.amount} onClose={close} onDone={reload} />}
-    {m?.t === 'card' && <CardModal c={m.c} onClose={close} onChange={reload} />}
+    {m?.t === 'card' && <CardModal c={m.c} product={prod(m.c.productCode)?.title} canTopup={!noFunds} onTopup={() => setM({ t: 'topup', c: m.c })} onClose={close} onChange={reload} />}
   </>;
 }
 function IssuePicker({ products, kyc, onClose, onDone, onDeposit }: any) {

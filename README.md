@@ -67,3 +67,10 @@ Sources dans `plugins/coinvera-<nom>/` ; pages de présentation `/dons`, `/factu
 ## Réseaux sociaux du pied de page
 
 Collez les adresses complètes dans `SOCIALS` (fichier `lib/site.ts`). Un réseau laissé vide n'est pas affiché.
+
+## Numéros virtuels (ProxNum)
+Page publique `/proxnum`, page utilisateur `/dashboard/proxnum` (numéro temporaire + location), paiement **uniquement avec le solde disponible**. Code : `lib/proxnum/` (client API, prix, commandes), routes `app/api/proxnum/*`.
+Configuration : `PROXNUM_API_KEY` (clé revendeur, serveur uniquement), marge `PROXNUM_MARKUP_BPS` (défaut 2000 = 20 %) et `PROXNUM_MARKUP_FLAT_USD`. Sans clé, le module est inactif.
+Comptabilité (partie double) : réservation disponible -> `proxnum_reserved` avant l'achat ; succès = coût ProxNum (`central:funds`) + marge (`platform:revenue`) ; échec définitif = fonds rendus ; annulation acceptée = remboursement intégral (une seule fois). Un achat d'issue incertaine (délai dépassé, erreur 5xx) reste réservé (« review ») jusqu'au rapprochement.
+Cron (cron-job.org) : `https://www.coinvera.me/api/cron/proxnum`, toutes les 5 minutes, GET, en-tête `Authorization: Bearer <CRON_SECRET>` ; réponse attendue `{"ok":true,...}`.
+NON TESTE contre l'API réelle : faire un achat de test (numéro temporaire, location, annulation, prolongation) avec un petit solde avant le lancement. Les libellés de pays/services (lib/proxnum/pricing.ts) se limitent aux codes connus ; les autres s'affichent « Pays n° X » / code du service (voir « Codes pays » et « Codes service » de ProxNum).

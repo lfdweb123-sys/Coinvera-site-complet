@@ -64,7 +64,7 @@ export function CardDrawer({ c, canTopup, billing, onClose, onChange, onTopup }:
   useEffect(() => { if (!menu) return; const h = (ev: MouseEvent) => { if (!menuRef.current?.contains(ev.target as Node)) setMenu(false); }; document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h); }, [menu]);
   useEffect(() => { if (!shown || shown.type !== 'details') return; const t = setTimeout(() => setShown(null), 60_000); return () => clearTimeout(t); }, [shown]);   // numéro et code ne restent jamais affichés plus d'une minute
   const close = () => { setShown(null); setOtp(null); onClose(); };
-  const addr = (billing ?? '').split('\n').map(l => l.trim()).filter(Boolean);
+  const addr: string[] = String(shown?.billing ?? d.billing ?? billing ?? '').split('\n').map((l: string) => l.trim()).filter(Boolean);
   const item = (Icon: any, label: string, on: () => void, extra?: { disabled?: boolean; title?: string; dot?: boolean }) => <button type="button" role="menuitem" className="dw-mi" disabled={extra?.disabled} title={extra?.title} onClick={() => { setMenu(false); on(); }}><Icon size={18} aria-hidden /> <span>{label}</span>{extra?.dot && <i className="dw-dot" aria-label="en attente" />}</button>;
   return <div className="dw-ov" onMouseDown={ev => ev.target === ev.currentTarget && close()}><aside className="dw" role="dialog" aria-modal="true" aria-label={`Carte de ${who(d)} se terminant par ${d.last4 ?? ''}`}>
     <div className="dw-top"><StatusPill s={d.status} /><button ref={closeBtn} type="button" className="dw-x" aria-label="Fermer" onClick={close}><X size={22} aria-hidden /></button></div>

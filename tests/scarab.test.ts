@@ -142,3 +142,19 @@ describe('dépenses du mois d\'une carte virtuelle standard', () => {
     expect(sumSpentStd([tx(170, '2', '4', '2026-11-02T00:00:00Z'), tx(170, '2', '50', '2026-10-31T23:00:00Z')], start)).toEqual({ cents: 400, older: true });
   });
 });
+
+// Adresse de facturation : lecture tolérante de la réponse « détails » de la carte (le champ n'est pas nommé dans la documentation publique).
+import { billingOf } from '@/lib/scarab/cards';
+describe('adresse de facturation d\'une carte', () => {
+  it('lit une adresse structurée, quelle que soit la casse des clés usuelles', () => {
+    expect(billingOf({ billing_address: { line1: '3401 N. Miami Ave. Ste 230', city: 'Miami', state: 'Florida', postal_code: '33127', country: 'United States' } })).toBe('3401 N. Miami Ave. Ste 230\nMiami, Florida 33127\nUnited States');
+    expect(billingOf({ address: { street: '1 Main St', line2: 'Apt 2', city: 'Lagos', zip: '101241', country_name: 'Nigeria' } })).toBe('1 Main St Apt 2\nLagos 101241\nNigeria');
+  });
+  it('lit une adresse en texte (lignes séparées par un retour ou une barre)', () => {
+    expect(billingOf({ billing_address: '3401 N. Miami Ave. Ste 230 | Miami, Florida 33127 | United States' })).toBe('3401 N. Miami Ave. Ste 230\nMiami, Florida 33127\nUnited States');
+  });
+  it('renvoie null sans adresse, et nettoie les balises', () => {
+    expect(billingOf({})).toBeNull(); expect(billingOf({ billing_address: {} })).toBeNull(); expect(billingOf(null)).toBeNull();
+    expect(billingOf({ billing_address: '<b>1 rue</b>\nParis' })).toBe('b 1 rue /b\nParis');
+  });
+});

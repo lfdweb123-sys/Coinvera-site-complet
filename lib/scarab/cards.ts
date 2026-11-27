@@ -33,7 +33,7 @@ const monthKey = (d = new Date()) => d.toISOString().slice(0, 7);   // « 2026-1
 // Titulaire affiché : toujours celui que renvoie l'API de la carte (cardholder_name, lu à l'ouverture des détails puis conservé : seul le nom est gardé, jamais le numéro ni le code). Repli avant la première lecture : nom donné à l'émission, puis nom du dossier d'identité.
 export const holderOf = (c: Record<string, any>, cust?: Record<string, any> | null) => String(c.holderName ?? '').trim() || String(c.nameOnCard ?? '').trim() || [cust?.firstName, cust?.lastName].map(x => String(x ?? '').trim()).filter(Boolean).join(' ') || null;
 export const cardView = (c: Record<string, any>, cust?: Record<string, any> | null) => ({ holderName: holderOf(c, cust), spentMonth: c.statsMonth === monthKey() && c.spentMinor != null ? (c.spentMinor / 100).toFixed(2) : null, id: c.cardId, last4: c.last4, status: c.status, nameOnCard: c.nameOnCard, productId: c.productId, balance: c.balanceMinor != null ? (c.balanceMinor / 100).toFixed(2) : null, expiry: c.expiry,
-  declineCount: c.declineCount ?? 0, codeWaiting: !!c.codeWaiting, terminating: !!c.terminateRequestedAt && !['terminated', 'expired'].includes(c.status), issuedAt: c.issuedAt });
+  declineCount: c.declineCount ?? 0, codeWaiting: !!c.codeWaiting, terminating: !!c.terminateRequestedAt && !['terminated', 'expired'].includes(c.status), issuedAt: c.issuedAt, billing: c.billing ?? null });
 
 // Dépenses du mois en cours : achats réglés moins remboursements, d'après les opérations rapportées par le réseau carte. Calcul mis en cache sur la carte (10 min) ; 5 pages d'opérations au plus.
 // Somme des achats réglés moins les remboursements depuis `startMs` ; `older` = une opération antérieure à cette date a été vue (inutile de lire les pages suivantes, la liste est triée du plus récent au plus ancien).
@@ -61,11 +61,21 @@ export async function listCards(uid: string, cust?: Record<string, any> | null) 
 export const liveCount = async (uid: string) => (await db.collection('scarab_cards').where('merchantId', '==', uid).get()).docs.filter(d => LIVE.includes(d.data().status)).length;
 
 // Détails complets (numéro, code, date) : seulement à l'ouverture de la carte, jamais stockés ni journalisés. Une carte Platinum renvoie une page sécurisée (secure_view_url) valable ~1 minute.
+// Adresse de facturation propre à la carte, si le prestataire la renvoie dans les détails (le support indique qu'elle y figure ; la documentation publique ne nomme pas ce champ, donc lecture tolérante).
+export function billingOf(d: any): string | null {
+  const v = d?.billing_address ?? d?.billingAddress ?? d?.billing ?? d?.address ?? null; if (!v) return null;
+  const clean = (t: unknown) => String(t ?? '').replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  if (typeof v === 'string') return v.split(/\n|\|/).map(clean).filter(Boolean).join('\n').slice(0, 300) || null;
+  if (typeof v !== 'object') return null;
+  const g = (...k: string[]) => clean(k.map(x => v[x]).find(Boolean)), l1 = [g('line1', 'address_line_1', 'street', 'address1'), g('line2', 'address_line_2', 'address2')].filter(Boolean).join(' '), zip = g('postal_code', 'zip', 'zip_code', 'postcode');
+  const l2 = [[g('city'), g('state', 'region')].filter(Boolean).join(', '), zip].filter(Boolean).join(' '), l3 = g('country', 'country_name');
+  return [l1, l2, l3].filter(Boolean).join('\n') || null;
+}
 export async function cardDetails(uid: string, id: string) {
   await ownedCard(uid, id); const d = (await spx('GET', `/cards/${id}/details`)).data ?? {};
-  const hn = String(d.cardholder_name ?? '').trim(); if (hn) await cardRef(id).set({ holderName: hn.slice(0, 80), holderAt: Date.now() }, { merge: true }).catch(() => {});
-  return d.type === 'secure_view' ? { type: 'secure_view', url: d.secure_view_url ?? null, expiresAt: d.secure_view_expires_at ?? null, name: d.cardholder_name ?? null }
-    : { type: 'details', pan: d.pan ?? null, cvv: d.security_code ?? null, expiry: d.expiry ?? null, name: d.cardholder_name ?? null };
+  const hn = String(d.cardholder_name ?? '').trim(), bill = billingOf(d); if (hn || bill) await cardRef(id).set({ ...(hn ? { holderName: hn.slice(0, 80), holderAt: Date.now() } : {}), ...(bill ? { billing: bill } : {}) }, { merge: true }).catch(() => {});
+  return d.type === 'secure_view' ? { type: 'secure_view', url: d.secure_view_url ?? null, expiresAt: d.secure_view_expires_at ?? null, name: d.cardholder_name ?? null, billing: bill }
+    : { type: 'details', pan: d.pan ?? null, cvv: d.security_code ?? null, expiry: d.expiry ?? null, name: d.cardholder_name ?? null, billing: bill };
 }
 export async function freezeCard(uid: string, id: string, action: 'freeze' | 'unfreeze') {
   await ownedCard(uid, id); const c = (await spx('POST', `/cards/${id}/${action}`)).data; if (c?.id) await cardRef(id).set(cardPatch(c), { merge: true });

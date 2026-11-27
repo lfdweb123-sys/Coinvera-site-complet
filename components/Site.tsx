@@ -12,7 +12,7 @@ import InstallApp from '@/components/InstallApp';
 import PublicChat from '@/components/PublicChat';
 import { useAuthUser } from '@/lib/client';
 import { DOCS, HELP, SITE, STATUS } from '@/lib/site';
-const L = [['#produits', 'Produits'], ['/features', 'Fonctionnalités'], ['/cartes', 'Cartes'], ['/pricing', 'Tarification'], ['/plugins', 'Plugins'], [DOCS, 'Documentation'], ['/contact', 'Contact']];
+const L = [['#produits', 'Produits'], ['/features', 'Fonctionnalités'], ['/cartes', 'Cartes bancaires virtuelles'], ['/pricing', 'Tarification'], ['/plugins', 'Plugins'], [DOCS, 'Documentation'], ['/contact', 'Contact']];
 // Depuis docs.*, status.* ou helpcenter.*, un lien relatif (/pricing) resterait sur le sous-domaine, où il est réécrit vers la page du sous-domaine :
 // les liens internes du header et du footer pointent donc vers le site principal, page exacte comprise. Sur le site principal (ou en local) ils restent relatifs.
 // Sous-menus du header : la clé est un lien du menu principal, la valeur la liste de ses sous-liens (aussi affichés en retrait dans le menu mobile).

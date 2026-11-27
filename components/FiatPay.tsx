@@ -7,7 +7,7 @@ import { Err } from '@/components/Wizard';
 // Dépôt par mobile money ou virement bancaire (FeexPay), pour les cartes virtuelles (scope « cards ») et les Virtuals cards pro (scope « scarab »).
 // Le montant en monnaie locale est calculé par le serveur ; le crédit est exactement le montant en dollars (= USDT) demandé.
 const TERMINAL = ['fulfilled', 'failed', 'expired', 'rejected', 'closed', 'review', 'unknown'];
-export default function FiatPay({ scope, amount, onDone, onStage }: { scope: 'cards' | 'scarab'; amount: string; onDone?: () => void; onStage?: (s: 'choose' | 'pay' | 'done') => void }) {
+export default function FiatPay({ scope, amount, onDone, onStage }: { scope: 'cards' | 'scarab' | 'balance'; amount: string; onDone?: () => void; onStage?: (s: 'choose' | 'pay' | 'done') => void }) {
   const meth = useData(`/api/fiat/methods?scope=${scope}`);
   const [cc, setCc] = useState(''), [mid, setMid] = useState(''), [phone, setPhone] = useState(''), [otp, setOtp] = useState(''), [bank, setBank] = useState(''), [e, setE] = useState(''), [busy, setBusy] = useState(false);
   const [q, setQ] = useState<any>(null), [banks, setBanks] = useState<{ code: string; name: string }[]>([]), [po, setPo] = useState<any>(null), [code, setCode] = useState('');
@@ -37,7 +37,7 @@ export default function FiatPay({ scope, amount, onDone, onStage }: { scope: 'ca
       {m?.flow === 'bank_redirect' && <><label htmlFor="fb">Votre banque</label><select id="fb" className="in" value={bank} onChange={x => setBank(x.target.value)}><option value="">Choisir…</option>{banks.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}</select></>}
       <Err m={e} /><button className="btn p" disabled={!ready || busy} onClick={submit}>{busy ? 'Envoi…' : 'Payer'}</button></div>;
   }
-  if (po.status === 'fulfilled') return <p className="okm" role="status">Paiement reçu : {usd(po.creditUsd)} ({Number(po.usdt).toFixed(2)} USDT) ont été crédités. Vous pouvez maintenant payer votre carte.</p>;
+  if (po.status === 'fulfilled') return <p className="okm" role="status">Paiement reçu : {usd(po.creditUsd)} ({Number(po.usdt).toFixed(2)} USDT) ont été crédités. {scope === 'balance' ? 'Ils sont disponibles sur votre solde.' : 'Vous pouvez maintenant payer votre carte.'}</p>;
   if (po.status === 'review') return <p className="mut" role="status">Paiement reçu, en cours de vérification par notre équipe. Votre crédit sera ajouté dès validation.</p>;
   if (po.status === 'unknown') return <p className="mut" role="status">Le service de paiement n’a pas répondu. Si vous avez reçu une demande de paiement et validé, votre crédit sera ajouté automatiquement après vérification ; sinon, vous n’avez pas été débité et vous pouvez réessayer.</p>;
   if (po.status === 'failed' || po.status === 'rejected') return <Err m={msg({ message: po.error ?? 'payment_failed' })} />;

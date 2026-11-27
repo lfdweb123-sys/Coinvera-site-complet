@@ -17,8 +17,11 @@ import { banks, bmoCancel, bmoConfirm, buildBody, feexConfigured, history, initi
 // Dépôts en mobile money / virement (FeexPay) pour les cartes virtuelles (scope « cards ») et les Virtuals cards pro (scope « scarab »), uniquement.
 // Le montant crédité est exactement celui demandé, en dollars, sur le crédit réservé aux cartes (jamais retirable). Il sert ensuite à acheter une carte ou à la recharger.
 // Collection fiat_orders ; la référence FeexPay est réservée une seule fois (fiat_refs) : un même paiement ne peut jamais créditer deux commandes.
-export type Scope = 'cards' | 'scarab';
-export const BUCKET: Record<Scope, string> = { cards: 'card_credit', scarab: 'scarab_credit' };
+export type Scope = 'cards' | 'scarab' | 'balance';
+// « balance » : recharge du solde Coinvera (disponible, retirable). « cards » et « scarab » : crédits réservés aux cartes (jamais retirables).
+export const BUCKET: Record<Scope, string> = { cards: 'card_credit', scarab: 'scarab_credit', balance: 'available' };
+export const SCOPE_NAME: Record<Scope, string> = { cards: 'Cartes virtuelles', scarab: 'Virtuals cards pro', balance: 'Solde Coinvera' };
+export const BALANCE_MIN = 5, BALANCE_MAX = 10_000;
 export const VALID_MS = 30 * 60_000, BMO_MS = 3 * 60_000, WATCH_MS = 24 * 3600_000, MAX_PENDING = 5;
 const END = ['fulfilled', 'failed', 'rejected', 'closed', 'review', 'unknown'];
 const ref = (id: string) => db.doc(`fiat_orders/${id}`);
@@ -44,7 +47,7 @@ async function alertAdmin(id: string, kind: 'credited' | 'review') {
     const o = (await ref(id).get()).data(); if (!o) return; const m = methodById(o.methodId);
     const who = (await merchantEmail(o.merchantId).catch(() => '')) || o.merchantId;
     const usdt = (o.creditUnits ?? 0) / 1e6, recv = (o.local * (1 - (o.feeBps ?? 0) / 10_000)) / (o.liveRate ?? o.rate);
-    const rows: [string, string][] = [['Utilisateur', who], ['Service', o.scope === 'scarab' ? 'Virtuals cards pro' : 'Cartes virtuelles'], ['Moyen', `${m?.name ?? o.methodId} (${m?.country ?? o.cc})`], ['Montant payé', `${fmtLocal(o.local)} ${o.label}`],
+    const rows: [string, string][] = [['Utilisateur', who], ['Service', SCOPE_NAME[o.scope as Scope] ?? 'Cartes virtuelles'], ['Moyen', `${m?.name ?? o.methodId} (${m?.country ?? o.cc})`], ['Montant payé', `${fmtLocal(o.local)} ${o.label}`],
       ['Crédit utilisateur', `${usdt.toFixed(2)} $ (= ${usdt.toFixed(2)} USDT)`], ['À convertir en USDT (estimation, après frais)', `${recv.toFixed(2)} USDT`], ['Gain estimé', `${gainEstimateUsd(o.local, o.liveRate ?? o.rate, o.feeBps ?? 0, o.creditUnits).toFixed(2)} $`], ['Référence', String(o.reference ?? '—')], ['Commande', id]];
     const subject = kind === 'review' ? 'Dépôt mobile money à vérifier' : `Dépôt mobile money : ${fmtLocal(o.local)} ${o.label}`;
     const html = simpleEmail({ title: subject, paragraphs: kind === 'review' ? ['FeexPay annonce un montant inférieur à celui facturé : rien n’a été crédité. Tranchez dans Admin > Paiements mobile money.'] : ['Un dépôt vient d’être crédité à un utilisateur. Les fonds sont sur votre compte FeexPay : pensez à les convertir en USDT pour alimenter le portefeuille des cartes.'], rows, note: 'Alerte automatique Coinvera.' });
@@ -60,12 +63,13 @@ async function mapRef(reference: string, orderId: string) {
 }
 const names = (merchant: Record<string, any>) => { const full = String(merchant?.fullName ?? merchant?.name ?? merchant?.displayName ?? '').trim().replace(/[^\p{L} '-]/gu, ''); const [f, ...r] = full.split(/\s+/); return { firstName: (f || 'Client').slice(0, 30), lastName: (r.join(' ') || 'Coinvera').slice(0, 30) }; };
 const bodyFor = (m: Method, id: string, o: Record<string, any>, merchant: Record<string, any>, email: string | undefined, otp?: string) => {
-  const n = names(merchant); const back = `${SITE}/dashboard/${o.scope === 'scarab' ? 'carte-pro' : 'cards'}?fiat=${id}`;
-  return buildBody(m, { amount: o.local, phone: o.phone ?? undefined, firstName: m.names || m.flow === 'bmo' ? n.firstName : undefined, lastName: m.names || m.flow === 'bmo' ? n.lastName : undefined, email, description: 'Coinvera credit cartes', callbackInfo: id, returnUrl: back, cancelUrl: back, otp, bankCode: o.bankCode });
+  const n = names(merchant); const back = `${SITE}/dashboard/${o.scope === 'scarab' ? 'carte-pro' : o.scope === 'balance' ? 'balances' : 'cards'}?fiat=${id}`;
+  return buildBody(m, { amount: o.local, phone: o.phone ?? undefined, firstName: m.names || m.flow === 'bmo' ? n.firstName : undefined, lastName: m.names || m.flow === 'bmo' ? n.lastName : undefined, email, description: o.scope === 'balance' ? 'Coinvera recharge solde' : 'Coinvera credit cartes', callbackInfo: id, returnUrl: back, cancelUrl: back, otp, bankCode: o.bankCode });
 };
 
 type U = { uid: string; email?: string; merchant: Record<string, any> };
 export async function createFiatOrder(u: U, scope: Scope, methodId: string, amount: string, input: { phone?: string; otp?: string; bankCode?: string }) {
+  if (scope === 'balance' && !(Number(amount) >= BALANCE_MIN && Number(amount) <= BALANCE_MAX)) throw new HttpError(400, 'invalid_amount');
   const { m, s, u: units, live, rate, local } = await quoteFiat(methodId, amount);
   let phone: string | null = null;
   if (needsPhone(m)) { phone = normalizePhone(m, input.phone ?? ''); if (!phone) throw new HttpError(400, 'invalid_phone'); }
@@ -135,7 +139,7 @@ export async function creditFiat(id: string, via: string) {
     writeBal(tx, uid, { ...bal, [b]: (bal[b] ?? 0) + amt });
     tx.update(ref(id), { status: 'fulfilled', creditedUnits: amt, paidAt: Date.now(), via, gainUsd: Number(gainEstimateUsd(o.local, o.liveRate ?? o.rate, o.feeBps ?? 0, amt).toFixed(4)) }); return true;
   });
-  if (ok) { info('fiat.credited', { orderId: id, merchantId: uid, scope, amount: amt, via }); await notify(uid, scope === 'scarab' ? 'Crédit Virtuals cards pro rechargé' : 'Crédit cartes rechargé', `${fromUnits(amt).replace(/0+$/, '').replace(/\.$/, '')} $ ajoutés : vous pouvez maintenant payer votre carte.`).catch(() => {}); await receiptFiatDeposit(id); await alertAdmin(id, 'credited'); }
+  if (ok) { info('fiat.credited', { orderId: id, merchantId: uid, scope, amount: amt, via }); await notify(uid, scope === 'scarab' ? 'Crédit Virtuals cards pro rechargé' : scope === 'balance' ? 'Solde rechargé' : 'Crédit cartes rechargé', scope === 'balance' ? `${fromUnits(amt).replace(/0+$/, '').replace(/\.$/, '')} $ ont été ajoutés à votre solde.` : `${fromUnits(amt).replace(/0+$/, '').replace(/\.$/, '')} $ ajoutés : vous pouvez maintenant payer votre carte.`).catch(() => {}); await receiptFiatDeposit(id); await alertAdmin(id, 'credited'); }
   return ok;
 }
 

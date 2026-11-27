@@ -2,10 +2,12 @@ import { db } from '../firebase-admin';
 import { getSettings } from '../settings';
 import { ARTICLES } from '../help';
 import { SITE, DOCS, STATUS, HELP } from '../site';
+import { updatesBlock } from './updates';
 const pct = (b: number) => String(b / 100).replace('.', ',') + ' %';
 // Prompt système de Coinvera AI : guide de la plateforme + chiffres en direct (tarifs) + contexte du compte de la personne qui écrit.
 export async function systemPrompt(uid: string, m: Record<string, any>) {
   const s = await getSettings(); const bal = (await db.doc(`balances/${uid}`).get().catch(() => null))?.data() ?? {};
+  const news = await updatesBlock('account').catch(() => '');
   const usd = (u: unknown) => typeof u === 'number' ? (u / 1e6).toFixed(2).replace('.', ',') + ' $' : 'inconnu';
   return `Tu es « Coinvera AI », l'assistant intégré au tableau de bord de Coinvera (${SITE}), plateforme de paiement en cryptomonnaies, de retraits et de cartes virtuelles pour les marchands. Réponds toujours dans la langue de l'utilisateur (français par défaut), de façon claire, chaleureuse et professionnelle, en quelques phrases ou une courte liste d'étapes. Utilise le gras pour les noms de menus.
 
@@ -46,6 +48,8 @@ CARTES VIRTUELLES (deux modules séparés)
 - Carte Pro : cartes de l'offre Pro, même logique (création, recharge, gel, vue sécurisée, codes de vérification 3-D Secure et Apple/Google Pay reçus dans la fiche de la carte). Elle permet aussi « Retirer vers mon solde » : minimum 1,00 $, au moins 1,00 $ doit rester sur la carte, un retrait toutes les 5 minutes par carte ; des frais du prestataire sont déduits et le montant net est ajouté au solde Coinvera à la confirmation.
 - Paiement direct en USDT (TRC20 ou BEP20) : une adresse et un montant exact unique (centimes) sont affichés pendant 60 minutes ; il faut envoyer EXACTEMENT ce montant, sur le bon réseau, pour être crédité automatiquement. Les frais de dépôt du prestataire sont inclus dans le montant demandé.
 - Une opération dont le résultat est incertain garde les fonds réservés et est rejouée automatiquement ; sinon un administrateur tranche. Ne promets jamais de délai précis.
+
+${news}
 
 BASE D'AIDE OFFICIELLE
 ${ARTICLES.map(a => `[${a.cat}] ${a.q} → ${a.a}`).join('\n')}`;

@@ -88,6 +88,11 @@ describe('crédit des dépôts', () => {
     order('a2', { scope: 'cards' }); store['balances/u1'] = { available: 0 }; status.next = { status: 'SUCCESSFUL', reference: 'ref_a2', amount: null };
     await checkFiatOrder('u1', 'a2', { force: true }); expect(store['balances/u1']).toMatchObject({ card_credit: 20_000_000 }); expect(store['balances/u1'].scarab_credit).toBeUndefined();
   });
+  it('recharge du solde (balance) : crédit sur le solde disponible, une seule fois', async () => {
+    order('a2b', { scope: 'balance' }); store['balances/u1'] = { available: 3_000_000 }; status.next = { status: 'SUCCESSFUL', reference: 'ref_a2b', amount: null };
+    await checkFiatOrder('u1', 'a2b', { force: true }); expect(store['balances/u1'].available).toBe(23_000_000); expect(store['balances/u1'].card_credit).toBeUndefined();
+    expect(await creditFiat('a2b', 'again')).toBe(false); expect(store['balances/u1'].available).toBe(23_000_000);
+  });
   it('en attente / échec : rien n’est crédité', async () => {
     order('a3'); store['balances/u3'] = { available: 0 }; store['fiat_orders/a3'].merchantId = 'u3'; status.next = { status: 'PENDING', reference: 'ref_a3', amount: null };
     expect((await checkFiatOrder('u3', 'a3', { force: true })).status).toBe('awaiting'); status.next = { status: 'FAILED', reference: 'ref_a3', amount: null };

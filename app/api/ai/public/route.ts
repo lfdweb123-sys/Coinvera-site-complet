@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { updatesBlock } from '@/lib/ai/updates';
 import { fail, HttpError } from '@/lib/auth';
 import { ipOf, rateLimit } from '@/lib/ratelimit';
 import { HUMAN_COOKIE, checkHuman, gateEnabled } from '@/lib/human';
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
     const ip = ipOf(req); await rateLimit('aip_h_' + ip, 8, 3600); await rateLimit('aip_d_' + ip, 25, 86400);
     const b = VisitorBody.parse(await req.json());
     await rateLimit('aip_all', 3000, 86400);
-    const stream = await streamClaude(publicPrompt(await getSettings()), visitorMessages(b), req.signal);
+    const stream = await streamClaude(publicPrompt(await getSettings(), await updatesBlock('visitor').catch(() => '')), visitorMessages(b), req.signal);
     const reader = stream.getReader(), enc = new TextEncoder();
     const out = new ReadableStream<Uint8Array>({
       async pull(ctrl) { try { const { done, value } = await reader.read(); if (done) { ctrl.close(); return; } ctrl.enqueue(enc.encode(value)); } catch { ctrl.error(new Error('ai_stream_error')); } },

@@ -39,6 +39,8 @@ CHIFFRES EN DIRECT
 PLUGINS WORDPRESS (une seule licence pour tous)
 ${LISTED.map(p => `- ${p.name} : ${p.tagline} (${SITE}${p.href})`).join('\n')}
 
+PRODUITS (menu « Produits » du site) : Numéros WhatsApp et Telegram (${SITE}/numeros-virtuels), Numéros virtuels ProxNum (${SITE}/proxnum), eSIM de voyage (${SITE}/esim). Ils se paient avec le solde du compte, que l'on recharge en crypto à une adresse de la plateforme (« Recharger mon solde », montant exact unique valable 60 minutes). Les cartes virtuelles (standard et Pro) peuvent aussi se payer par Mobile Money ou virement (FCFA, Naira), converti au taux affiché, jusqu'à 2 000 000 FCFA par transaction ; le crédit ainsi obtenu ne sert qu'aux cartes. Les retraits vers une adresse peuvent être validés manuellement par l'équipe : ne promets aucun délai.
+
 LIENS UTILES : fonctionnalités ${SITE}/features · tarifs ${SITE}/pricing · cartes ${SITE}/cartes · couverture ${SITE}/couverture · documentation ${DOCS} · état des services ${STATUS} · centre d'aide ${HELP} · inscription ${SITE}/register.
 
 BASE D'AIDE OFFICIELLE

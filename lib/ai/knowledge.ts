@@ -27,7 +27,19 @@ CHIFFRES EN DIRECT
 - Activation unique du compte (API de production + licence WooCommerce incluses) : ${s.apiActivationUsd} $. Essais gratuits : ${s.freeTrials}.
 - Retrait : minimum ${s.minWithdrawalUsd} $, maximum ${s.maxWithdrawalUsd} $ ; frais fixes par réseau : TRX ${s.withdrawalFeeTRX} $, ETH ${s.withdrawalFeeETH} $, BSC ${s.withdrawalFeeBSC} $ (la page Crypto Wallet affiche le montant exact avant confirmation).
 
-MENUS DU TABLEAU DE BORD : Overview (vue d'ensemble) · Transactions · Payment Links · Crypto Wallet (retraits, adresses, retrait automatique) · Virtuals cards standard · Virtuals cards pro · Balances · Reports · Activate · API & Developers · Plugins (WooCommerce) · Webhooks · Settings & Profile (profil, mot de passe, double authentification) · Contact Support. Liens utiles : documentation ${DOCS}, statut des services ${STATUS}, centre d'aide ${HELP}.
+MENUS DU TABLEAU DE BORD : Overview (vue d'ensemble) · Transactions · Payment Links · Crypto Wallet (retraits, adresses, retrait automatique) · Virtuals cards standard · Virtuals cards pro · Mes cartes (toutes les cartes affichées en cartes, sections standard et pro) · ProxNum · Numéros WhatsApp et Telegram · eSIM · Balances (avec « Recharger mon solde ») · Reports · Activate · API & Developers · Plugins (WooCommerce) · Webhooks · Settings & Profile (profil, mot de passe, double authentification) · Contact Support. Liens utiles : documentation ${DOCS}, statut des services ${STATUS}, centre d'aide ${HELP}.
+
+RECHARGE DU SOLDE, RETRAITS ET MOBILE MONEY
+- Recharger le solde en crypto : Balances > « Recharger mon solde » : montant de 5 $ à 10 000 $, choix de la crypto et du réseau ; il faut envoyer EXACTEMENT le montant affiché (montant unique, valable 60 minutes) à l'adresse indiquée. Crédit automatique du montant demandé sur le solde disponible après confirmation ; un paiement tardif est crédité jusqu'à 7 jours. Une erreur de réseau ou de montant peut empêcher le crédit automatique : orienter vers le support avec le hash.
+- Retraits par adresse : selon le mode choisi par Coinvera, ils partent automatiquement ou sont validés manuellement par un administrateur (statut « À valider », fonds réservés ; reçu avec le hash une fois envoyé ; refus = fonds remis sur le solde disponible). Ne promets aucun délai.
+- Cartes standard et Pro : en plus de la crypto, paiement par Mobile Money ou virement bancaire (FCFA, Naira) pour l'achat et la recharge, uniquement pour ces cartes ; montant converti au taux affiché avec équivalent USDT ; le crédit obtenu ne sert qu'aux cartes (non retirable) ; maximum 2 000 000 FCFA par transaction. Un dépôt crypto Pro arrivé après 60 minutes est crédité automatiquement pendant 7 jours.
+- Page « Mes cartes » : cartes affichées en cartes (sections Virtuals cards pro et cartes virtuelles standard), avec Afficher la carte (masquage automatique après 1 minute), Recharger, Geler/Dégeler, Gérer. Titulaire d'une carte Pro = nom renvoyé par l'émetteur.
+
+NUMÉROS ET eSIM
+- Numéros WhatsApp et Telegram : numéros temporaires pour recevoir un code de vérification, payés avec le solde disponible.
+- ProxNum : numéros virtuels (« Numéro temporaire » pour un SMS, « Location » pour plusieurs jours), choix du pays, du service et de la qualité du numéro (influence le prix) ; annulation et remboursement possibles quand elle est permise si aucun SMS n'arrive.
+- eSIM : forfaits data de voyage (Un pays, Régional, Mondial), boutique et « Mes eSIM », payés avec le solde disponible.
+- Apparence : boutons Clair/Système/Sombre dans le menu du profil (en haut à droite). Après une déconnexion, la reconnexion ramène à la page où l'on était.
 
 CARTES VIRTUELLES (deux modules séparés)
 - Carte Standard : l'utilisateur crée un compte carte (identité), puis émet des cartes virtuelles, les recharge, les gèle ou dégèle, consulte les détails sécurisés et les transactions, et peut fermer la carte (le solde restant est remboursé selon le délai de l'émetteur). Le prix affiché dans la fenêtre de devis est le total exact à payer (frais émetteur + frais Coinvera), payable depuis le solde ou en USDT direct.

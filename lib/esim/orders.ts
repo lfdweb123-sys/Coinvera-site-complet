@@ -7,8 +7,8 @@ import { fromUnits } from '../money';
 import { notify } from '../audit';
 import { error as logError, info, warn } from '../log';
 import { AMBIGUOUS, codeOf, es, EsError, failure, isOk, underfunded } from './api';
-import { daysLabel, gbLabel, norm } from './format';
-import { freshPlan, nameOf } from './pricing';
+import { daysLabel, norm, planGb } from './format';
+import { freshPlan, freshTopup, freshTopups, nameOf, planView, totalFor } from './pricing';
 // Commandes eSIM payées uniquement avec le solde disponible. Même mécanique que les numéros virtuels et les cartes :
 //  1) RÉSERVATION dans le registre (disponible -> esim_reserved) AVANT tout appel au prestataire ;
 //  2) commande chez eSIM Access (« ordered »), puis récupération du profil (QR code, code d'activation) : succès = fonds dépensés (coût prestataire + marge), échec définitif = fonds rendus ;
@@ -41,16 +41,16 @@ async function reserve(uid: string, id: string, data: Record<string, any>) {
 }
 // Succès : la réservation est soldée ; le coût réel revient à eSIM Access (central:funds), l'écart est notre marge. Idempotent.
 export async function settle(id: string, patch: Record<string, any> = {}) {
-  let uid = '', title = '';
+  let uid = '', title = '', topup = false;
   const ok = await db.runTransaction(async tx => {
     const o = (await tx.get(ref(id))).data(); if (!o || !['reserved', 'ordered', 'review'].includes(o.status)) return false;
-    const bal = await readBal(tx, o.merchantId), charge = o.chargeUnits as number, cost = Math.min(charge, o.costUnits as number); uid = o.merchantId; title = o.title;
+    const bal = await readBal(tx, o.merchantId), charge = o.chargeUnits as number, cost = Math.min(charge, o.costUnits as number); uid = o.merchantId; title = o.title; topup = o.kind === 'topup';
     const lines: any[] = [{ account: acct(uid, 'esim_reserved'), dir: 'debit', amount: charge }, { account: 'central:funds', dir: 'credit', amount: cost }]; if (charge - cost > 0) lines.push({ account: 'platform:revenue', dir: 'credit', amount: charge - cost });
     postEntry(tx, `es_done_${id}`, uid, 'esim_done', lines, { orderId: id });
     writeBal(tx, uid, { ...bal, esim_reserved: (bal.esim_reserved ?? 0) - charge, esim_spent: (bal.esim_spent ?? 0) + charge });
     tx.update(ref(id), { ...patch, status: 'confirmed', updatedAtMs: now() }); return true;
   });
-  if (ok) { info('esim.order_confirmed', { orderId: id, merchantId: uid }); await notify(uid, 'Votre eSIM est prête', `Votre eSIM « ${title} » est disponible dans votre espace : scannez son QR code pour l’installer.`).catch(() => {}); }
+  if (ok) { info('esim.order_confirmed', { orderId: id, merchantId: uid }); await (topup ? notify(uid, 'Recharge effectuée', `Votre eSIM « ${title} » a été rechargée.`) : notify(uid, 'Votre eSIM est prête', `Votre eSIM « ${title} » est disponible dans votre espace : scannez son QR code pour l’installer.`)).catch(() => {}); }
   return ok;
 }
 // Échec définitif (rien n'a été débité chez le prestataire) : les fonds retournent au solde disponible. Idempotent.
@@ -63,7 +63,7 @@ export async function release(id: string, code: string) {
     writeBal(tx, uid, { ...bal, available: bal.available + charge, esim_reserved: (bal.esim_reserved ?? 0) - charge });
     tx.update(ref(id), { status: 'failed', error: code, updatedAtMs: now() }); return true;
   });
-  if (ok) { info('esim.order_released', { orderId: id, merchantId: uid, code }); await notify(uid, 'Commande eSIM annulée', 'Votre achat n’a pas pu être effectué. Les fonds ont été remis sur votre solde.').catch(() => {}); }
+  if (ok) { info('esim.order_released', { orderId: id, merchantId: uid, code }); await notify(uid, 'Commande eSIM annulée', 'Votre achat ou votre recharge n’a pas pu être effectué. Les fonds ont été remis sur votre solde.').catch(() => {}); }
   return ok;
 }
 // Remboursement d'une eSIM confirmée puis annulée chez eSIM Access (jamais installée) : l'intégralité de ce que l'utilisateur a payé lui revient, marge comprise. Idempotent.
@@ -88,7 +88,10 @@ async function fail(id: string, e: unknown, providerCode?: string) {
 }
 
 // ---------- États et vues ----------
-export const canCancel = (o: Record<string, any>) => o.status === 'confirmed' && !o.refunded && o.esim?.esimStatus === 'GOT_RESOURCE' && o.esim?.smdpStatus === 'RELEASED';   // jamais installée
+export const canCancel = (o: Record<string, any>) => o.status === 'confirmed' && !o.refunded && !(o.topupCount > 0) && o.esim?.esimStatus === 'GOT_RESOURCE' && o.esim?.smdpStatus === 'RELEASED';   // jamais installée, jamais rechargée
+const MAX_TOPUPS = 9;   // limite eSIM Access : 9 recharges par eSIM
+// Recharge possible tant que l'eSIM est neuve, utilisée ou épuisée (jamais après expiration, annulation, révocation ou suspension).
+export const canTopup = (o: Record<string, any>) => o.kind !== 'topup' && o.status === 'confirmed' && !o.refunded && !!o.esimTranNo && (o.topupCount ?? 0) < MAX_TOPUPS && ['ready', 'installed', 'active', 'depleted'].includes(stateOf(o));
 export function stateOf(o: Record<string, any>): string {
   if (o.status === 'failed') return 'failed'; if (o.status === 'review') return 'review'; if (o.status !== 'confirmed') return 'preparing'; if (o.refunded) return 'refunded';
   const s = o.esim?.esimStatus, d = o.esim?.smdpStatus;
@@ -102,8 +105,8 @@ const parseAc = (ac?: string) => { const p = String(ac ?? '').split('$'); return
 export const view = (id: string, o: Record<string, any>, detail = true) => {
   const e = o.esim ?? null, locs: string[] = o.locations ?? [];
   return { id, status: o.status as string, state: stateOf(o), title: o.title as string, scope: o.scope as string, locations: locs.slice(0, 8).map(c => ({ code: c, name: nameOf(c) })), locationCount: locs.length,
-    gb: gbLabel(o.bytes ?? 0), days: o.days as number, daysLabel: daysLabel(o.days ?? 0), speed: o.speed || null, networks: (o.networks ?? []).slice(0, 3) as string[], total: fromUnits(o.chargeUnits ?? 0), refunded: !!o.refunded, error: o.error ?? null, createdAt: o.createdAtMs ?? null,
-    iccid: e?.iccid ?? null, usage: e ? { total: e.totalVolume || o.bytes || 0, used: e.orderUsage || 0 } : null, expiresAt: e?.expiredTime ?? null, apn: e?.apn ?? null, canCancel: canCancel(o),
+    daily: !!o.daily, gb: planGb(o.bytes ?? 0, !!o.daily), days: o.days as number, daysLabel: daysLabel(o.days ?? 0), topups: (o.topupCount ?? 0) as number, canTopup: canTopup(o), speed: o.speed || null, networks: (o.networks ?? []).slice(0, 3) as string[], total: fromUnits(o.chargeUnits ?? 0), refunded: !!o.refunded, error: o.error ?? null, createdAt: o.createdAtMs ?? null,
+    iccid: e?.iccid ?? null, usage: e ? { total: e.totalVolume || (o.daily ? 0 : o.bytes || 0), used: e.orderUsage || 0 } : null, expiresAt: e?.expiredTime ?? null, apn: e?.apn ?? null, canCancel: canCancel(o),
     ...(detail && e ? { ac: e.ac as string, ...parseAc(e.ac), activeType: o.activeType ?? 1 } : {}) };
 };
 async function own(uid: string, id: string) {
@@ -115,20 +118,21 @@ const pick = (e: any, old: Record<string, any> = {}) => ({ iccid: clip(e.iccid ?
   totalVolume: Number(e.totalVolume) || old.totalVolume || 0, orderUsage: Number(e.orderUsage) || 0, expiredTime: e.expiredTime ? clip(e.expiredTime, 40) : old.expiredTime ?? null, apn: e.apn ? clip(e.apn, 60) : old.apn ?? null });
 
 // ---------- Achat ----------
-export async function buyEsim(uid: string, p: { ref: string; slug: string; expected?: number }) {
+export async function buyEsim(uid: string, p: { ref: string; slug: string; days?: number; expected?: number }) {
   if (!SLUG.test(p.slug)) throw new HttpError(400, 'invalid_request');
   const id = idFor(uid, p.ref), known = await ref(id).get(); if (known.exists) return view(id, known.data()!);   // même référence : on renvoie la commande existante
   const plan = await freshPlan(p.slug);                                                                              // prix et disponibilité relus ICI, côté serveur
-  checkPrice(p.expected, plan.chargeUnits);
-  const created = await reserve(uid, id, { kind: 'esim', slug: plan.slug, packageCode: plan.code, title: plan.title, scope: plan.scope, locations: plan.locations.slice(0, 200), bytes: plan.bytes, days: plan.days, speed: plan.speed, networks: plan.networks, activeType: plan.activeType,
-    providerPrice: plan.providerPrice, costUnits: plan.costUnits, chargeUnits: plan.chargeUnits, markupUnits: plan.chargeUnits - plan.costUnits, txnId: txnOf(id) });
+  const t = await totalFor(plan, p.days);                                                                            // forfait par jour : durée choisie (1 à 365) et remise de palier, calculées ICI
+  checkPrice(p.expected, t.chargeUnits);
+  const created = await reserve(uid, id, { kind: 'esim', slug: plan.slug, packageCode: plan.code, title: plan.title, scope: plan.scope, locations: plan.locations.slice(0, 200), bytes: plan.bytes, daily: plan.daily, days: t.days, speed: plan.speed, networks: plan.networks, activeType: plan.activeType,
+    providerPrice: plan.providerPrice, costUnits: t.costUnits, chargeUnits: t.chargeUnits, markupUnits: t.chargeUnits - t.costUnits, txnId: txnOf(id) });
   if (created) await dispatch(id);
   return view(id, (await ref(id).get()).data()!);
 }
 async function dispatch(id: string) {
   const o = (await ref(id).get()).data(); if (!o || o.status !== 'reserved') return;
   let r;
-  try { r = await es('/esim/order', { transactionId: o.txnId, amount: o.providerPrice, packageInfoList: [{ slug: o.slug, count: 1, price: o.providerPrice }] }, { write: true }); }   // price/amount : le prestataire refuse l'ordre si son prix a changé (rien n'est débité)
+  try { r = await es('/esim/order', { transactionId: o.txnId, ...(o.daily ? {} : { amount: o.providerPrice }), packageInfoList: [{ slug: o.slug, count: 1, ...(o.daily ? { periodNum: o.days } : { price: o.providerPrice }) }] }, { write: true }); }   // price/amount : le prestataire refuse l'ordre si son prix a changé (rien n'est débité)
   catch (e) { if (e instanceof EsError && e.ambiguous) await review(id, 'order_unknown'); else await fail(id, e); return; }
   const orderNo = r.j?.obj?.orderNo;
   if (!isOk(r) || !orderNo) { if (AMBIGUOUS.has(codeOf(r))) await review(id, 'order_unknown'); else await fail(id, failure(r), codeOf(r)); return; }
@@ -177,9 +181,9 @@ export async function cancelOrder(uid: string, id: string) {
 // ---------- Liste (filtre par état, recherche, pagination) ----------
 export async function listOrders(uid: string, f: { page: number; size: number; q?: string; state?: string }) {
   const s = await db.collection('esim_orders').where('merchantId', '==', uid).limit(5000).get();
-  const all = s.docs.map((d): Record<string, any> => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0));
-  const live = (x: any) => ['ready', 'installed', 'active'].includes(stateOf(x));
-  const stats = { total: all.filter(x => x.status !== 'failed').length, active: all.filter(live).length, spent: fromUnits(all.filter(x => x.status === 'confirmed' && !x.refunded).reduce((a, x) => a + (x.chargeUnits ?? 0), 0)) };
+  const all = s.docs.map((d): Record<string, any> => ({ id: d.id, ...d.data() })).filter(x => x.kind !== 'topup').sort((a, b) => (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0));
+  const raw = s.docs.map(d => d.data() as Record<string, any>), live = (x: any) => ['ready', 'installed', 'active'].includes(stateOf(x));
+  const stats = { total: all.filter(x => x.status !== 'failed').length, active: all.filter(live).length, spent: fromUnits(raw.filter(x => x.status === 'confirmed' && !x.refunded).reduce((a, x) => a + (x.chargeUnits ?? 0), 0)) };
   const words = norm(f.q ?? '').split(' ').filter(Boolean), search = (x: any) => norm([x.title, ...(x.locations ?? []).slice(0, 60).map(nameOf), x.esim?.iccid ?? ''].join(' '));
   const rows = all.filter(x => (!f.state || stateOf(x) === f.state) && (!words.length || (t => words.every(w => t.includes(w)))(search(x))));
   const size = Math.min(100, Math.max(1, f.size)), page = Math.max(1, f.page);
@@ -201,11 +205,22 @@ async function findByTxn(o: Record<string, any>) {
 export async function reconcileReview(id: string) {
   const o = (await ref(id).get()).data(); if (!o || o.status !== 'review') return;
   const age = now() - (o.createdAtMs ?? 0);
+  if (o.kind === 'topup') return reconcileTopup(id, o, age);
   try {
     const e = await findByTxn(o);
     if (e?.iccid && e?.ac && e?.esimTranNo) await settle(id, { orderNo: clip(e.orderNo, 40), esimTranNo: clip(e.esimTranNo, 40), esim: pick(e) });   // la commande a bien été exécutée : fonds soldés, eSIM livrée
     else if (!e && age > GRACE_MS) await release(id, 'provider_unreachable');                                                                          // rien chez le prestataire après le délai : fonds rendus
     else if (e) logError('esim.review_manual', { orderId: id });                                                                                       // commande retrouvée mais profil non livré : vérification manuelle, les fonds restent réservés
+  } catch (e) { if (!(e instanceof EsError)) throw e; warn('esim.reconcile_retry', { orderId: id, code: (e as EsError).code }); }
+}
+// Recharge d'issue incertaine : la source tranche. Elle a été appliquée si le volume total ou la date d'expiration de l'eSIM ont changé depuis la demande (une seule recharge à la fois par eSIM, donc pas d'ambiguïté).
+async function reconcileTopup(id: string, o: Record<string, any>, age: number) {
+  try {
+    const par = (await ref(o.parentId).get()).data(); if (!par?.esimTranNo) return;
+    const r = await es('/esim/query', { esimTranNo: par.esimTranNo, pager: { pageNum: 1, pageSize: 5 } }); if (!isOk(r)) throw new EsError(502, 'provider_unreachable');
+    const e = (r.j?.obj?.esimList ?? [])[0]; if (!e) throw new EsError(502, 'provider_unreachable');
+    if ((Number(e.totalVolume) || 0) > (o.prevVolume ?? 0) || (e.expiredTime && e.expiredTime !== o.prevExpiry)) await applyTopup(id);
+    else if (age > GRACE_MS) await release(id, 'provider_unreachable');
   } catch (e) { if (!(e instanceof EsError)) throw e; warn('esim.reconcile_retry', { orderId: id, code: (e as EsError).code }); }
 }
 // Commandes acceptées mais dont le profil n'est pas encore arrivé (webhook manqué, allocation lente).
@@ -234,4 +249,62 @@ export async function handleEvent(type: string, c: Record<string, any>, notifyId
   await sync(hit.id, hit.o, true);
   await notify(hit.o.merchantId, type === 'DATA_USAGE' ? 'Il reste peu de données sur votre eSIM' : 'Votre eSIM expire bientôt', type === 'DATA_USAGE' ? `Il reste moins de 10 % des données de votre eSIM « ${hit.o.title} ».` : `Votre eSIM « ${hit.o.title} » expire dans moins d’un jour.`).catch(() => {});
   return 'notified';
+}
+
+// ---------- Recharges (top-up) d'une eSIM existante ----------
+// Même mécanique que l'achat : réservation -> demande -> règlement ou libération. Une seule recharge à la fois par eSIM ; non annulable (le prestataire ne propose pas d'annulation).
+const pendingTopup = async (parentId: string) => (await db.collection('esim_orders').where('parentId', '==', parentId).get()).docs.some(d => ['reserved', 'ordered', 'review'].includes((d.data() as any).status));
+export async function topupOptions(uid: string, id: string) {
+  const o = await own(uid, id); if (!canTopup(o)) throw new HttpError(409, 'order_state');
+  return { items: (await freshTopups(o.esim.iccid)).map(planView) };
+}
+// Prix d'un forfait (ou d'une recharge si orderId) pour une durée donnée : le total affiché est celui que le serveur facturera.
+export async function quote(uid: string, p: { slug: string; days?: number; orderId?: string }) {
+  if (!SLUG.test(p.slug)) throw new HttpError(400, 'invalid_request');
+  const plan = p.orderId ? await freshTopup((await own(uid, p.orderId)).esim?.iccid ?? '', p.slug) : await freshPlan(p.slug), t = await totalFor(plan, p.days);
+  return { price: fromUnits(t.chargeUnits), perDay: plan.daily ? fromUnits(plan.chargeUnits) : null, days: t.days, ratio: t.ratio, daily: plan.daily };
+}
+export async function topupEsim(uid: string, parentId: string, p: { ref: string; slug: string; days?: number; expected?: number }) {
+  if (!SLUG.test(p.slug)) throw new HttpError(400, 'invalid_request');
+  const par = await own(uid, parentId), id = idFor(uid, p.ref), known = await ref(id).get();
+  if (known.exists) { if (known.data()!.parentId !== parentId) throw new HttpError(409, 'order_state'); return view(parentId, (await ref(parentId).get()).data()!); }
+  if (!canTopup(par)) throw new HttpError(409, 'order_state'); if (await pendingTopup(parentId)) throw new HttpError(409, 'order_state');
+  const plan = await freshTopup(par.esim.iccid, p.slug), t = await totalFor(plan, p.days); checkPrice(p.expected, t.chargeUnits);
+  const created = await reserve(uid, id, { kind: 'topup', parentId, slug: plan.slug, title: par.title, scope: par.scope, locations: (par.locations ?? []).slice(0, 200), bytes: plan.bytes, daily: plan.daily, days: t.days, providerPrice: plan.providerPrice, costUnits: t.costUnits, chargeUnits: t.chargeUnits, markupUnits: t.chargeUnits - t.costUnits, txnId: txnOf(id),
+    prevVolume: par.esim?.totalVolume ?? 0, prevExpiry: par.esim?.expiredTime ?? null });
+  if (created) await dispatchTopup(id);
+  return view(parentId, (await ref(parentId).get()).data()!);
+}
+async function dispatchTopup(id: string) {
+  const o = (await ref(id).get()).data(); if (!o || o.status !== 'reserved') return; const par = (await ref(o.parentId).get()).data(); if (!par?.esimTranNo) { await release(id, 'not_found'); return; }
+  let r;
+  try { r = await es('/esim/topup', { esimTranNo: par.esimTranNo, packageCode: o.slug, transactionId: o.txnId, ...(o.daily ? { periodNum: o.days } : { amount: o.providerPrice }) }, { write: true }); }
+  catch (e) { if (e instanceof EsError && e.ambiguous) await review(id, 'topup_unknown'); else await fail(id, e); return; }
+  if (!isOk(r)) { if (AMBIGUOUS.has(codeOf(r))) await review(id, 'topup_unknown'); else await fail(id, failure(r), codeOf(r)); return; }
+  try { await applyTopup(id); } catch (e) { logError('esim.topup_apply_failed', { orderId: id, message: (e as Error).message }); }   // recharge acceptée : jamais de libération ; le cron la solde si cette écriture échoue
+}
+// Recharge appliquée chez le prestataire : fonds soldés (une seule fois), compteur de recharges de l'eSIM, profil relu.
+async function applyTopup(id: string) {
+  const o = (await ref(id).get()).data(); if (!o) return;
+  if (!(await settle(id, {}))) return;
+  const par = (await ref(o.parentId).get()).data(); if (!par) return;
+  await ref(o.parentId).update({ topupCount: (par.topupCount ?? 0) + 1, updatedAtMs: now() });
+  try { await refreshProfile(o.parentId, { ...par, topupCount: (par.topupCount ?? 0) + 1 }); } catch (e) { if (!(e instanceof EsError)) warn('esim.topup_refresh_failed', { orderId: id }); }
+}
+
+// ---------- Exploitation (administrateur) : suspension, réactivation, révocation, SMS, vue d'ensemble ----------
+// Ces appels n'ont pas toujours de corps de réponse : un 200 sans erreur explicite est un succès. Le statut est ensuite relu à la source.
+const bodyOk = (r: { status: number; j: any }) => r.status < 400 && r.j?.success !== false && r.j?.success !== 'false' && (!r.j?.errorCode || r.j.errorCode === '0');
+export const ADMIN_ACTIONS = { suspend: '/esim/suspend', unsuspend: '/esim/unsuspend', revoke: '/esim/revoke', sms: '/esim/sendSms' } as const;
+export async function adminAction(id: string, action: keyof typeof ADMIN_ACTIONS, message?: string) {
+  const o = (await ref(id).get()).data(); if (!o || o.kind === 'topup' || o.status !== 'confirmed' || !o.esimTranNo) throw new HttpError(404, 'not_found');
+  if (action === 'sms' && (!message || message.length > 500)) throw new HttpError(400, 'invalid_request');
+  const r = await es(ADMIN_ACTIONS[action], { esimTranNo: o.esimTranNo, ...(action === 'sms' ? { message } : {}) }, { write: true }); if (!bodyOk(r)) throw failure(r);
+  await refreshProfile(id, o); return view(id, (await ref(id).get()).data()!, false);
+}
+export async function providerBalance() { const r = await es('/balance/query'); if (!isOk(r)) throw new EsError(502, 'provider_unreachable'); return fromUnits(Math.round(Number(r.j?.obj?.balance ?? 0) * (1e6 / 10_000))); }   // 10000 = 1,00 USD
+export async function adminOverview() {
+  const rows = (await db.collection('esim_orders').limit(2000).get()).docs.map((d): Record<string, any> => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0));
+  const counts: Record<string, number> = {}; for (const r of rows) { const k = r.kind === 'topup' ? 'topup' : stateOf(r); counts[k] = (counts[k] ?? 0) + 1; }
+  return { counts, recent: rows.slice(0, 60).map(r => ({ id: r.id, kind: r.kind ?? 'esim', merchantId: String(r.merchantId).slice(0, 8), title: r.title, daily: !!r.daily, days: r.days, state: r.kind === 'topup' ? (r.status === 'confirmed' ? 'active' : stateOf(r)) : stateOf(r), status: r.status, error: r.error ?? null, charge: fromUnits(r.chargeUnits ?? 0), cost: fromUnits(r.costUnits ?? 0), at: r.createdAtMs ?? 0, iccid: r.esim?.iccid ? '…' + String(r.esim.iccid).slice(-6) : null, manageable: r.kind !== 'topup' && r.status === 'confirmed' && !!r.esimTranNo })) };
 }

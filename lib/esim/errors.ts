@@ -8,5 +8,7 @@ export const ES_ERR: Record<string, string> = {
   provider_unreachable: 'Le service ne répond pas. Si votre achat a bien eu lieu, il sera confirmé ou remboursé automatiquement.',
   cancel_rejected: 'Annulation impossible : cette eSIM a déjà été installée ou utilisée.',
   order_state: 'Action impossible dans l’état actuel de cette eSIM.',
+  invalid_period: 'Durée invalide : choisissez entre 1 et 365 jours.',
+  topup_unavailable: 'Cette recharge n’est pas disponible pour cette eSIM.',
   not_found: 'eSIM introuvable.',
 };

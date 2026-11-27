@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase-admin';
 import { fail, requireUser } from '@/lib/auth';
 import { enc, newKeyPair } from '@/lib/apikey';
 import { rows } from '@/lib/serialize';
+import { rateLimit } from '@/lib/ratelimit';
 export async function GET(req: Request) {
   try { const u = await requireUser(req);
     const [keys, act] = await Promise.all([db.collection('api_keys').where('merchantId', '==', u.uid).get(), db.doc(`api_activations/${u.uid}`).get()]);
@@ -12,7 +13,7 @@ export async function GET(req: Request) {
 }
 // Le secret n'est renvoye qu'une seule fois, ici. Ensuite seul le chiffre est conserve.
 export async function POST(req: Request) {
-  try { const u = await requireUser(req); const { mode } = z.object({ mode: z.enum(['test', 'live']) }).parse(await req.json());
+  try { const u = await requireUser(req); await rateLimit('keys_' + u.uid, 10, 3600); const { mode } = z.object({ mode: z.enum(['test', 'live']) }).parse(await req.json());
     const n = (await db.collection('api_keys').where('merchantId', '==', u.uid).where('status', '==', 'active').get()).size;
     if (n >= 5) return Response.json({ error: 'too_many_keys' }, { status: 400 });
     const { publicKey, secret } = newKeyPair();

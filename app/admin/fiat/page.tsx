@@ -11,6 +11,7 @@ export default function Fiat() {
   return <div className="stack" style={{ maxWidth: 820 }}>
     <h1>Paiements mobile money et virement</h1>
     <div className="card stack"><h2 style={{ margin: 0 }}>État</h2>
+      {data && <p className={data.configured && v.enabled ? 'okm' : 'err'} role="status">{data.configured && v.enabled ? 'Visible pour les utilisateurs : oui (recharge du solde, cartes, Pro, eSIM…).' : 'Visible pour les utilisateurs : NON. ' + [!data.configured && 'clés FeexPay absentes de l’environnement', !v.enabled && 'case « activé » ci-dessous non cochée et enregistrée'].filter(Boolean).join(' et ') + '.'}</p>}
       {!data?.configured && <p className="err" role="alert">FeexPay n’est pas configuré : ajoutez FEEXPAY_API_KEY et FEEXPAY_SHOP_ID dans l’environnement du site.</p>}
       <div className="kv"><div>Taux du jour (plus haut des sources) : <b>{data?.rates?.XOF ? `${data.rates.XOF.toFixed(2)} FCFA` : '—'}</b> · <b>{data?.rates?.NGN ? `${data.rates.NGN.toFixed(2)} NGN` : '—'}</b> pour 1 USD</div>
         <div>Dépôts crédités <b>{data?.stats?.fulfilled ?? '—'}</b> · total <b>{usd(data?.stats?.creditedUsd ?? 0)}</b> · gain estimé <b>{usd(data?.stats?.gainUsd ?? 0)}</b> · en attente <b>{data?.stats?.open ?? '—'}</b></div></div>

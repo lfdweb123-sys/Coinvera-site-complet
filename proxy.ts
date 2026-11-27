@@ -8,7 +8,7 @@ const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.coinvera.me').rep
 // 'strict-dynamic' autorise ensuite les scripts qu'ils chargent eux-mêmes. Un script injecté par un attaquant (XSS) n'a pas le jeton et est bloqué par le navigateur.
 const csp = (nonce: string) => [
   "default-src 'self'",
-  `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https: 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,   // https: et 'unsafe-inline' ne servent qu'aux vieux navigateurs : ignorés dès qu'un jeton est présent
+  `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https:${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,   // aucun 'unsafe-inline' ni 'unsafe-eval' en production ; https: n'est qu'un repli pour les vieux navigateurs (ignoré dès que 'strict-dynamic' est compris)
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
@@ -22,6 +22,12 @@ export async function proxy(req: NextRequest) {
   const headers = new Headers(req.headers); headers.set('x-nonce', nonce); headers.set('Content-Security-Policy', policy);   // Next.js lit le jeton dans l'en-tête de la requête
   const done = (r: NextResponse) => { r.headers.set('Content-Security-Policy', policy); return r; };
   const h = (req.headers.get('host') ?? '').toLowerCase(), p = req.nextUrl.pathname, u = req.nextUrl.clone();
+  // Optionnel : ADMIN_ALLOWED_IPS (adresses séparées par des virgules). Si défini, l'administration (pages et API) n'existe que pour ces adresses ; sinon réponse 404.
+  const allow = (process.env.ADMIN_ALLOWED_IPS ?? '').split(',').map(x => x.trim()).filter(Boolean);
+  if (allow.length && (p === '/admin' || p.startsWith('/admin/') || p.startsWith('/api/admin/'))) {
+    const ip = (req.headers.get('x-vercel-forwarded-for') ?? req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim();
+    if (!allow.includes(ip)) return done(new NextResponse('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } }));
+  }
   // Vérification humain (Cloudflare Turnstile), une seule fois par visiteur : sans cookie valide, les pages sont remplacées par /verification, qui renvoie ensuite vers la page demandée.
   if (gateEnabled()) {
     const ok = await checkHuman(req.cookies.get(HUMAN_COOKIE)?.value);

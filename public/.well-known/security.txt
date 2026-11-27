@@ -1,0 +1,6 @@
+Contact: mailto:support@coinvera.me
+Contact: https://www.coinvera.me/contact
+Expires: 2027-11-27T00:00:00.000Z
+Preferred-Languages: fr, en
+Canonical: https://www.coinvera.me/.well-known/security.txt
+Policy: https://www.coinvera.me/privacy

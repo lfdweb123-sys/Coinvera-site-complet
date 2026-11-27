@@ -6,6 +6,7 @@ import { db } from '../firebase-admin';
 // Les entrées « public: false » ne sont données qu'à l'assistant du tableau de bord (jamais aux visiteurs).
 export type Update = { date: string; title: string; text: string; public?: boolean };
 export const UPDATES: Update[] = [
+  { date: '2026-11-27', title: 'Alertes automatiques en cas de problème', text: 'Si une page plante ou si une erreur serveur survient, l’équipe Coinvera et le support sont prévenus automatiquement par e-mail. Vous pouvez réessayer, et écrire au support via la page Contact si le problème persiste.', public: true },
   { date: '2026-11-27', title: 'Recharge du solde par Mobile Money', text: 'Balances > « Recharger mon solde » : en plus de la crypto, paiement par Mobile Money ou virement (FeexPay). Le montant demandé est ajouté au solde disponible ; limite de 2 000 000 FCFA par transaction.', public: true },
   { date: '2026-11-27', title: 'Menu Produits et retour après connexion', text: 'Le site a un menu « Produits » (Numéros WhatsApp et Telegram, ProxNum, eSIM). Après une déconnexion, la reconnexion ramène à la page où l’on était. Le thème Clair/Système/Sombre se choisit dans le menu du profil.', public: true },
   { date: '2026-11-26', title: 'Page Mes cartes', text: 'Toutes les cartes (standard et Virtuals cards pro) s’affichent en cartes, dans deux sections, avec Afficher la carte, Recharger, Geler/Dégeler et Gérer. Le titulaire d’une carte pro est celui renvoyé par l’émetteur.' },

@@ -40,8 +40,14 @@ export async function requireSuper(req: Request) {
   if (!u.merchant.super) { warn('auth.forbidden_super', { uid: u.uid }); throw new HttpError(403, 'forbidden'); }
   return u;
 }
+// Signale une erreur serveur à l'administrateur et au support (sans bloquer la réponse ; import dynamique pour éviter les cycles).
+function notifyCritical(title: string, message?: string) {
+  const p = import('./critical').then(m => m.reportCritical({ kind: 'server', title, message })).catch(() => {});
+  try { import('next/server').then(m => (m as any).after?.(p)).catch(() => {}); } catch { /* hors requête */ }
+}
 export const fail = (e: unknown) => {
-  if (e instanceof HttpError) { if (e.status >= 500) error('http.error', { status: e.status, code: e.code }); else info('http.rejected', { status: e.status, code: e.code }); return Response.json({ error: e.code }, { status: e.status }); }
+  if (e instanceof HttpError) { if (e.status >= 500) { error('http.error', { status: e.status, code: e.code }); notifyCritical('Erreur serveur ' + e.status, e.code); } else info('http.rejected', { status: e.status, code: e.code }); return Response.json({ error: e.code }, { status: e.status }); }
   checkEnv(); const err = e as Error; error('unhandled', { message: err?.message, stack: String(err?.stack ?? '').split('\n').slice(0, 4).join(' | ') });
+  if (err?.name !== 'ZodError' && !(err instanceof SyntaxError)) notifyCritical('Erreur serveur inattendue', err?.message);   // entrée invalide = erreur de l'appelant, pas un incident
   return Response.json({ error: 'internal_error' }, { status: 500 });
 };

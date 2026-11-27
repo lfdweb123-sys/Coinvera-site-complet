@@ -8,4 +8,6 @@ const headers = [
   { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },   // popups de connexion (Google) conservés
   { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
 ];
-export default { poweredByHeader: false, async headers() { return [{ source: '/(.*)', headers }, { source: '/api/(.*)', headers: [{ key: 'Cache-Control', value: 'no-store' }] }]; } };
+export default { poweredByHeader: false, async headers() { return [{ source: '/(.*)', headers }, { source: '/api/(.*)', headers: [{ key: 'Cache-Control', value: 'no-store' }] },
+    // Pages privées : pas d'indexation (c'est cet en-tête, et non robots.txt, qui les garde hors des moteurs de recherche — robots.txt ne doit pas révéler leurs chemins).
+    ...['/admin/:path*', '/dashboard/:path*', '/api/:path*', '/verification'].map(source => ({ source, headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] }))]; } };

@@ -33,6 +33,6 @@ export default async function P() { const s = await getSettings();
     bullets={['Même licence unique que les autres plugins', 'Bonus et délais entièrement réglables', 'Fonctionne avec toute passerelle WooCommerce', 'Mises à jour du plugin']}
     previewTitle="Aperçu du formulaire client" preview={<Frame><div style={{ display: 'flex', justifyContent: 'space-between' }}><b>Commande #1042</b><span className="mut">Mon compte → Retours</span></div>
       <p style={{ margin: '12px 0' }}>☑ T-shirt bleu, taille M — Qté 1</p>
-      <p style={{ margin: '0 0 12px', padding: 10, borderRadius: 8, background: '#E8F6EC' }}>● Avoir à utiliser sur une prochaine commande <strong>(+5 %, émis immédiatement)</strong></p>
+      <p style={{ margin: '0 0 12px', padding: 10, borderRadius: 8, background: 'var(--oksoft)' }}>● Avoir à utiliser sur une prochaine commande <strong>(+5 %, émis immédiatement)</strong></p>
       <p className="mut" style={{ margin: 0 }}>Exemple fictif.</p></Frame>}
     codeTitle="Comment ça fonctionne" code={CODE} faq={FAQ} />; }

@@ -10,7 +10,9 @@ export const DEFAULTS = { platformFeeBps: 150, processingFeeBps: 150, apiActivat
   // Prix facturé au marchand par message WhatsApp *délivré* (USD), catégorie « marketing » (relance panier) et
   // « utilitaire » (statut de commande) — à ajuster selon le tarif Meta réel pour vos marchés (Business Manager >
   // WhatsApp Manager > Facturation) plus votre marge : ce sont des valeurs de départ, pas un tarif vérifié.
-  whatsappRateCartUsd: 0.07, whatsappRateStatusUsd: 0.02 };
+  whatsappRateCartUsd: 0.07, whatsappRateStatusUsd: 0.02,
+  // Numéros WhatsApp / Telegram : activation du service et prix fixe en XOF (converti en USD au taux du jour).
+  numbersEnabled: 1, numbersPriceXof: 8500 };
 export async function getSettings() {
   // Si Firestore est injoignable (ex. build sans identifiants), on retombe sur les valeurs par defaut.
   try { const s = await db.doc('admin_settings/pricing').get(); return { ...DEFAULTS, ...(s.data() ?? {}) }; }

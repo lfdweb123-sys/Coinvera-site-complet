@@ -73,4 +73,12 @@ Page publique `/proxnum`, page utilisateur `/dashboard/proxnum` (numéro tempora
 Configuration : `PROXNUM_API_KEY` (clé revendeur, serveur uniquement), marge `PROXNUM_MARKUP_BPS` (défaut 20000 = +200 %, soit 3 × le prix ProxNum) et `PROXNUM_MARKUP_FLAT_USD`. Sans clé, le module est inactif.
 Comptabilité (partie double) : réservation disponible -> `proxnum_reserved` avant l'achat ; succès = coût ProxNum (`central:funds`) + marge (`platform:revenue`) ; échec définitif = fonds rendus ; annulation acceptée = remboursement intégral (une seule fois). Un achat d'issue incertaine (délai dépassé, erreur 5xx) reste réservé (« review ») jusqu'au rapprochement.
 Cron (cron-job.org) : `https://www.coinvera.me/api/cron/proxnum`, toutes les 5 minutes, GET, en-tête `Authorization: Bearer <CRON_SECRET>` ; réponse attendue `{"ok":true,...}`.
+
+
+### Numéros WhatsApp et Telegram (5sim)
+Page publique `/numeros-virtuels`, achat dans `/dashboard/numeros`, suivi exploitant dans `/admin/numbers`. Code : `lib/numbers/` (client `fivesim.ts` écrit d'après https://5sim.net/docs, moteur `orders.ts`).
+- Variable d'environnement : `FIVESIM_API_KEY` (clé API 5sim, section *API* du compte). Réglages dans Admin → Tarifs : `numbersEnabled` et `numbersPriceXof` (8 500 XOF par défaut, converti en USD au taux du jour via `liveRate('XOF')`).
+- Paiement uniquement avec le solde disponible (rechargeable par `TopupModal`). Écritures en partie double : réservation `available → fsim_reserved`, code reçu `fsim_reserved → platform:revenue`, sinon `fsim_reserved → available` (annulation, délai dépassé, numéro refusé, échec d'achat). Le coût 5sim n'est pas passé en écriture (devise du compte 5sim inconnue) : `providerPrice` est conservé sur chaque commande pour le rapprochement.
+- Cron (cron-job.org) : `https://www.coinvera.me/api/cron/numbers`, toutes les 5 minutes, GET, en-tête `Authorization: Bearer <CRON_SECRET>`. Il relit chez 5sim chaque commande en attente ou incertaine et rembourse même si l'utilisateur a quitté la page.
+- Le solde de réservation `fsim_reserved` est compté dans le contrôle de cohérence (`/api/admin/reconcile`).
 NON TESTE contre l'API réelle : faire un achat de test (numéro temporaire, location, annulation, prolongation) avec un petit solde avant le lancement. Les libellés de pays/services (lib/proxnum/pricing.ts) se limitent aux codes connus ; les autres s'affichent « Pays n° X » / code du service (voir « Codes pays » et « Codes service » de ProxNum).

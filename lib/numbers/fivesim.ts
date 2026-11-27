@@ -17,14 +17,14 @@ export type Sms = { created_at?: string; date?: string; sender?: string; text?: 
 export type P5Status = 'PENDING' | 'RECEIVED' | 'CANCELED' | 'TIMEOUT' | 'FINISHED' | 'BANNED';
 export type P5Order = { id: number; phone: string; operator?: string; product: string; price: number; status: P5Status; expires: string; sms: Sms[] | null; created_at: string; country: string };
 export type FivesimCode = 'no_free_phones' | 'provider_balance' | 'provider_rating' | 'bad_request' | 'provider_offline' | 'provider_busy' | 'provider_unavailable' | 'provider_unauthorized'
-  | 'order_not_found' | 'order_expired' | 'order_has_sms' | 'hosting_order' | 'unknown';
+  | 'order_not_found' | 'order_expired' | 'order_has_sms' | 'hosting_order' | 'reuse_unavailable' | 'unknown';
 /** definitive = on est certain que la demande n'a PAS été exécutée (aucun numéro acheté). Faux = résultat incertain (délai dépassé, erreur 5xx) : il faut vérifier avant de rembourser. */
 export class FivesimError extends Error { constructor(public code: FivesimCode, public definitive: boolean, public httpStatus = 0) { super(code); } }
 
 const TEXT: [RegExp, FivesimCode][] = [
   [/^no free phones$/, 'no_free_phones'], [/^not enough user balance$/, 'provider_balance'], [/^not enough rating$/, 'provider_rating'],
   [/^(select country|select operator|bad country|bad operator|no product)$/, 'bad_request'], [/^server offline$/, 'provider_offline'],
-  [/^order not found$/, 'order_not_found'], [/^order expired$/, 'order_expired'], [/^order has sms$/, 'order_has_sms'], [/^hosting order$/, 'hosting_order'],
+  [/^order not found$/, 'order_not_found'], [/^order expired$/, 'order_expired'], [/^order has sms$/, 'order_has_sms'], [/^hosting order$/, 'hosting_order'], [/^reuse /, 'reuse_unavailable'],
 ];
 export const codeOfText = (t: string): FivesimCode | null => { const x = t.trim().toLowerCase().replace(/^"|"$/g, ''); return TEXT.find(([r]) => r.test(x))?.[1] ?? null; };
 
@@ -47,7 +47,8 @@ const isOrder = (j: any): j is P5Order => !!j && typeof j === 'object' && typeof
 
 // ---------- Catalogue public (sans clé) ----------
 export type Country = { slug: string; iso: string; name: string };
-export type Availability = { count: number; rate: number | null; cost: number };
+export type OperatorAvail = { count: number; rate: number | null; cost: number };
+export type Availability = OperatorAvail & { operators: Record<string, OperatorAvail> };
 const cache = new Map<string, { at: number; v: unknown }>();
 async function cached<T>(k: string, ttlMs: number, f: () => Promise<T>): Promise<T> {
   const h = cache.get(k); if (h && Date.now() - h.at < ttlMs) return h.v as T;
@@ -65,18 +66,24 @@ export const availability = (service: Service) => cached('av_' + service, 5 * 60
   if (r.status !== 200 || !r.json || typeof r.json !== 'object') throw failure(r);
   const out: Record<string, Availability> = {};
   for (const [country, ops] of Object.entries((r.json as any)[p] ?? {}) as [string, Record<string, any>][]) {
-    let count = 0, rate: number | null = null, cost = Infinity;
-    for (const o of Object.values(ops ?? {})) { const n = Number(o?.count) || 0; if (n < 1) continue; count += n; cost = Math.min(cost, Number(o?.cost) || 0); if (typeof o?.rate === 'number') rate = Math.max(rate ?? 0, o.rate); }
-    if (count > 0) out[country] = { count, rate, cost: Number.isFinite(cost) ? cost : 0 };
+    let count = 0, rate: number | null = null, cost = Infinity; const operators: Record<string, OperatorAvail> = {};
+    for (const [name, o] of Object.entries(ops ?? {})) {
+      const n = Number(o?.count) || 0; if (n < 1) continue; const c = Number(o?.cost) || 0, r = typeof o?.rate === 'number' ? o.rate : null;
+      operators[name] = { count: n, rate: r, cost: c }; count += n; cost = Math.min(cost, c); if (r !== null) rate = Math.max(rate ?? 0, r);
+    }
+    if (count > 0) out[country] = { count, rate, cost: Number.isFinite(cost) ? cost : 0, operators };
   }
   return out;
 });
 
 // ---------- Compte et commandes (clé requise) ----------
-/** GET /user/buy/activation/{country}/any/{product}[?maxPrice=…] */
-export async function buyActivation(country: string, product: string, o: { maxPrice?: number } = {}): Promise<P5Order> {
-  const q = o.maxPrice && o.maxPrice > 0 ? `?maxPrice=${encodeURIComponent(String(o.maxPrice))}` : '';
-  const r = await call(`/user/buy/activation/${encodeURIComponent(country)}/any/${encodeURIComponent(product)}${q}`, true);
+export type BuyOptions = { country: string; operator?: string; product: string; reuse?: boolean; voice?: boolean; forwardingNumber?: string };
+/** GET /user/buy/activation/{country}/{operator}/{product}?reuse=1&voice=1&forwarding=1&number=…
+ *  « any » = n'importe quel opérateur ; reuse = numéro qu'on pourra racheter ; voice = appel vocal d'un robot possible ; forwarding + number (11 chiffres) = renvoi de l'appel. */
+export async function buyActivation(o: BuyOptions): Promise<P5Order> {
+  const q = new URLSearchParams(); if (o.reuse) q.set('reuse', '1'); if (o.voice) q.set('voice', '1'); if (o.forwardingNumber) { q.set('forwarding', '1'); q.set('number', o.forwardingNumber); }
+  const qs = q.toString() ? `?${q}` : '';
+  const r = await call(`/user/buy/activation/${encodeURIComponent(o.country)}/${encodeURIComponent(o.operator || 'any')}/${encodeURIComponent(o.product)}${qs}`, true);
   if (r.status === 200 && isOrder(r.json)) return r.json;
   if (r.status === 200) { const c = codeOfText(r.text); throw c ? new FivesimError(c, true, 200) : new FivesimError('unknown', false, 200); }   // 200 sans commande lisible : on ne sait pas
   throw failure(r);
@@ -89,6 +96,11 @@ export const check = (n: number) => order(`/user/check/${id(n)}`);       // GET 
 export const finish = (n: number) => order(`/user/finish/${id(n)}`);     // GET /user/finish/{id} : clôture après réception du code
 export const cancel = (n: number) => order(`/user/cancel/${id(n)}`);     // GET /user/cancel/{id} : refusé si un SMS est déjà arrivé
 export const ban = (n: number) => order(`/user/ban/${id(n)}`);           // GET /user/ban/{id} : numéro déjà utilisé
+/** GET /user/reuse/{product}/{number} : racheter un numéro déjà utilisé (acheté avec reuse=1), numéro sans le « + ». */
+export const reuse = (product: string, number: string) => order(`/user/reuse/${encodeURIComponent(product)}/${encodeURIComponent(number.replace(/\D/g, ''))}`);
+export type Profile = { id?: number; email?: string; balance: number; rating: number; frozen_balance?: number; total_active_orders_count?: number };
+/** GET /user/profile : solde et note du compte revendeur (une note à 0 bloque les achats 24 h : « not enough rating »). */
+export async function profile(): Promise<Profile> { const r = await call('/user/profile', true); if (r.status === 200 && r.json && typeof r.json.balance === 'number') return r.json; throw failure(r); }
 /** GET /user/orders?category=activation : retrouver un achat dont la réponse s'est perdue (délai dépassé). */
 export async function recentOrders(limit = 10): Promise<P5Order[]> {
   const r = await call(`/user/orders?category=activation&limit=${limit}&offset=0&order=id&reverse=true`, true);

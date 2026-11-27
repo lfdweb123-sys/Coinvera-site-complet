@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { SITE } from '@/lib/site';
 import { ConfirmProvider } from '@/components/Confirm';
+import AdminGate from '@/components/AdminGate';
 import { headers } from 'next/headers';
 import { THEME_SCRIPT } from '@/lib/theme';
 const GTM_IDS = ['GTM-PPT8XWXQ', 'GTM-TGLLVTVS'];   // conteneurs Google Tag Manager (dataLayer partagé)
@@ -16,5 +17,5 @@ export const metadata: Metadata = { metadataBase: new URL(SITE), verification: {
   twitter: { card: 'summary_large_image', title: 'Coinvera : encaissez par carte, retirez en USDT', description: 'Acceptez Visa et Mastercard, retirez en USDT.' }, category: 'finance', formatDetection: { telephone: false, email: false, address: false } };
 export default async function Root({ children }: { children: React.ReactNode }) {
   const nonce = (await headers()).get('x-nonce') ?? undefined;   // jeton CSP de la requête (voir proxy.ts) : rend aussi toutes les pages dynamiques, condition pour que Next.js y appose le jeton
-  return <html lang="fr" suppressHydrationWarning><head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /><script nonce={nonce} dangerouslySetInnerHTML={{ __html: GTM_SCRIPT }} /><link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" /><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" /></head><body><noscript>{GTM_IDS.map(id => <iframe key={id} src={`https://www.googletagmanager.com/ns.html?id=${id}`} height="0" width="0" style={{ display: 'none', visibility: 'hidden' }} />)}</noscript><ConfirmProvider>{children}</ConfirmProvider></body></html>;
+  return <html lang="fr" suppressHydrationWarning><head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /><script nonce={nonce} dangerouslySetInnerHTML={{ __html: GTM_SCRIPT }} /><link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" /><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" /></head><body><noscript>{GTM_IDS.map(id => <iframe key={id} src={`https://www.googletagmanager.com/ns.html?id=${id}`} height="0" width="0" style={{ display: 'none', visibility: 'hidden' }} />)}</noscript><ConfirmProvider>{children}</ConfirmProvider><AdminGate /></body></html>;
 }

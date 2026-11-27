@@ -1,6 +1,7 @@
 'use client';
 import CoinveraAI from '@/components/CoinveraAI';
 import Link from 'next/link';
+import { loginUrl } from '@/lib/return-to';
 import ThemeSwitch from '@/components/ThemeSwitch';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -23,10 +24,10 @@ export default function Shell({ groups, admin, quick, children }: { groups: NavG
   const [opened, setOpened] = useState<Record<string, boolean>>({}), [mc, setMc] = useState(''), [mErr, setMErr] = useState(''), [mBusy, setMBusy] = useState(false);
   const refMenu = useRef<HTMLDivElement>(null), refBell = useRef<HTMLDivElement>(null);
   useEffect(() => onAuthStateChanged(auth, async x => {
-    if (!x) { r.replace('/login'); return; }
+    if (!x) { r.replace(loginUrl()); return; }
     if (!x.emailVerified) { r.replace('/verify-email'); return; }
     if (admin && (await x.getIdTokenResult()).claims.role !== 'admin') { r.replace('/dashboard'); return; }
-    try { const m = await api('/api/me'); if (!admin && m.admin) { r.replace('/admin'); return; } setMe(m); setU(x); } catch (e) { if (isAuthFailure(e)) { await logout(); r.replace('/login'); } else setBootErr(true); }
+    try { const m = await api('/api/me'); if (!admin && m.admin) { r.replace('/admin'); return; } setMe(m); setU(x); } catch (e) { if (isAuthFailure(e)) { await logout(); r.replace(loginUrl()); } else setBootErr(true); }
   }), [admin, r, attempt]);
   useEffect(() => { try { const v = JSON.parse(localStorage.getItem('cv_menu') || '{}'); if (v && typeof v === 'object') setOpened(v); } catch { /* sans stockage */ } }, []);   // choix de l'utilisateur (menus fermés) conservé ; par défaut tout est ouvert
   useEffect(() => { if (admin && me && !me.twoFactor && path !== '/admin/security') r.replace('/admin/security'); }, [admin, me, path, r]);   // 2FA obligatoire pour les administrateurs
@@ -36,7 +37,7 @@ export default function Shell({ groups, admin, quick, children }: { groups: NavG
   useEffect(() => { const down = (e: MouseEvent | TouchEvent) => { const t = e.target as Node; if (menu && !refMenu.current?.contains(t)) setMenu(false); if (bell && !refBell.current?.contains(t)) setBell(false); };
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setMenu(false); setBell(false); } };
     document.addEventListener('mousedown', down); document.addEventListener('touchstart', down); document.addEventListener('keydown', key); return () => { document.removeEventListener('mousedown', down); document.removeEventListener('touchstart', down); document.removeEventListener('keydown', key); }; }, [menu, bell]);
-  const expire = useCallback(async () => { try { sessionStorage.setItem('cv_expired', '1'); } catch {} await logout(); r.replace('/login'); }, [r]);
+  const expire = useCallback(async () => { try { sessionStorage.setItem('cv_expired', '1'); } catch {} await logout(); r.replace(loginUrl()); }, [r]);
   // suppression d'une notification (balayage mobile ou bouton) ou de toutes : retirée tout de suite de l'écran, puis supprimée côté serveur
   const dropNotes = (ids: string[]) => { const keep = notes; setNotes(n => n.filter(x => !ids.includes(x.id))); api('/api/records', { method: 'DELETE', body: JSON.stringify({ c: 'notifications', ids: ids.slice(0, 500) }) }).catch(() => setNotes(keep)); };
   if (bootErr && !me) return <AuthShell title="Service momentanément indisponible" sub="Impossible de charger votre compte pour le moment. Votre session est conservée."><button className="btn" onClick={() => { setBootErr(false); setAttempt(n => n + 1); }}>Réessayer</button><p className="mut" style={{ marginTop: 18 }}><a href="#" onClick={async e => { e.preventDefault(); await logout(); r.replace('/login'); }}>Se déconnecter</a></p></AuthShell>;

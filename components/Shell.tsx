@@ -5,7 +5,7 @@ import ThemeSwitch from '@/components/ThemeSwitch';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { ArrowLeftRight, BadgeCheck, Bell, CreditCard, FileBarChart, HelpCircle, KeyRound, LayoutDashboard, LifeBuoy, Link2, LogOut, Menu, PanelLeft, ScrollText, Settings, ShieldCheck, Store, Tag, Users, Wallet, Webhook, ChevronDown, Lock, Landmark, UserCog, Ellipsis, Coins, Trash2, Smartphone } from 'lucide-react';
+import { ArrowLeftRight, BadgeCheck, Bell, CreditCard, FileBarChart, HelpCircle, KeyRound, LayoutDashboard, LifeBuoy, Link2, LogOut, Menu, PanelLeft, ScrollText, Settings, ShieldCheck, Store, Tag, Users, Wallet, Webhook, ChevronDown, Lock, Landmark, UserCog, Ellipsis, Coins, Trash2, Smartphone, Cpu } from 'lucide-react';
 import { api, auth, isAuthFailure, logout, msg, usePending } from '@/lib/client';
 import { LogoMark } from '@/components/Illustrations';
 import SwipeRow from '@/components/SwipeRow';
@@ -14,7 +14,7 @@ import AuthShell from '@/components/AuthShell';
 import IdleLogout from '@/components/IdleLogout';
 import OtpInput from '@/components/OtpInput';
 import { HELP } from '@/lib/site';
-const ICONS: Record<string, any> = { dash: LayoutDashboard, tx: ArrowLeftRight, pay: CreditCard, link: Link2, wd: Landmark, bal: Wallet, key: KeyRound, shop: Store, hook: Webhook, rep: FileBarChart, help: LifeBuoy, set: UserCog, users: Users, shield: ShieldCheck, log: ScrollText, bell: Bell, tag: Tag, badge: BadgeCheck, coin: Coins, phone: Smartphone };
+const ICONS: Record<string, any> = { dash: LayoutDashboard, tx: ArrowLeftRight, pay: CreditCard, link: Link2, wd: Landmark, bal: Wallet, key: KeyRound, shop: Store, hook: Webhook, rep: FileBarChart, help: LifeBuoy, set: UserCog, users: Users, shield: ShieldCheck, log: ScrollText, bell: Bell, tag: Tag, badge: BadgeCheck, coin: Coins, phone: Smartphone, esim: Cpu };
 export type NavItem = { href: string; label: string; icon: string; superOnly?: boolean };
 export type NavGroup = { title: string; items: NavItem[] };
 export default function Shell({ groups, admin, quick, children }: { groups: NavGroup[]; admin?: boolean; quick: string[]; children: React.ReactNode }) {

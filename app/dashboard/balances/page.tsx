@@ -5,7 +5,7 @@ import { useData } from '@/lib/client';
 import { day, PageHead, Stat, usd } from '@/components/Bits';
 import DataTable from '@/components/DataTable';
 import TopupModal from '@/components/TopupModal';
-const T: Record<string, string> = { payment_settled: 'Paiement crédité', withdrawal_reserved: 'Retrait réservé', withdrawal_completed: 'Retrait terminé', withdrawal_released: 'Réservation libérée', admin_adjustment: 'Ajustement par Coinvera', proxnum_reserve: 'Numéro virtuel (réservation)', proxnum_done: 'Numéro virtuel (achat confirmé)', proxnum_release: 'Numéro virtuel (réservation libérée)', proxnum_refund: 'Numéro virtuel remboursé', topup: 'Recharge du solde' };
+const T: Record<string, string> = { payment_settled: 'Paiement crédité', withdrawal_reserved: 'Retrait réservé', withdrawal_completed: 'Retrait terminé', withdrawal_released: 'Réservation libérée', admin_adjustment: 'Ajustement par Coinvera', proxnum_reserve: 'Numéro virtuel (réservation)', proxnum_done: 'Numéro virtuel (achat confirmé)', proxnum_release: 'Numéro virtuel (réservation libérée)', proxnum_refund: 'Numéro virtuel remboursé', esim_reserve: 'eSIM (réservation)', esim_done: 'eSIM (achat confirmé)', esim_release: 'eSIM (réservation libérée)', esim_refund: 'eSIM remboursée', topup: 'Recharge du solde' };
 const POOL: Record<string, string> = { card_credit: 'crédit cartes virtuelles', scarab_credit: 'crédit Virtuals cards pro' };
 export default function Bal() {
   const [page, setPage] = useState(1); const b = useData('/api/balance'), l = useData(`/api/ledger?page=${page}&size=10`); const d = b.data; const [top, setTop] = useState(false);

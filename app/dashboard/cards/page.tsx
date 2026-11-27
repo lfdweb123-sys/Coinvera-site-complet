@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import QRCode from 'qrcode';
 import { CopyRow } from '@/components/CopyBtn';
-import { Eye, Plus, Snowflake, Trash2, ShieldCheck, KeyRound } from 'lucide-react';
+import { Eye, Plus, Snowflake, Trash2, ShieldCheck, KeyRound, ArrowUpRight, CreditCard } from 'lucide-react';
 import { api, auth, msg, useData } from '@/lib/client';
 import CardArt, { KIND_LABEL, kindOf } from '@/components/CardArt';
 import { byId, networkWarning } from '@/lib/cryptos';
@@ -11,7 +11,7 @@ import { PageHead, usd, day, Empty } from '@/components/Bits';
 import { Err, Modal, Nav, Stepper } from '@/components/Wizard';
 import FiatPay from '@/components/FiatPay';
 import ProCard from '@/components/ProCard';
-import { CardsList, StdCardDrawer } from '@/components/ProCards';
+import { CardsList, StdCardDrawer, money } from '@/components/ProCards';
 const ST: Record<string, string> = { issuing: 'En création', active: 'Active', frozen: 'Gelée', suspended: 'Suspendue', closed: 'Fermée', expired: 'Expirée' };
 const OS: Record<string, string> = { reserved: 'En cours', processing: 'En cours', confirmed: 'Terminée', failed: 'Échouée' };
 const AMT = /^\d{1,6}(\.\d{1,2})?$/;
@@ -131,15 +131,21 @@ export default function Cards() {
   const deep = useRef(false); useEffect(() => { if (deep.current || !d.data || !pr.data) return; deep.current = true; const t = new URLSearchParams(window.location.search).get('topup'); if (!t) return; const c = d.data.cards?.find((k: any) => k.id === t && k.status === 'active'); if (c) setM({ t: 'topup', c }); window.history.replaceState(null, '', window.location.pathname); }, [d.data, pr.data]);
   if (d.error && !d.data) return <><PageHead title="Cartes virtuelles" /><p className="err" role="alert">{d.error}</p></>;
   return <>
-    <PageHead title="Cartes virtuelles" sub="Payez en ligne avec une carte rechargée depuis votre solde ou en USDT.">{h?.registered && <button className="btn p" onClick={() => setM({ t: 'issue' })} disabled={d.data?.maintenance || !products.length || noFunds} title={noFunds ? 'Rechargez votre crédit cartes avant de créer une carte' : undefined}><Plus size={16} /> Nouvelle carte</button>}</PageHead>
+    <PageHead title="Cartes virtuelles" sub="Payez en ligne avec une carte rechargée depuis votre solde ou en USDT." />
     {d.data?.maintenance && <p className="err" role="status">Création et recharge de cartes en maintenance. Vos cartes existantes restent utilisables.</p>}
     {d.data && !h?.registered && <Onboard onDone={reload} />}
     {h?.registered && <>
-      <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}><span>Crédit cartes <b>{usd(d.data?.credit)}</b> · solde Coinvera <b>{usd(d.data?.balance)}</b><br /><small className="mut">Les frais d’émission et de recharge sont affichés avant chaque paiement. Le crédit cartes est dépensé en premier.</small>{noFunds ? <><br /><b role="status" style={{ color: 'var(--warn)' }}>Rechargez votre crédit cartes ou ajoutez du solde avant de créer ou recharger une carte : ces boutons sont désactivés tant que vous n’avez aucun solde.</b></> : <><br /><small className="mut">Avant de créer ou recharger une carte, vérifiez que votre crédit cartes ou votre solde couvre le total.</small></>}</span><button className="btn" onClick={() => setM({ t: 'deposit' })}>Recharger mon crédit cartes</button></div>
+      <section className="cp-sum" aria-label="Solde pour payer vos cartes"><div><span className="cp-lbl">Solde disponible pour payer vos cartes</span><b className="cp-amt">{money(Number(d.data?.credit ?? 0) + Number(d.data?.balance ?? 0))}</b>
+        <div className="cp-split"><span>Crédit cartes <b>{money(d.data?.credit ?? 0)}</b></span><span>Solde Coinvera <b>{money(d.data?.balance ?? 0)}</b></span></div></div>
+        <div className="cp-btns"><button className="btn w" onClick={() => setM({ t: 'deposit' })}><ArrowUpRight size={16} aria-hidden /> Recharger mon crédit</button><button className="btn cp-o" onClick={() => setM({ t: 'issue' })} disabled={d.data?.maintenance || !products.length || noFunds} title={noFunds ? 'Rechargez votre crédit cartes avant de créer une carte' : undefined}><Plus size={16} aria-hidden /> Nouvelle carte</button></div>
+        <p className="cp-note" role={noFunds ? 'status' : undefined} style={noFunds ? { color: '#FCD34D' } : undefined}>{noFunds ? 'Rechargez votre crédit cartes ou ajoutez du solde avant de créer ou recharger une carte : ces boutons sont désactivés tant que vous n’avez aucun solde.' : 'Les frais d’émission et de recharge sont affichés avant chaque paiement. Le crédit cartes est dépensé en premier.'}</p></section>
+      <div className="cp-h"><h2>Mes cartes</h2></div>
       {d.data.cards.length ? <CardsList cards={d.data.cards.map((c: any) => ({ ...c, status: ({ issuing: 'pending', closed: 'terminated', suspended: 'frozen' } as Record<string, string>)[c.status] ?? c.status, productName: prod(c.productCode)?.title ?? 'Carte virtuelle', terminating: !!c.closing }))} onOpen={(c: any) => setM({ t: 'card', c })} />
-        : <Empty title="Aucune carte pour le moment" hint="Créez votre première carte virtuelle en quelques minutes." />}
-      <h2>Opérations récentes</h2>
-      {d.data.orders.length ? <div className="card stack">{d.data.orders.map((o: any) => <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{o.kind === 'issue' ? 'Nouvelle carte' : 'Recharge'} · {OS[o.status] ?? o.status}{o.status === 'failed' ? ' (remboursée)' : ''}<br /><small className="mut">{o.createdAt ? day(new Date(o.createdAt).toISOString()) : ''}</small></span><b>{usd(o.total)}</b></div>)}</div> : <p className="mut">Aucune opération.</p>}</>}
+        : <Empty title="Aucune carte pour le moment" hint="Créez votre première carte virtuelle en quelques minutes."><button className="btn p" onClick={() => setM({ t: 'issue' })} disabled={d.data?.maintenance || !products.length || noFunds}><Plus size={16} aria-hidden /> Nouvelle carte</button></Empty>}
+      <div className="cp-h"><h2>Opérations récentes</h2></div>
+      {d.data.orders.length ? <div className="card cp-ops">{d.data.orders.map((o: any) => <div key={o.id} className="cp-op"><span className="cp-oi" aria-hidden>{o.kind === 'issue' ? <CreditCard size={18} /> : <ArrowUpRight size={18} />}</span>
+        <span><b>{o.kind === 'issue' ? 'Nouvelle carte' : 'Recharge'}</b><br /><small>{o.createdAt ? day(new Date(o.createdAt).toISOString()) : ''}{o.status === 'failed' ? ' · remboursée' : ''}</small></span>
+        <span className="cp-oa"><b>{money(o.total)}</b><span className={'pcs ' + (o.status === 'confirmed' ? 'ok' : o.status === 'failed' ? 'bad' : 'warn')}>{OS[o.status] ?? o.status}</span></span></div>)}</div> : <div className="card"><p className="mut" style={{ margin: 0 }}>Aucune opération pour le moment.</p></div>}</>}
     {m?.t === 'issue' && <IssuePicker products={products} kyc={h?.kycStatus} onClose={close} onDone={() => { reload(); }} onDeposit={(a: number) => setM({ t: 'deposit', amount: a })} />}
     {m?.t === 'topup' && <Checkout kind="topup" card={m.c} minAmount={prod(m.c.productCode)?.rechargeMin ?? 5} onClose={close} onDone={reload} onDeposit={(a: number) => setM({ t: 'deposit', amount: a })} />}
     {m?.t === 'deposit' && <Deposit amount={m.amount} onClose={close} onDone={reload} />}

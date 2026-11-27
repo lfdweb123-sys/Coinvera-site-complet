@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ADMIN_COOKIE, adminGateEnabled, checkAdmin, isAdminPath } from '@/lib/admin-gate';
 import { HUMAN_COOKIE, checkHuman, gateEnabled, needsGate, safeNext } from '@/lib/human';
 // Sous-domaines : docs.* -> /docs, status.* -> /status, helpcenter.* -> /helpcenter, api.* -> /api/... (chemins publics /v1/...)
 // Pages du site principal : demandées depuis un sous-domaine (lien relatif, ancien favori…), elles sont redirigées vers le site principal, chemin et paramètres inclus.
@@ -9,7 +10,9 @@ const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.coinvera.me').rep
 const csp = (nonce: string) => [
   "default-src 'self'",
   `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https:${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,   // aucun 'unsafe-inline' ni 'unsafe-eval' en production ; https: n'est qu'un repli pour les vieux navigateurs (ignoré dès que 'strict-dynamic' est compris)
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "style-src 'self' https://fonts.googleapis.com",
+  `style-src-elem 'self' 'nonce-${nonce}' https://fonts.googleapis.com`,
+  "style-src-attr 'unsafe-inline'",   // attributs style="" du rendu serveur : un attribut ne peut pas porter de jeton ; ils ne peuvent exécuter aucun script",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
   "connect-src 'self' https: wss:",
@@ -28,6 +31,8 @@ export async function proxy(req: NextRequest) {
     const ip = (req.headers.get('x-vercel-forwarded-for') ?? req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim();
     if (!allow.includes(ip)) return done(new NextResponse('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } }));
   }
+  // Interface d'administration invisible sans cookie administrateur signé : 404 (même réponse qu'une page inexistante). Le site principal seulement (pas les sous-domaines).
+  if (adminGateEnabled() && isAdminPath(p) && !/^(docs|status|helpcenter|api)\./.test(h) && !(await checkAdmin(req.cookies.get(ADMIN_COOKIE)?.value))) return done(new NextResponse('Not found', { status: 404, headers: { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' } }));
   // Vérification humain (Cloudflare Turnstile), une seule fois par visiteur : sans cookie valide, les pages sont remplacées par /verification, qui renvoie ensuite vers la page demandée.
   if (gateEnabled()) {
     const ok = await checkHuman(req.cookies.get(HUMAN_COOKIE)?.value);

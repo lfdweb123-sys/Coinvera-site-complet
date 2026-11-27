@@ -40,7 +40,7 @@ RECHARGE DU SOLDE, RETRAITS ET MOBILE MONEY
 NUMÉROS ET eSIM
 - Numéros WhatsApp et Telegram : numéros temporaires pour recevoir un code de vérification, payés avec le solde disponible.
 - ProxNum : numéros virtuels (« Numéro temporaire » pour un SMS, « Location » pour plusieurs jours), choix du pays, du service et de la qualité du numéro (influence le prix) ; annulation et remboursement possibles quand elle est permise si aucun SMS n'arrive.
-- eSIM : forfaits data de voyage (Un pays, Régional, Mondial), boutique et « Mes eSIM », payés avec le solde disponible.
+- eSIM : forfaits data de voyage (Un pays, Régional, Mondial ; volume total ou « par jour » de 1 à 365 jours avec remise selon la durée), boutique et « Mes eSIM », payés avec le solde disponible. Recharge possible tant que l'eSIM n'a pas expiré (non annulable) ; annulation remboursée seulement si l'eSIM n'a jamais été installée ni rechargée.
 - Apparence : boutons Clair/Système/Sombre dans le menu du profil (en haut à droite). Après une déconnexion, la reconnexion ramène à la page où l'on était.
 
 CARTES VIRTUELLES (deux modules séparés)

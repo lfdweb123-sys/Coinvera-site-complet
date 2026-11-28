@@ -199,6 +199,7 @@ export default function CartePro() {
         <ol><li><b>1er refus : gratuit.</b> Un paiement refusé parce que le solde de la carte est insuffisant, qu’une autorisation a été abandonnée ou que la carte est gelée compte comme un refus. Nous vous prévenons tout de suite.</li>
           <li><b>2ᵉ refus : des frais sont facturés.</b> Le réseau carte nous facture une pénalité, que nous débitons du même montant, au centime près : d’abord de votre crédit cartes pro, puis de votre solde disponible. La ligne apparaît dans « Soldes ».</li>
           <li><b>3ᵉ refus : nouveaux frais et fermeture de la carte.</b> Le solde restant de la carte vous est remboursé, moins les frais de fermeture.</li></ol>
+        <p><b>Paiements hors des États-Unis :</b> le réseau carte facture aussi des frais sur ces achats. Nous les débitons de la même façon, sans majoration (crédit cartes pro, puis solde), avec une notification et une ligne dans « Soldes ».</p>
         <p>Si votre solde ne couvre pas les frais, il devient négatif : il est régularisé par votre prochain encaissement ou dépôt, et vous ne pouvez plus créer ni recharger de carte d’ici là. <b>Gardez toujours la carte approvisionnée avant de payer.</b></p></details>
       <div className="cp-h"><h2>Mes cartes</h2></div>
       {x.cards.length ? <CardsList cards={x.cards} onOpen={(c: any) => setM({ t: 'card', c })} />

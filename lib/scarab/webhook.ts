@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { db } from '../firebase-admin';
 import { enc, dec } from '../apikey';
 import { notify } from '../audit';
-import { chargeDeclineFee } from './declinefee';
+import { chargeCardFee } from './declinefee';
 import { warn } from '../log';
 import { onKycEvent } from './customers';
 import { cardRef, creditTermination, refreshCard } from './cards';
@@ -76,9 +76,9 @@ export async function handleEvent(type: string, d: any) {
       break;
     }
     case 'card.fee_charged': {
-      // Facturé à NOTRE portefeuille par le réseau carte : suivi dans l'admin, et répercuté à l'utilisateur pour les pénalités de refus (voir declinefee.ts).
+      // Facturé à NOTRE portefeuille par le réseau carte : suivi dans l'admin, et répercuté à l'utilisateur pour les refus de paiement et les paiements hors États-Unis (voir declinefee.ts).
       const amountMinor = Number(d.amount_minor ?? 0), violation = d.violation_count != null ? Number(d.violation_count) : null;
-      const r = await chargeDeclineFee({ uid, cardId: cid, kind: String(d.kind ?? ''), amountMinor, violation, txId: d.transaction_id ? String(d.transaction_id) : null });
+      const r = await chargeCardFee({ uid, cardId: cid, kind: String(d.kind ?? ''), amountMinor, violation, txId: d.transaction_id ? String(d.transaction_id) : null });
       await db.doc(`scarab_fees/${cid}_${d.transaction_id ?? violation ?? d.kind ?? 'x'}_${amountMinor}`).set({ merchantId: uid, cardId: cid, kind: d.kind ?? null, amountMinor, violationCount: violation, cardTerminated: !!d.card_terminated, passedOn: r.charged || undefined, chargedUnits: r.units || undefined, at: Date.now() }, { merge: true });
       break;
     }

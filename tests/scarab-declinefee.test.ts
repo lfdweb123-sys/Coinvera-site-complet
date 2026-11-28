@@ -7,7 +7,7 @@ vi.mock('@/lib/firebase-admin', () => ({ db: { doc: ref, collection: (c: string)
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS' } }));
 vi.mock('@/lib/auth', () => ({ HttpError: class extends Error { constructor(public status: number, public code: string) { super(code); } } }));
 const { notify } = vi.hoisted(() => ({ notify: vi.fn(async () => {}) })); vi.mock('@/lib/audit', () => ({ notify, audit: async () => {} }));
-import { chargeDeclineFee, splitFee } from '@/lib/scarab/declinefee';
+import { chargeCardFee as chargeDeclineFee, splitFee } from '@/lib/scarab/declinefee';
 const seed = (uid: string, bal: any) => { store[`scarab_cards/c_${uid}`] = { merchantId: uid, last4: '4821' }; store[`balances/${uid}`] = bal; };
 const net = (uid: string) => Object.values(store).filter((e: any) => e?.lines).flatMap((e: any) => e.lines).filter((l: any) => l.account.startsWith(`merchant:${uid}:`)).reduce((a: number, l: any) => a + (l.dir === 'credit' ? l.amount : -l.amount), 0);
 const fee = (uid: string, over: any = {}) => ({ uid, cardId: `c_${uid}`, kind: 'decline_violation', amountMinor: 150, violation: 2, ...over });
@@ -34,11 +34,18 @@ describe('frais de refus répercutés à l\'utilisateur', () => {
   });
   it('ignore les autres frais (hors refus), un montant nul et une carte d\'un autre utilisateur', async () => {
     seed('u5', { available: 5_000_000 });
-    expect((await chargeDeclineFee(fee('u5', { kind: 'cross_border' }))).charged).toBe(false);
+    expect((await chargeDeclineFee(fee('u5', { kind: 'autre_frais' }))).charged).toBe(false);
     expect((await chargeDeclineFee(fee('u5', { amountMinor: 0 }))).charged).toBe(false);
     store['scarab_cards/c_other'] = { merchantId: 'someone-else' };
     expect((await chargeDeclineFee({ ...fee('u5'), cardId: 'c_other' })).charged).toBe(false);
     expect(store['balances/u5'].available).toBe(5_000_000);
+  });
+  it('frais hors États-Unis : répercutés aussi, une seule fois par transaction, avec leur propre type d\'écriture', async () => {
+    seed('u6', { available: 5_000_000, scarab_credit: 0 }); const x = { kind: 'cross_border', amountMinor: 70, violation: null, txId: 'tx_abc' };
+    expect(await chargeDeclineFee(fee('u6', x))).toMatchObject({ charged: true, units: 700_000 });
+    expect((await chargeDeclineFee(fee('u6', x))).charged).toBe(false);
+    expect(store['balances/u6'].available).toBe(4_300_000); expect(store['ledger_entries/scarab_cbfee_tx_abc'].type).toBe('scarab_cross_border_fee');
+    expect((await chargeDeclineFee(fee('u6', { ...x, txId: 'tx_def' }))).charged).toBe(true); expect(store['balances/u6'].available).toBe(3_600_000);
   });
   it('répartition : le crédit passe avant le solde', () => { expect(splitFee({ scarab_credit: 300 }, 1000)).toEqual({ credit: 300, avail: 700 }); expect(splitFee({}, 1000)).toEqual({ credit: 0, avail: 1000 }); });
 });

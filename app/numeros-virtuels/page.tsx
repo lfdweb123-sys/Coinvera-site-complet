@@ -21,6 +21,8 @@ const FAQ = [
   ['Et si mon solde est insuffisant ?', 'L’achat est refusé sans aucun débit : rechargez votre solde depuis votre tableau de bord, puis recommencez.'],
   ['Le code n’arrive pas, que se passe-t-il ?', 'Vous pouvez annuler à tout moment avant l’arrivée du code : le montant est remis sur votre solde aussitôt. Si vous ne faites rien, la commande expire et le remboursement est automatique.'],
   ['Le numéro est déjà utilisé sur WhatsApp ou Telegram.', 'Utilisez « Numéro déjà utilisé » : le numéro est signalé, vous êtes remboursé et vous pouvez en prendre un autre.'],
+  ['Puis-je recevoir l’appel de vérification sur mon téléphone ?', 'Oui. À l’achat, activez le renvoi d’appel : choisissez le pays de votre téléphone et saisissez votre numéro tel qu’il se compose dans ce pays (par exemple 0162758703 au Bénin). L’indicatif est ajouté pour vous, et la longueur est vérifiée pour chaque pays.'],
+  ['Qu’est-ce que la note du compte ?', 'Chaque compte démarre à 96 points. Une commande annulée (−0,1), un numéro signalé (−0,1) ou une expiration (−0,15) baissent la note ; un code reçu (+0,5) et chaque recharge du solde (+8) la font monter. À zéro, les achats sont bloqués 24 heures, puis la note revient à 96. Cette règle protège la disponibilité du service pour tous.'],
   ['Puis-je racheter le même numéro ?', 'Oui, si vous avez coché l’option de réutilisation à l’achat : un bouton « Racheter ce numéro » apparaît une fois le code reçu, au même prix.'],
   ['Une vérification d’identité est-elle demandée ?', 'Non. Aucune vérification d’identité (KYC) n’est demandée pour créer un compte Coinvera et acheter un numéro. Seule exception : les cartes virtuelles, dont l’émetteur partenaire exige l’identité du titulaire.'],
   ['Puis-je utiliser ces numéros comme je veux ?', 'Les numéros doivent être utilisés dans le respect des conditions d’utilisation de WhatsApp, de Telegram et des lois de votre pays. Vous restez responsable de l’usage que vous en faites.'],
@@ -37,10 +39,10 @@ export default async function P() {
         <CtaLink className="btn p lg" guest={['/register', 'Créer mon compte']} user={['/dashboard/numeros', 'Obtenir un numéro']} /></div>
       <section style={{ marginTop: 'clamp(32px,5vw,56px)' }}><h2>Comment ça marche</h2><ol className="steps" style={{ listStyle: 'none', padding: 0, display: 'grid', gap: 14 }}>{STEPS.map(([t, d], i) => <li key={t} className="card" style={{ display: 'flex', gap: 14 }}><b style={{ fontSize: 22 }}>{i + 1}</b><div><b>{t}</b><p className="mut" style={{ margin: '4px 0 0' }}>{d}</p></div></li>)}</ol></section>
       <section style={{ marginTop: 'clamp(32px,5vw,56px)' }}><h2>Pays disponibles en ce moment</h2>
-        {c ? (c.services as { key: string; label: string }[]).map(sv => <div key={sv.key} style={{ marginBottom: 28 }}><h3>{sv.label} <span className="mut">· {c!.countries[sv.key].length} pays</span></h3>
-          <ul className="cv-grid">{c!.countries[sv.key].map(x => <li key={x.slug}>{x.name} <span className="mut">· {fmt(x.count)}</span></li>)}</ul></div>)
+        {c ? (c.services as { key: string; label: string }[]).map(sv => <div key={sv.key} style={{ marginBottom: 28 }}><h3>{sv.label} <span className="mut">· {c!.countries[sv.key].filter(x => x.available).length} pays avec des numéros libres sur {c!.countries[sv.key].length}</span></h3>
+          <ul className="cv-grid">{c!.countries[sv.key].map(x => <li key={x.slug} style={x.available ? undefined : { opacity: .55 }}>{x.name} <span className="mut">· {x.available ? `${fmt(x.count)} numéros` : 'épuisé'}</span></li>)}</ul></div>)
           : <p className="mut">La liste des pays disponibles s’affiche dans votre espace, au moment de l’achat.</p>}
-        <p className="mut" style={{ fontSize: 13.5 }}>La disponibilité change en permanence : un pays apparaît dès qu’un numéro est libre et disparaît quand il n’y en a plus.</p></section>
+        <p className="mut" style={{ fontSize: 13.5 }}>La disponibilité change en permanence : tous les pays restent listés, et un pays épuisé redevient disponible dès qu’un numéro se libère. Vous pouvez aussi choisir « N’importe quel pays » pour obtenir le premier numéro disponible.</p></section>
       <section style={{ marginTop: 'clamp(32px,5vw,56px)' }}><h2>Questions fréquentes</h2><div style={{ display: 'grid', gap: 10 }}>{FAQ.map(([q, a]) => <details key={q} className="card"><summary style={{ cursor: 'pointer', fontWeight: 600 }}>{q}</summary><p className="mut" style={{ margin: '10px 0 0' }}>{a}</p></details>)}</div></section>
     </div></main><Footer /></>;
 }

@@ -13,6 +13,7 @@ import { alertAdmins } from './admin-alert';
 import { merchantEmail } from './audit';
 import { receiptTopup } from './receipt-events';
 import { info, warn } from './log';
+import { replenish } from './numbers/rating';
 // Recharge du SOLDE Coinvera (disponible, retirable) en crypto, sur les adresses de la plateforme définies dans les variables d'environnement PAY_ADDR_*.
 // Même sécurité que les paiements d'activation : montant exact unique par commande (aucun paiement ne peut être attribué à un autre), un transfert ne sert qu'une fois (used_txids),
 // confirmation lue sur la chaîne. Un paiement tardif (après l'expiration) reste crédité pendant 7 jours : l'argent reçu n'est jamais perdu.
@@ -48,7 +49,7 @@ async function credit(id: string, hit: Pick<Hit, 'txid' | 'amount'>, late: boole
     writeBal(tx, uid, { ...bal, available: bal.available + usd });
     tx.update(r, { status: 'confirmed', txid: hit.txid, received: hit.amount.toString(), late, confirmedAt: Date.now() }); return true;
   });
-  if (ok) { info('topup.confirmed', { topupId: id, merchantId: uid, usd, late });
+  if (ok) { info('topup.confirmed', { topupId: id, merchantId: uid, usd, late }); await replenish(uid).catch(() => {});   // note des numéros : +8 points à chaque recharge (documentation 5sim)
     await notify(uid, 'Solde rechargé', `${fromUnits(usd).replace(/0+$/, '').replace(/\.$/, '')} $ ont été ajoutés à votre solde disponible.`).catch(() => {}); await receiptTopup(id);
     const o = (await db.doc(`balance_topups/${id}`).get()).data()!; void merchantEmail(uid).catch(() => '').then(who => alertAdmins(`Recharge de solde : ${fromUnits(usd)} $`, ['Une recharge de solde par adresse vient d’être créditée automatiquement après confirmation sur la chaîne.'], [['Utilisateur', who || uid], ['Crypto', `${byId(o.cur)?.name ?? o.cur}`], ['Montant crédité', `${fromUnits(usd)} $`], ['Transaction', String(o.txid)], ['Recharge', id], ...(late ? [['Remarque', 'paiement reçu après expiration'] as [string, string]] : [])])); }
   return ok;

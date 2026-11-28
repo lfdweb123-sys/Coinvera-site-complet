@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Clock, MessageCircle, Phone, RefreshCw, Undo2, Wallet, X } from 'lucide-react';
+import { Clock, Gauge, Info, MessageCircle, Phone, RefreshCw, Undo2, Wallet, X } from 'lucide-react';
+import { dialCode, phoneCountries, toForwardingDigits } from '@/lib/numbers/phone';
 import { CopyRow } from '@/components/CopyBtn';
 import { api, msg, useData } from '@/lib/client';
 import { day, Empty, PageHead, Stat } from '@/components/Bits';
@@ -15,6 +16,9 @@ const newRef = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}${Math.
 const ST: Record<string, string> = { reserved: 'Achat en cours', review: 'Vérification', waiting: 'En attente du code', received: 'Code reçu', failed: 'Remboursé' };
 const BADGE: Record<string, string> = { reserved: 'warn', review: 'warn', waiting: 'warn', received: 'ok', failed: 'info' };
 const REASON: Record<string, string> = { user_cancel: 'Annulation acceptée.', timeout: 'Aucun code reçu dans le délai.', number_used: 'Numéro signalé comme déjà utilisé.', canceled: 'Numéro annulé.', banned: 'Numéro refusé.', purchase_not_found: 'L’achat n’a pas abouti.', no_free_phones: 'Aucun numéro libre.' };
+const regionFr = typeof Intl !== 'undefined' ? new Intl.DisplayNames(['fr'], { type: 'region' }) : null;
+const PHONE_OPTS = phoneCountries().map(iso => ({ value: iso, label: `${(() => { try { return regionFr?.of(iso) ?? iso; } catch { return iso; } })()} (${dialCode(iso)})` })).sort((a, b) => a.label.localeCompare(b.label, 'fr'));
+const defaultIso = () => { const r = typeof navigator !== 'undefined' ? navigator.language.split('-')[1]?.toUpperCase() : ''; return r && PHONE_OPTS.some(o => o.value === r) ? r : 'BJ'; };
 const live = (o: any) => o.status === 'reserved' || o.status === 'review' || o.status === 'waiting';
 function useGet<T = any>(path: string | null) {
   const [d, setD] = useState<T | null>(null), [e, setE] = useState(''), [l, setL] = useState(false);
@@ -38,6 +42,7 @@ function Order({ first, onChange, onNew }: { first: any; onChange?: () => void; 
     {o.status === 'reserved' && <p className="mut" role="status">Achat en cours… votre numéro apparaît dans quelques instants.</p>}
     {o.status === 'review' && <p className="mut" role="status">Vérification en cours : le résultat de votre achat est en cours de confirmation. Vos fonds sont protégés : ils seront réglés ou remis sur votre solde automatiquement.</p>}
     {o.phone && <CopyRow label="Numéro" value={o.phone} mono />}
+    {o.forwardingNumber && <p className="mut" style={{ margin: 0, fontSize: 13.5 }}>Appel renvoyé vers +{o.forwardingNumber.replace(/^\+/, '')}.</p>}
     {o.status === 'waiting' && <>
       <p className="mut" role="status"><Clock size={14} style={{ verticalAlign: -2 }} /> En attente du code… (actualisation automatique) {o.expiresAt ? <>Il reste <b><Countdown to={o.expiresAt} /></b>.</> : null}</p>
       <p className="mut" style={{ margin: 0, fontSize: 13.5 }}>Saisissez ce numéro dans {o.serviceName}, demandez le code par SMS{o.options?.voice ? ' (ou par appel)' : ''}, il apparaîtra ici.</p>
@@ -50,25 +55,30 @@ function Order({ first, onChange, onNew }: { first: any; onChange?: () => void; 
 }
 function Buy({ avail, onOrder, onTopup }: { avail: number; onOrder: (o: any) => void; onTopup: () => void }) {
   const cat = useGet<any>('/api/numbers/catalog');
-  const [service, setService] = useState('whatsapp'), [country, setCountry] = useState(''), [operator, setOperator] = useState('any'), [reuse, setReuse] = useState(false), [voice, setVoice] = useState(false), [fwd, setFwd] = useState(false), [num, setNum] = useState('');
+  const [service, setService] = useState('whatsapp'), [country, setCountry] = useState(''), [operator, setOperator] = useState('any'), [reuse, setReuse] = useState(false), [voice, setVoice] = useState(false), [fwd, setFwd] = useState(false), [fIso, setFIso] = useState(defaultIso), [num, setNum] = useState('');
   const [e, setE] = useState(''), [busy, setBusy] = useState(false), [ref, setRef] = useState(newRef);
   const list: any[] = cat.d?.countries?.[service] ?? [], price = cat.d?.price, c = list.find(x => x.slug === country);
-  const cOpts = useMemo(() => list.map(x => ({ value: x.slug, label: x.name, hint: `${x.count.toLocaleString('fr-FR')} numéros${x.rate != null ? ` · ${Math.round(x.rate)} % de codes reçus` : ''}` })), [cat.d, service]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cOpts = useMemo(() => [{ value: 'any', label: 'N’importe quel pays (le moins cher disponible)', hint: 'Le pays est choisi automatiquement' }, ...[...list].sort((a, b) => Number(b.available) - Number(a.available) || a.name.localeCompare(b.name, 'fr')).map(x => ({ value: x.slug, label: x.name, hint: x.available ? `${x.count.toLocaleString('fr-FR')} numéros${x.rate != null ? ` · ${Math.round(x.rate)} % de codes reçus` : ''}` : 'Épuisé pour le moment' }))], [cat.d, service]); // eslint-disable-line react-hooks/exhaustive-deps
   const oOpts = useMemo(() => [{ value: 'any', label: 'Tous les opérateurs (recommandé)' }, ...(c?.operators ?? []).map((o: any) => ({ value: o.name, label: o.name, hint: `${o.count.toLocaleString('fr-FR')} numéros${o.rate != null ? ` · ${Math.round(o.rate)} % de codes reçus` : ''}` }))], [c]);
-  const enough = price?.usd != null && avail >= price.usd, fwdOk = !fwd || /^\d{11}$/.test(num), ready = !!country && !!price && fwdOk;
-  const buy = async () => { setE(''); setBusy(true); try { const o = await api('/api/numbers/orders', { method: 'POST', body: JSON.stringify({ ref, service, country, ...(operator !== 'any' ? { operator } : {}), ...(reuse ? { reuse: true } : {}), ...(voice ? { voice: true } : {}), ...(fwd ? { forwardingNumber: num } : {}) }) }); setRef(newRef()); onOrder(o); } catch (x) { setE(msg(x)); } setBusy(false); };
+  const anyC = country === 'any', digits = fwd ? toForwardingDigits(fIso, num) : null, soldOut = !!c && !c.available;
+  const enough = price?.usd != null && avail >= price.usd, fwdOk = !fwd || !!digits, ready = !!country && !soldOut && !!price && fwdOk;
+  const buy = async () => { setE(''); setBusy(true); try { const o = await api('/api/numbers/orders', { method: 'POST', body: JSON.stringify({ ref, service, country, ...(operator !== 'any' ? { operator } : {}), ...(reuse ? { reuse: true } : {}), ...(voice ? { voice: true } : {}), ...(fwd && digits ? { forwardingNumber: digits } : {}) }) }); setRef(newRef()); onOrder(o); } catch (x) { setE(msg(x)); } setBusy(false); };
   return <div className="pxg"><div className="card stack" style={{ gap: 16 }}>
-    <p className="mut" style={{ margin: 0 }}>C’est une <b>vérification</b> : un numéro temporaire, valable environ 15 minutes, qui reçoit le code de vérification demandé. Ce n’est pas un numéro à conserver. Si aucun code n’arrive ou si vous annulez, vous êtes remboursé aussitôt.</p>
+    {cat.d?.notice && <div className="card" role="status" style={{ display: 'flex', gap: 10 }}><Info size={18} style={{ flex: 'none', marginTop: 2 }} /><span>{cat.d.notice}</span></div>}
+    <p className="mut" style={{ margin: 0 }}>C’est une <b>vérification</b> : un numéro temporaire qui reçoit le code de vérification demandé. Ce n’est pas un numéro à conserver. Temps d’attente maximal : 15 minutes ; si aucun SMS n’arrive au bout de 5 minutes, la commande peut expirer. Si aucun code n’arrive ou si vous annulez, vous êtes remboursé aussitôt.</p>
     <div className="tabs" role="tablist">{(cat.d?.services ?? [{ key: 'whatsapp', label: 'WhatsApp' }, { key: 'telegram', label: 'Telegram' }]).map((s: any) => <button key={s.key} role="tab" aria-selected={service === s.key} className={service === s.key ? 'on' : ''} onClick={() => { setService(s.key); setCountry(''); setOperator('any'); }}><MessageCircle size={15} style={{ verticalAlign: -2, marginRight: 6 }} />{s.label}</button>)}</div>
     <Combo label="Pays" value={country} options={cOpts} loading={cat.l} placeholder="Choisir un pays…" emptyText="Aucun pays disponible pour le moment" onChange={v => { setCountry(v); setOperator('any'); }} /><Err m={cat.e} />
-    {c && c.operators.length > 1 && <Combo label="Opérateur" value={operator} options={oOpts} onChange={setOperator} />}
+    {soldOut && <p className="err" role="alert">Aucun numéro libre pour ce pays pour le moment : choisissez-en un autre ou « N’importe quel pays ».</p>}
+    {c && !anyC && c.operators.length > 1 && <Combo label="Opérateur" value={operator} options={oOpts} onChange={setOperator} />}
     <div className="stack" style={{ gap: 8 }}>
       <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}><input type="checkbox" checked={reuse} onChange={x => setReuse(x.target.checked)} /><span>Pouvoir racheter ce numéro plus tard <span className="mut">(option de réutilisation)</span></span></label>
       <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}><input type="checkbox" checked={voice} onChange={x => setVoice(x.target.checked)} /><span>Autoriser aussi la validation par appel vocal</span></label>
       <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}><input type="checkbox" checked={fwd} onChange={x => setFwd(x.target.checked)} /><span>Renvoyer l’appel vers mon téléphone</span></label>
-      {fwd && <div><input className="in" inputMode="numeric" placeholder="Numéro de renvoi, 11 chiffres sans le +" value={num} onChange={x => setNum(x.target.value.replace(/\D/g, '').slice(0, 11))} aria-label="Numéro de renvoi" />{!fwdOk && num && <p className="err" role="alert" style={{ margin: '6px 0 0' }}>Le numéro de renvoi doit comporter 11 chiffres.</p>}</div>}</div></div>
+      {fwd && <div className="stack" style={{ gap: 8 }}><Combo label="Pays de votre téléphone" value={fIso} options={PHONE_OPTS} onChange={setFIso} />
+        <input className="in" type="tel" inputMode="tel" autoComplete="tel-national" placeholder={`Votre numéro, comme on le compose dans ce pays (indicatif ${dialCode(fIso)} ajouté pour vous)`} value={num} onChange={x => setNum(x.target.value.replace(/[^\d+\s().-]/g, ''))} aria-label="Numéro de renvoi" />
+        {digits ? <p className="mut" style={{ margin: 0, fontSize: 13 }}>L’appel sera renvoyé vers <b>+{digits}</b>.</p> : num ? <p className="err" role="alert" style={{ margin: 0 }}>Ce numéro n’a pas la bonne longueur pour ce pays.</p> : null}</div>}</div></div>
     <div className="card pxs stack" style={{ gap: 14 }}><h3 style={{ margin: 0 }}>Récapitulatif</h3>
-      <div className="kv"><div>Service <b>{service === 'telegram' ? 'Telegram' : 'WhatsApp'}</b></div><div>Pays <b>{c?.name ?? '—'}</b></div>{operator !== 'any' && <div>Opérateur <b>{operator}</b></div>}
+      <div className="kv"><div>Service <b>{service === 'telegram' ? 'Telegram' : 'WhatsApp'}</b></div><div>Pays <b>{anyC ? 'N’importe quel pays' : c?.name ?? '—'}</b></div>{operator !== 'any' && <div>Opérateur <b>{operator}</b></div>}
         <div className="tot">Total à payer <b>{price ? xof(price.xof) : '—'}</b></div>{price?.usd != null && <div className="mut">soit {usd(price.usd)} au taux du jour</div>}<div className="mut">Solde disponible : {usd(avail)}</div></div>
       {ready && !enough && <p className="err" role="alert">Solde disponible insuffisant pour cet achat. Rechargez votre solde pour continuer.</p>}<Err m={e} />
       {ready && !enough ? <button className="btn p lg full" onClick={onTopup}><Wallet size={16} style={{ verticalAlign: -3, marginRight: 6 }} />Recharger mon solde</button>
@@ -76,13 +86,15 @@ function Buy({ avail, onOrder, onTopup }: { avail: number; onOrder: (o: any) => 
       <p className="mut" style={{ margin: 0, fontSize: 13 }}>Débité de votre solde disponible, uniquement à l’achat et seulement si vous avez les fonds. Remboursé aussitôt si le code n’arrive pas.</p></div></div>;
 }
 export default function Numeros() {
+  const me = useData('/api/numbers/me');
   const [tab, setTab] = useState<'buy' | 'history'>('buy'), [page, setPage] = useState(1), [cur, setCur] = useState<any>(null), [open, setOpen] = useState<any>(null), [top, setTop] = useState(false);
   const curRef = useRef<HTMLDivElement>(null), bal = useData('/api/balance'), h = useData(`/api/numbers/orders?page=${page}&size=10`); const avail = Number(bal.data?.available ?? 0);
-  const refresh = useCallback(() => { bal.reload(); h.reload(); }, [bal.reload, h.reload]); // eslint-disable-line react-hooks/exhaustive-deps
+  const refresh = useCallback(() => { bal.reload(); h.reload(); me.reload(); }, [bal.reload, h.reload, me.reload]); // eslint-disable-line react-hooks/exhaustive-deps
   const done = (o: any) => { setCur(o); refresh(); setTimeout(() => curRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); };
   if (h.error === msg({ message: 'numbers_disabled' })) return <div className="stack"><PageHead title="Numéros WhatsApp et Telegram" sub="Numéros temporaires pour recevoir vos codes de vérification." /><Empty title="Service bientôt disponible" hint="Les numéros ne sont pas encore activés sur ce compte." /></div>;
   return <div className="stack"><PageHead title="Numéros WhatsApp et Telegram" sub="Recevez le code de vérification de WhatsApp ou Telegram sur un numéro temporaire, payé avec votre solde disponible." />
-    <div className="g4"><Stat icon={Wallet} label="Solde disponible" value={usd(bal.data?.available)} /></div>
+    <div className="g4"><Stat icon={Wallet} label="Solde disponible" value={usd(bal.data?.available)} /><Stat icon={Gauge} label="Note du compte" value={me.data ? `${me.data.rating} / ${me.data.max}` : '—'} /></div>
+    <p className="mut" style={{ margin: 0, fontSize: 13.5 }}>{me.data?.blockedUntil ? <b>Achats bloqués jusqu’au {new Date(me.data.blockedUntil).toLocaleString('fr-FR')} (note à zéro), puis la note revient à 96.</b> : 'La note démarre à 96. Elle baisse quand une commande est annulée (−0,1), signalée (−0,1) ou expire (−0,15), et monte quand un code est reçu (+0,5) ou quand vous rechargez votre solde (+8). À zéro, les achats sont bloqués 24 heures.'}</p>
     <div><button className="btn" onClick={() => setTop(true)}><Wallet size={15} style={{ verticalAlign: -2, marginRight: 6 }} />Recharger mon solde</button></div>
     {top && <TopupModal onClose={() => setTop(false)} onDone={() => { bal.reload(); }} />}
     <div className="tabs" role="tablist">{([['buy', 'Obtenir un numéro', Phone], ['history', 'Mes numéros', MessageCircle]] as const).map(([k, l, I]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}><I size={15} style={{ verticalAlign: -2, marginRight: 6 }} />{l}</button>)}</div>

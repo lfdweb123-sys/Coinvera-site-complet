@@ -1,21 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Faux Firestore en mémoire + faux 5sim : vérifie les écritures comptables, les remboursements et les cas d'échec des numéros WhatsApp / Telegram.
-const { store, ref, coll } = vi.hoisted(() => {
-  const store: Record<string, any> = {};
+const { store, ref, coll, S } = vi.hoisted(() => {
+  const store: Record<string, any> = {}; const S: any = { numbersEnabled: 1, numbersPriceXof: 8500, numbersMaxCost: 0 };
   const ref = (p: string): any => ({ path: p, id: p.split('/').pop(), get: async () => ({ exists: p in store, data: () => store[p] }), update: async (u: any) => { store[p] = { ...(store[p] ?? {}), ...u }; } });
   const coll = (c: string): any => ({ doc: (id = 'a' + Math.random().toString(36).slice(2)) => ref(`${c}/${id}`),
     where: (f: string, _o: string, v: any) => { const q = { limit: () => q, get: async () => { const docs = Object.entries(store).filter(([k, d]) => k.startsWith(c + '/') && d?.[f] === v).map(([k, d]) => ({ id: k.split('/').pop(), data: () => d })); return { empty: !docs.length, docs }; } }; return q; } });
-  return { store, ref, coll };
+  return { store, ref, coll, S };
 });
 vi.mock('@/lib/firebase-admin', () => ({ db: { doc: ref, collection: coll, runTransaction: async (fn: any) => fn({ get: async (r: any) => r.get(), set: (r: any, u: any, o?: any) => { store[r.path] = o?.merge ? { ...store[r.path], ...u } : u; }, update: (r: any, u: any) => { store[r.path] = { ...store[r.path], ...u }; }, create: (r: any, u: any) => { if (r.path in store) throw new Error('exists'); store[r.path] = u; } }) } }));
 vi.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'TS' } }));
 vi.mock('@/lib/auth', () => ({ HttpError: class extends Error { constructor(public status: number, public code: string) { super(code); } } }));
 const notified: string[] = []; vi.mock('@/lib/audit', () => ({ notify: async (_u: string, t: string) => { notified.push(t); } }));
 vi.mock('@/lib/log', () => ({ info: () => {}, warn: () => {}, error: () => {} }));
-vi.mock('@/lib/settings', () => ({ getSettings: async () => ({ numbersEnabled: 1, numbersPriceXof: 8500 }) }));
+vi.mock('@/lib/settings', () => ({ getSettings: async () => S }));
 vi.mock('@/lib/fiat/rates', () => ({ liveRate: async () => 600 }));
 import { cancelOrder, createOrder, getOrder, release, reportUsed, reuseOrder, sweep, reconcileReview } from '@/lib/numbers/orders';
 import { clearCache } from '@/lib/numbers/fivesim';
+import { resetLimits } from '@/lib/numbers/limits';
+import { replenish } from '@/lib/numbers/rating';
 
 const CHARGE = Math.ceil((8500 * 1e6) / 600);   // 14 166 667 : 8 500 XOF à 600 XOF/USD, arrondi au-dessus
 const P = (o: any = {}) => ({ id: 5001, phone: '+447350690992', operator: 'vodafone', product: 'whatsapp', price: 21, status: 'PENDING', expires: new Date(Date.now() + 15 * 60_000).toISOString(), sms: null, created_at: new Date().toISOString(), country: 'england', ...o });
@@ -23,7 +25,7 @@ const SMS = [{ sender: 'WhatsApp', text: 'Votre code WhatsApp : 123-456', code: 
 type H = (path: string) => [number, any] | 'throw'; let handler: H; const calls: string[] = [];
 const reply = (b: any, s = 200) => new Response(typeof b === 'string' ? b : JSON.stringify(b), { status: s });
 beforeEach(() => {
-  clearCache(); for (const k of Object.keys(store)) delete store[k]; calls.length = 0; notified.length = 0; process.env.FIVESIM_API_KEY = 'k';
+  resetLimits(); S.numbersMaxCost = 0; clearCache(); for (const k of Object.keys(store)) delete store[k]; calls.length = 0; notified.length = 0; process.env.FIVESIM_API_KEY = 'k';
   vi.stubGlobal('fetch', async (u: string) => { const path = new URL(u).pathname.replace('/v1', '') + new URL(u).search; calls.push(path); const r = handler(path); if (r === 'throw') throw new Error('timeout'); return reply(r[1], r[0]); });
   handler = path => path === '/guest/countries' ? [200, { england: { iso: { gb: 1 }, text_en: 'England' }, chad: { iso: { td: 1 }, text_en: 'Chad' } }] : [404, 'not found'];
 });
@@ -38,7 +40,7 @@ const buyOk = (o: any = {}) => { handler = path => path === '/guest/countries' ?
 describe('achat et règlement', () => {
   it('réserve le montant, délivre le numéro, puis règle en revenu quand le code arrive', async () => {
     fund('u1'); buyOk(); const v = await createOrder('u1', inp('ref00000001'));
-    expect(v).toMatchObject({ status: 'waiting', phone: '+447350690992', countryName: 'England', iso: 'GB', priceXof: 8500, refunded: false }); expect(v.priceUsd).toBe('14.17');
+    expect(v).toMatchObject({ status: 'waiting', phone: '+447350690992', countryName: 'Royaume-Uni', iso: 'GB', priceXof: 8500, refunded: false }); expect(v.priceUsd).toBe('14.17');
     expect(bal('u1')).toMatchObject({ available: 40e6 - CHARGE, fsim_reserved: CHARGE });
     expect(calls).toContain('/user/buy/activation/england/any/whatsapp');
     handler = path => path.startsWith('/user/check/') ? [200, P({ status: 'RECEIVED', sms: SMS })] : path.startsWith('/user/finish/') ? [200, P({ status: 'FINISHED' })] : [404, 'x'];
@@ -134,5 +136,65 @@ describe('réutilisation d’un numéro', () => {
   it('refuse la réutilisation si le numéro n’a pas été acheté avec « reuse »', async () => {
     fund('e2'); buyOk(); await createOrder('e2', inp('ref0000001a')); handler = path => path.startsWith('/user/check/') ? [200, P({ status: 'RECEIVED', sms: SMS })] : [200, P()]; await getOrder('e2', 'e2_ref0000001a');
     await expect(reuseOrder('e2', 'e2_ref0000001a', 'ref0000001b')).rejects.toMatchObject({ code: 'reuse_unavailable' });
+  });
+});
+
+const rating = (m: string) => store[`fivesim_users/${m}`];
+const setRating = (m: string, r: number, blockedUntil = 0) => { store[`fivesim_users/${m}`] = { rating: r, blockedUntil }; };
+const checkAs = (status: string, sms: any = null) => (path: string): [number, any] => path.startsWith('/user/check/') ? [200, P({ status, sms })] : path.startsWith('/user/finish/') ? [200, P()] : [404, 'x'];
+describe('note de la documentation 5sim appliquée à chaque utilisateur', () => {
+  it('code reçu avant la fin du délai : +0,5 ; après le délai : +0,4', async () => {
+    fund('n1'); setRating('n1', 5000); buyOk(); await createOrder('n1', inp('ref00000020')); handler = checkAs('RECEIVED', SMS); await getOrder('n1', 'n1_ref00000020'); expect(rating('n1').rating).toBe(5050);
+    fund('n2'); setRating('n2', 5000); buyOk(); await createOrder('n2', inp('ref00000021')); store['fivesim_orders/n2_ref00000021'].expiresAt = Date.now() - 1000; handler = checkAs('RECEIVED', SMS); await getOrder('n2', 'n2_ref00000021'); expect(rating('n2').rating).toBe(5040);
+  });
+  it('annulation −0,1 ; numéro déjà utilisé −0,1 ; expiration −0,15', async () => {
+    fund('n3'); setRating('n3', 5000); buyOk(); await createOrder('n3', inp('ref00000022')); handler = path => path.startsWith('/user/cancel/') ? [200, P({ status: 'CANCELED' })] : [404, 'x']; await cancelOrder('n3', 'n3_ref00000022'); expect(rating('n3').rating).toBe(4990);
+    fund('n4'); setRating('n4', 5000); buyOk(); await createOrder('n4', inp('ref00000023')); handler = path => path.startsWith('/user/ban/') ? [200, P({ status: 'BANNED' })] : [404, 'x']; await reportUsed('n4', 'n4_ref00000023'); expect(rating('n4').rating).toBe(4990);
+    fund('n5'); setRating('n5', 5000); buyOk(); await createOrder('n5', inp('ref00000024')); handler = checkAs('TIMEOUT'); await getOrder('n5', 'n5_ref00000024'); expect(rating('n5').rating).toBe(4985);
+  });
+  it('aucun changement de note quand l’achat échoue ou quand 5sim annule de son côté', async () => {
+    fund('n6'); setRating('n6', 5000); handler = path => path === '/guest/countries' ? [200, { england: { iso: { gb: 1 }, text_en: 'England' } }] : path.startsWith('/guest/prices') ? [200, { england: { whatsapp: { vodafone: { cost: 1, count: 5 } } } }] : [200, 'no free phones']; await expect(createOrder('n6', inp('ref00000025'))).rejects.toBeTruthy(); expect(rating('n6').rating).toBe(5000);
+    fund('n7'); setRating('n7', 5000); buyOk(); await createOrder('n7', inp('ref00000026')); handler = checkAs('CANCELED'); await getOrder('n7', 'n7_ref00000026'); expect(rating('n7').rating).toBe(5000);
+  });
+  it('à zéro : achats bloqués 24 h sans rien réserver, puis la note revient à 96', async () => {
+    fund('z1'); setRating('z1', 10); buyOk(); await createOrder('z1', inp('ref00000027')); handler = path => path.startsWith('/user/cancel/') ? [200, P({ status: 'CANCELED' })] : [404, 'x']; await cancelOrder('z1', 'z1_ref00000027');
+    expect(rating('z1')).toMatchObject({ rating: 0 }); expect(rating('z1').blockedUntil).toBeGreaterThan(Date.now() + 23 * 3600_000);
+    buyOk(); await expect(createOrder('z1', inp('ref00000028'))).rejects.toMatchObject({ status: 429, code: 'rating_blocked' }); expect(bal('z1').fsim_reserved).toBe(0); expect(store['fivesim_orders/z1_ref00000028']).toBeUndefined();
+    store['fivesim_users/z1'].blockedUntil = Date.now() - 1000; expect((await createOrder('z1', inp('ref00000029'))).status).toBe('waiting');
+  });
+  it('recharge du solde : +8 points, plafonnés à 96', async () => { setRating('r2', 5000); await replenish('r2'); expect(rating('r2').rating).toBe(5800); setRating('r3', 9500); await replenish('r3'); expect(rating('r3').rating).toBe(9600); await replenish('r4'); expect(rating('r4').rating).toBe(9600); });
+});
+describe('vérification de stock en direct, « any », renvoi d’appel, prix maximal', () => {
+  const live = (body: any) => (path: string): [number, any] => path === '/guest/countries' ? [200, { england: { iso: { gb: 1 }, text_en: 'England' } }] : path.startsWith('/guest/prices') ? [200, body] : path.startsWith('/user/buy/') ? [200, P()] : [404, 'x'];
+  it('aucun numéro libre en direct : refusé avant toute réservation', async () => {
+    fund('k1'); handler = live({ england: { whatsapp: { vodafone: { cost: 1, count: 0 } } } }); await expect(createOrder('k1', inp('ref00000030'))).rejects.toMatchObject({ status: 409, code: 'no_free_phones' });
+    expect(bal('k1')).toMatchObject({ available: 40e6, fsim_reserved: 0 }); expect(calls.some(c => c.startsWith('/user/buy'))).toBe(false); expect(calls).toContain('/guest/prices?country=england&product=whatsapp');
+  });
+  it('opérateur choisi sans numéro alors que d’autres en ont : refusé ; avec numéro : accepté', async () => {
+    fund('k2'); handler = live({ england: { whatsapp: { vodafone: { cost: 1, count: 4 }, ee: { cost: 1, count: 0 } } } });
+    await expect(createOrder('k2', inp('ref00000031', { operator: 'ee' }))).rejects.toMatchObject({ code: 'no_free_phones' }); expect((await createOrder('k2', inp('ref00000032', { operator: 'vodafone' }))).status).toBe('waiting');
+  });
+  it('si 5sim ne répond pas à la vérification, l’achat tranche (échec = remboursement)', async () => {
+    fund('k3'); handler = path => path === '/guest/countries' ? [200, { england: { iso: { gb: 1 }, text_en: 'England' } }] : path.startsWith('/guest/prices') ? [500, 'oops'] : path.startsWith('/user/buy/') ? [200, P()] : [404, 'x']; expect((await createOrder('k3', inp('ref00000033'))).status).toBe('waiting');
+  });
+  it('« n’importe quel pays » : pays « any » chez 5sim, pays réel enregistré à la livraison', async () => {
+    fund('a1'); buyOk({ country: 'england' }); const v = await createOrder('a1', inp('ref00000034', { country: 'any' }));
+    expect(calls).toContain('/user/buy/activation/any/any/whatsapp'); expect(calls.some(c => c.startsWith('/guest/prices'))).toBe(false); expect(v).toMatchObject({ status: 'waiting', country: 'england', countryName: 'Royaume-Uni', iso: 'GB' });
+  });
+  it('renvoi d’appel : numéro international sans +, longueur valide pour le pays (Bénin 0162758703 → 229…)', async () => {
+    fund('f2'); buyOk({ forwarding: true, forwarding_number: '2290162758703' }); const v = await createOrder('f2', inp('ref00000035', { forwardingNumber: '2290162758703' }));
+    expect(calls).toContain('/user/buy/activation/england/any/whatsapp?forwarding=1&number=2290162758703'); expect(v.forwardingNumber).toBe('2290162758703'); expect(v.options.forwarding).toBe(true);
+  });
+  it('renvoi d’appel invalide (trop court, trop long, lettres) : refusé sans rien réserver', async () => {
+    fund('f3'); buyOk(); for (const [i, n] of ['12345', '1234567890123456', '22901627', 'abc'].entries()) await expect(createOrder('f3', inp(`ref0000004${i}`, { forwardingNumber: n }))).rejects.toMatchObject({ status: 400, code: 'invalid_forwarding' });
+    expect(bal('f3').fsim_reserved).toBe(0); expect(calls.some(c => c.startsWith('/user/buy'))).toBe(false);
+  });
+  it('5sim refuse le numéro de renvoi : message clair, montant remis', async () => {
+    fund('f4'); handler = path => path === '/guest/countries' ? [200, { england: { iso: { gb: 1 }, text_en: 'England' } }] : path.startsWith('/guest/prices') ? [200, { england: { whatsapp: { v: { cost: 1, count: 3 } } } }] : path.startsWith('/user/buy/') ? [400, 'bad forwarding number'] : [404, 'x'];
+    await expect(createOrder('f4', inp('ref00000036', { forwardingNumber: '2290162758703' }))).rejects.toMatchObject({ status: 400, code: 'forwarding_rejected' }); expect(bal('f4')).toMatchObject({ available: 40e6, fsim_reserved: 0 });
+  });
+  it('prix maximal du réglage transmis à 5sim (opérateur « any » seulement)', async () => {
+    S.numbersMaxCost = 15; fund('m1'); buyOk(); await createOrder('m1', inp('ref00000037')); expect(calls).toContain('/user/buy/activation/england/any/whatsapp?maxPrice=15');
+    fund('m2'); await createOrder('m2', inp('ref00000038', { operator: 'vodafone' })); expect(calls).toContain('/user/buy/activation/england/vodafone/whatsapp');
   });
 });

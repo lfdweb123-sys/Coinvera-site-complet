@@ -6,9 +6,13 @@ import { db } from '../firebase-admin';
 import { postEntry, readBal, writeBal } from '../ledger';
 import { warn } from '../log';
 import { getSettings } from '../settings';
+import { countryName, mergeCountries } from './catalog';
 import * as p5 from './fivesim';
-import { extractCode, FivesimError, isService, P5Order, SERVICES } from './fivesim';
+import { extractCode, FivesimError, isService, P5Order, Service, SERVICES } from './fivesim';
+import { validForwardingDigits } from './phone';
+import { apply, assertCanOrder, RatingEvent, txRead, txWrite } from './rating';
 // Numéros WhatsApp / Telegram (vérification par SMS), payés uniquement avec le solde disponible, comme ProxNum.
+//   La note de l'utilisateur suit le barème de la documentation 5sim (voir rating.ts) : elle change dans la MÊME transaction que le règlement ou le remboursement.
 //   Écritures en partie double :  réservation  available → fsim_reserved
 //                                 code reçu    fsim_reserved → platform:revenue   (le prix n'est un revenu que si le code est livré)
 //                                 aucun code   fsim_reserved → available          (annulation, délai dépassé, numéro refusé, échec d'achat : remboursement immédiat)
@@ -34,29 +38,36 @@ export function view(id: string, o: any) {
   return { id, kind: o.kind ?? 'buy', service: o.service, serviceName: SERVICES[o.service as keyof typeof SERVICES]?.label ?? o.service, country: o.country, countryName: o.countryName ?? o.country, iso: o.iso ?? '',
     operator: o.operator ?? 'any', providerOperator: has ? o.providerOperator ?? null : null, status: o.status, phone: has ? o.phone ?? null : null, code: o.code ?? null, smsText: o.smsText ?? null,
     expiresAt: o.status === 'waiting' ? o.expiresAt ?? null : null, priceXof: o.priceXof, priceUsd: (num(o.chargeUnits) / 1e6).toFixed(2), error: o.error ?? null, refunded: !!o.refunded,
-    canReuse: o.status === 'received' && !!o.options?.reuse && !!o.phone, options: { reuse: !!o.options?.reuse, voice: !!o.options?.voice, forwarding: !!o.options?.forwardingNumber }, createdAt: o.requestedAt ?? 0 };
+    canReuse: o.status === 'received' && !!o.options?.reuse && !!o.phone, options: { reuse: !!o.options?.reuse, voice: !!o.options?.voice, forwarding: !!o.options?.forwardingNumber }, forwardingNumber: has ? o.providerForwardingNumber ?? o.options?.forwardingNumber ?? null : null, createdAt: o.requestedAt ?? 0 };
 }
 
 async function create(uid: string, i: NewOrder, kind: 'buy' | 'reuse', reuseNumber?: string) {
   const s = await getSettings(); if (!(s as any).numbersEnabled) throw new HttpError(503, 'numbers_disabled');
   if (!isService(i.service)) throw new HttpError(400, 'invalid_service');
-  if (i.forwardingNumber && !/^\d{11}$/.test(i.forwardingNumber)) throw new HttpError(400, 'invalid_request');
+  if (i.forwardingNumber && !validForwardingDigits(i.forwardingNumber)) throw new HttpError(400, 'invalid_forwarding');   // numéro international sans +, longueur valide pour son pays (pas « 11 chiffres » partout)
   const id = `${uid}_${i.ref}`, ref = oref(id);
   const prior = await ref.get(); if (prior.exists) return view(id, prior.data());   // même référence = même commande : un double clic ne débite jamais deux fois
-  const list = await p5.countries().catch(() => []); const c = list.find(x => x.slug === i.country);
-  if (list.length && !c) throw new HttpError(400, 'invalid_country');
+  const any = i.country === 'any';   // documentation : le pays peut être « any » (n'importe quel pays) ; le pays réel est connu à la livraison du numéro
+  const c = any ? { slug: 'any', iso: '', name: 'any' } : mergeCountries(await p5.countries().catch(() => [])).find(x => x.slug === i.country); if (!c) throw new HttpError(400, 'invalid_country');
+  await assertCanOrder(uid);                                                  // note à zéro : aucun achat pendant 24 h (documentation 5sim)
+  if (kind === 'buy' && !any) await assertStock(i.service, i.country, i.operator || 'any');   // disponibilité EN DIRECT avant toute réservation d'argent
   const q = await quote(), now = Date.now();
   await db.runTransaction(async tx => {
     const cur = await tx.get(ref); if (cur.exists) return;
     const bal = await readBal(tx, uid); const avail = num(bal.available); if (avail < q.chargeUnits) throw new HttpError(402, 'insufficient_balance');
     postEntry(tx, `fs_reserve_${id}`, uid, 'numbers_reserve', [{ account: `merchant:${uid}:available`, dir: 'debit', amount: q.chargeUnits }, { account: `merchant:${uid}:fsim_reserved`, dir: 'credit', amount: q.chargeUnits }], { orderId: id });
     writeBal(tx, uid, { ...bal, available: avail - q.chargeUnits, fsim_reserved: num(bal.fsim_reserved) + q.chargeUnits });
-    tx.create(ref, { merchantId: uid, kind, service: i.service, country: i.country, countryName: c?.name ?? i.country, iso: c?.iso ?? '', operator: i.operator || 'any', reuseNumber: reuseNumber ?? null,
+    tx.create(ref, { merchantId: uid, kind, service: i.service, country: i.country, countryName: any ? 'N’importe quel pays' : countryName(c.iso, c.name), iso: c.iso, operator: i.operator || 'any', reuseNumber: reuseNumber ?? null,
       options: { reuse: !!i.reuse, voice: !!i.voice, forwardingNumber: i.forwardingNumber ?? null }, status: 'reserved', chargeUnits: q.chargeUnits, priceXof: q.priceXof, rate: q.rate, requestedAt: now, updatedAt: now, createdAt: FieldValue.serverTimestamp() });
   });
   return purchase(id);
 }
 export const createOrder = (uid: string, i: NewOrder) => create(uid, i, 'buy');
+/** « Prices by country and product » : si aucun numéro n'est libre pour ce pays (et cet opérateur), on refuse sans rien réserver. Si 5sim ne répond pas, l'achat tranchera (un échec = remboursement). */
+async function assertStock(service: Service, country: string, operator: string) {
+  let live: Awaited<ReturnType<typeof p5.availabilityFor>>; try { live = await p5.availabilityFor(service, country); } catch { return; }
+  const n = operator !== 'any' ? live?.operators[operator]?.count ?? 0 : live?.count ?? 0; if (n < 1) throw new HttpError(409, 'no_free_phones');
+}
 
 /** Rachat d'un numéro déjà utilisé (acheté avec « reuse »), au même prix : nouvelle commande, nouveau code. */
 export async function reuseOrder(uid: string, sourceId: string, ref: string) {
@@ -66,17 +77,18 @@ export async function reuseOrder(uid: string, sourceId: string, ref: string) {
 }
 
 async function purchase(id: string) {
-  const ref = oref(id); const o = (await ref.get()).data()!;
+  const ref = oref(id); const o = (await ref.get()).data()!; const maxPrice = num(((await getSettings()) as any).numbersMaxCost) || undefined;
   try {
     const p = o.kind === 'reuse' ? await p5.reuse(SERVICES[o.service as keyof typeof SERVICES].product, o.reuseNumber)
-      : await p5.buyActivation({ country: o.country, operator: o.operator, product: SERVICES[o.service as keyof typeof SERVICES].product, reuse: o.options?.reuse, voice: o.options?.voice, forwardingNumber: o.options?.forwardingNumber ?? undefined });
+      : await p5.buyActivation({ country: o.country, operator: o.operator, product: SERVICES[o.service as keyof typeof SERVICES].product, reuse: o.options?.reuse, voice: o.options?.voice, forwardingNumber: o.options?.forwardingNumber ?? undefined, maxPrice });
     await attach(id, p);
   } catch (e) {
     const fe = e instanceof FivesimError ? e : new FivesimError('provider_unavailable', false);
     if (!fe.definitive) { await ref.update({ status: 'review', error: fe.code, updatedAt: Date.now() }); warn('numbers.purchase_uncertain', { orderId: id, code: fe.code }); await reconcileReview(id).catch(() => {}); return view(id, (await ref.get()).data()); }
     await release(id, fe.code);
     if (['provider_balance', 'provider_rating', 'provider_unauthorized', 'provider_offline'].includes(fe.code)) warn('numbers.provider_problem', { orderId: id, code: fe.code });   // l'exploitant lit l'alerte dans les journaux
-    const [status, code] = publicError(fe.code); throw new HttpError(status, code);
+    const [status, code] = fe.code === 'unknown' && o.options?.forwardingNumber ? [400, 'forwarding_rejected'] as [number, string] : publicError(fe.code);   // 5sim a refusé le numéro de renvoi
+    throw new HttpError(status, code);
   }
   return view(id, (await ref.get()).data());
 }
@@ -84,18 +96,23 @@ async function purchase(id: string) {
 async function attach(id: string, p: P5Order) {
   await db.runTransaction(async tx => {
     const ref = oref(id); const s = await tx.get(ref); const o = s.data(); if (!o || !['reserved', 'review'].includes(o.status)) return;
-    tx.update(ref, { status: 'waiting', providerId: p.id, phone: p.phone, providerOperator: p.operator ?? null, providerPrice: p.price, providerStatus: p.status, expiresAt: Date.parse(p.expires) || Date.now() + WAIT_MS, error: null, updatedAt: Date.now() });
+    const real = o.country === 'any' && p.country ? mergeCountries([]).find(x => x.slug === p.country) : null;   // « any » : on enregistre le pays réellement attribué
+    tx.update(ref, { status: 'waiting', providerId: p.id, phone: p.phone, providerOperator: p.operator ?? null, providerPrice: p.price, providerStatus: p.status, expiresAt: Date.parse(p.expires) || Date.now() + WAIT_MS, error: null, updatedAt: Date.now(),
+      providerForwardingNumber: p.forwarding ? p.forwarding_number || null : null, ...(o.country === 'any' && p.country ? { country: p.country, countryName: real ? countryName(real.iso, real.name) : p.country, iso: real?.iso ?? '' } : {}) });
   });
 }
 
 /** Remet le montant réservé sur le solde. Une seule fois par commande (statut vérifié dans la transaction, écriture comptable à identifiant unique). */
+const RELEASE_EVENT: Record<string, RatingEvent> = { user_cancel: 'canceled', number_used: 'banned', timeout: 'timeout' };   // barème de la documentation : annulé −0,1 ; ban −0,1 ; expiré −0,15
 export async function release(id: string, reason: string) {
   let hadNumber = false, uid = '';
   const done = await db.runTransaction(async tx => {
     const ref = oref(id); const s = await tx.get(ref); const o = s.data(); if (!o || !['reserved', 'review', 'waiting'].includes(o.status)) return false;
     const bal = await readBal(tx, o.merchantId), c = num(o.chargeUnits); hadNumber = !!o.providerId; uid = o.merchantId;
+    const ev = hadNumber ? RELEASE_EVENT[reason] : undefined, now = Date.now(); const rs = ev ? await txRead(tx, o.merchantId, now) : null;   // toutes les lectures avant les écritures
     postEntry(tx, `fs_release_${id}`, o.merchantId, 'numbers_release', [{ account: `merchant:${o.merchantId}:fsim_reserved`, dir: 'debit', amount: c }, { account: `merchant:${o.merchantId}:available`, dir: 'credit', amount: c }], { orderId: id, reason });
     writeBal(tx, o.merchantId, { ...bal, fsim_reserved: num(bal.fsim_reserved) - c, available: num(bal.available) + c });
+    if (ev && rs) txWrite(tx, o.merchantId, apply(rs, ev, now), now);
     tx.update(ref, { status: 'failed', error: reason, refunded: true, refundedAt: Date.now(), updatedAt: Date.now() }); return true;
   });
   if (done) await notify(uid, hadNumber ? 'Numéro remboursé' : 'Commande de numéro annulée', `${hadNumber ? (REASON_TEXT[reason] ?? 'La commande n’a pas abouti') + ' : le' : 'Votre achat n’a pas pu être effectué. Le'} montant a été remis sur votre solde.`).catch(() => {});
@@ -106,9 +123,10 @@ export async function release(id: string, reason: string) {
 async function settle(id: string, code: string, text: string, p: P5Order) {
   const done = await db.runTransaction(async tx => {
     const ref = oref(id); const s = await tx.get(ref); const o = s.data(); if (!o || o.status !== 'waiting') return false;
-    const bal = await readBal(tx, o.merchantId), c = num(o.chargeUnits);
+    const bal = await readBal(tx, o.merchantId), c = num(o.chargeUnits); const now = Date.now(), rs = await txRead(tx, o.merchantId, now);   // lectures avant écritures
     postEntry(tx, `fs_done_${id}`, o.merchantId, 'numbers_settle', [{ account: `merchant:${o.merchantId}:fsim_reserved`, dir: 'debit', amount: c }, { account: 'platform:revenue', dir: 'credit', amount: c }], { orderId: id });
     writeBal(tx, o.merchantId, { ...bal, fsim_reserved: num(bal.fsim_reserved) - c, fsim_spent: num(bal.fsim_spent) + c });
+    txWrite(tx, o.merchantId, apply(rs, now <= num(o.expiresAt) ? 'completedEarly' : 'completedLate', now), now);   // +0,5 avant la fin du délai, +0,4 après
     tx.update(ref, { status: 'received', code, smsText: text, providerStatus: p.status, receivedAt: Date.now(), updatedAt: Date.now() }); return true;
   });
   if (done) await p5.finish(p.id).catch(() => {});   // clôture chez 5sim (documentation : « finish » après réception du code)
@@ -138,7 +156,7 @@ export async function reconcileReview(id: string): Promise<'attached' | 'release
   const product = SERVICES[o.service as keyof typeof SERVICES]?.product; let list: P5Order[];
   try { list = await p5.recentOrders(30); } catch { return 'pending'; }
   for (const c of list) {
-    if (c.product !== product || c.country !== o.country || Date.parse(c.created_at) < num(o.requestedAt) - MIN) continue;
+    if (c.product !== product || (o.country !== 'any' && c.country !== o.country) || Date.parse(c.created_at) < num(o.requestedAt) - MIN) continue;
     if (o.kind === 'reuse' && digits(c.phone) !== o.reuseNumber) continue;
     const taken = await db.collection(col).where('providerId', '==', c.id).limit(1).get(); if (!taken.empty) continue;
     await attach(id, c); return 'attached';

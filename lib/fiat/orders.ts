@@ -1,3 +1,4 @@
+import { replenish } from './../numbers/rating';
 import { db } from '../firebase-admin';
 import { HttpError } from '../auth';
 import { postEntry, readBal, writeBal } from '../ledger';
@@ -139,7 +140,7 @@ export async function creditFiat(id: string, via: string) {
     writeBal(tx, uid, { ...bal, [b]: (bal[b] ?? 0) + amt });
     tx.update(ref(id), { status: 'fulfilled', creditedUnits: amt, paidAt: Date.now(), via, gainUsd: Number(gainEstimateUsd(o.local, o.liveRate ?? o.rate, o.feeBps ?? 0, amt).toFixed(4)) }); return true;
   });
-  if (ok) { info('fiat.credited', { orderId: id, merchantId: uid, scope, amount: amt, via }); await notify(uid, scope === 'scarab' ? 'Crédit Virtuals cards pro rechargé' : scope === 'balance' ? 'Solde rechargé' : 'Crédit cartes rechargé', scope === 'balance' ? `${fromUnits(amt).replace(/0+$/, '').replace(/\.$/, '')} $ ont été ajoutés à votre solde.` : `${fromUnits(amt).replace(/0+$/, '').replace(/\.$/, '')} $ ajoutés : vous pouvez maintenant payer votre carte.`).catch(() => {}); await receiptFiatDeposit(id); await alertAdmin(id, 'credited'); }
+  if (ok) { info('fiat.credited', { orderId: id, merchantId: uid, scope, amount: amt, via }); if (scope === 'balance') await replenish(uid).catch(() => {}); /* note des numéros : +8 points à chaque recharge du solde */ await notify(uid, scope === 'scarab' ? 'Crédit Virtuals cards pro rechargé' : scope === 'balance' ? 'Solde rechargé' : 'Crédit cartes rechargé', scope === 'balance' ? `${fromUnits(amt).replace(/0+$/, '').replace(/\.$/, '')} $ ont été ajoutés à votre solde.` : `${fromUnits(amt).replace(/0+$/, '').replace(/\.$/, '')} $ ajoutés : vous pouvez maintenant payer votre carte.`).catch(() => {}); await receiptFiatDeposit(id); await alertAdmin(id, 'credited'); }
   return ok;
 }
 

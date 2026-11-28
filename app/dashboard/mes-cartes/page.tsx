@@ -12,7 +12,7 @@ import { Err } from '@/components/Wizard';
 // Mes cartes : chaque carte achetée est affichée en carte, avec ses actions directes (afficher, recharger, geler, gérer).
 // Numéro et code ne sont lus qu'à la demande, jamais stockés, et se masquent seuls après 1 minute.
 const who = (c: any) => c.holderName || c.nameOnCard || '';
-function Tile({ c, canTopup, onTopup, onManage, onChange }: { c: any; canTopup: boolean; onTopup: () => void; onManage: () => void; onChange: () => void }) {
+function Tile({ c, billing, canTopup, onTopup, onManage, onChange }: { c: any; billing?: string; canTopup: boolean; onTopup: () => void; onManage: () => void; onChange: () => void }) {
   const [shown, setShown] = useState<any>(null), [busy, setBusy] = useState(false), [e, setE] = useState(''), [cp, setCp] = useState('');
   const act = (action: string) => api(`/api/scarab/cards/${c.id}/action`, { method: 'POST', body: JSON.stringify({ action }) });
   const run = async (f: () => Promise<any>) => { setE(''); setBusy(true); try { await f(); } catch (x) { setE(msg(x)); } setBusy(false); };
@@ -22,6 +22,7 @@ function Tile({ c, canTopup, onTopup, onManage, onChange }: { c: any; canTopup: 
   return <article className="mc-t" aria-label={`Carte ${who(c)} se terminant par ${c.last4 ?? ''}`}>
     <div className="mc-top"><StatusPill s={c.status} /><span className="mut mc-bal">Solde <b>{money(c.balance ?? 0)}</b></span></div>
     <ProCard product={c.productName} name={det?.name || who(c) || null} last4={c.last4} frozen={frozen} expiry={det ? det.expiry : c.expiry} pan={det?.pan ?? null} cvv={det?.cvv ?? null} />
+    {live && billing && <div className="mc-ad"><span>Adresse de facturation</span><address>{billing.split('\n').map(l => l.trim()).filter(Boolean).join(', ')}</address></div>}
     {det && <div className="mc-cp"><button type="button" className="btn sm" onClick={() => copy(String(det.pan ?? '').replace(/\D/g, ''), 'p')}>{cp === 'p' ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />} Numéro</button><button type="button" className="btn sm" onClick={() => copy(String(det.expiry ?? ''), 'e')}>{cp === 'e' ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />} Expiration</button><button type="button" className="btn sm" onClick={() => copy(String(det.cvv ?? ''), 'c')}>{cp === 'c' ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />} CVV</button></div>}
     <div className="mc-st"><div><span>Recharges ce mois-ci</span><b>{money(c.topupMonth ?? 0)}</b></div><div><span>Dépenses ce mois-ci</span><b>{c.spentMonth != null ? money(c.spentMonth) : '—'}</b></div></div>
     {live ? <div className="mc-act">
@@ -64,7 +65,7 @@ export default function MesCartes() {
     <PageHead title="Mes cartes" sub="Vos cartes virtuelles standard et Virtuals cards pro : affichez, rechargez et gérez chaque carte directement."><Link href="/dashboard/cards" className="btn"><Plus size={16} aria-hidden /> Carte standard</Link><Link href="/dashboard/carte-pro?new=1" className="btn p"><Plus size={16} aria-hidden /> Carte pro</Link></PageHead>
     {!x && !sx ? <p className="mut" role="status">Chargement…</p> : !cards.length && !stdCards.length ? <Empty title="Aucune carte pour le moment" hint="Achetez votre première carte depuis Virtuals cards pro ou Virtuals cards standard." /> : <>
       {(cards.length > 0 || stdCards.length > 0) && <section aria-labelledby="mc-pro"><div className="mc-h"><h2 id="mc-pro">Virtuals cards pro</h2><span className="mc-n">{cards.length}</span><Link href="/dashboard/carte-pro" className="mc-l">Ouvrir la page</Link></div>
-        {cards.length ? <div className="mc-g">{cards.map(c => <Tile key={c.id} c={c} canTopup={can(c)} onTopup={() => r.push(`/dashboard/carte-pro?topup=${c.id}`)} onManage={() => setM(c)} onChange={reload} />)}</div> : <p className="mut">Aucune carte pro.</p>}</section>}
+        {cards.length ? <div className="mc-g">{cards.map(c => <Tile key={c.id} c={c} billing={x?.billingAddress} canTopup={can(c)} onTopup={() => r.push(`/dashboard/carte-pro?topup=${c.id}`)} onManage={() => setM(c)} onChange={reload} />)}</div> : <p className="mut">Aucune carte pro.</p>}</section>}
       <section aria-labelledby="mc-std" style={{ marginTop: 28 }}><div className="mc-h"><h2 id="mc-std">Cartes virtuelles standard</h2><span className="mc-n">{stdCards.length}</span><Link href="/dashboard/cards" className="mc-l">Ouvrir la page</Link></div>
         {stdCards.length ? <div className="mc-g">{stdCards.map(c => <StdTile key={c.id} c={c} canTopup={!stdNoFunds} onTopup={() => r.push(`/dashboard/cards?topup=${c.id}`)} onManage={() => setM({ std: true, ...c })} onChange={reloadStd} />)}</div> : <p className="mut">Aucune carte standard.</p>}</section></>}
     {m?.std && (() => { const fc = stdCards.find(k => k.id === m.id) ?? m; return <StdCardDrawer c={fc} canTopup={!stdNoFunds} onClose={close} onChange={reloadStd} onTopup={(k: any) => r.push(`/dashboard/cards?topup=${k.id}`)} />; })()}

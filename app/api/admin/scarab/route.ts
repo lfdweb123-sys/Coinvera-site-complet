@@ -26,8 +26,8 @@ export async function GET(req: Request) {
     } catch (e) { error = (e as Error).message; }
     const [open, review, fees] = await Promise.all([db.collection('scarab_orders').where('status', 'in', ['reserved', 'processing']).get(), db.collection('scarab_orders').where('status', '==', 'review').get(), db.collection('scarab_fees').get()]);
     const wdr = await db.collection('scarab_withdrawals').where('status', '==', 'review').get();
-    let feeMinor = 0; fees.forEach(d => feeMinor += d.data().amountMinor ?? 0);
-    return Response.json({ refillBlock: await refillBlock().catch(() => null), settings, wallet: w, products: prods, addresses, error, starter: STARTER, pendingOrders: open.size, reviewOrders: review.docs.map(d => ({ id: d.id, kind: d.data().kind, amount: centsToUsd(d.data().amountMinor ?? 0), total: fromUnits(d.data().chargeUnits ?? 0), reason: d.data().reviewReason ?? null, merchantId: d.data().merchantId })), reviewWithdrawals: wdr.docs.map(d => ({ id: d.id, cardId: d.data().cardId, amount: centsToUsd(d.data().amountMinor ?? 0), merchantId: d.data().merchantId })), chargedFees: centsToUsd(feeMinor), feeCount: fees.size });
+    let feeMinor = 0, passedUnits = 0; fees.forEach(d => { feeMinor += d.data().amountMinor ?? 0; passedUnits += d.data().chargedUnits ?? 0; });
+    return Response.json({ refillBlock: await refillBlock().catch(() => null), settings, wallet: w, products: prods, addresses, error, starter: STARTER, pendingOrders: open.size, reviewOrders: review.docs.map(d => ({ id: d.id, kind: d.data().kind, amount: centsToUsd(d.data().amountMinor ?? 0), total: fromUnits(d.data().chargeUnits ?? 0), reason: d.data().reviewReason ?? null, merchantId: d.data().merchantId })), reviewWithdrawals: wdr.docs.map(d => ({ id: d.id, cardId: d.data().cardId, amount: centsToUsd(d.data().amountMinor ?? 0), merchantId: d.data().merchantId })), chargedFees: centsToUsd(feeMinor), passedOnFees: fromUnits(passedUnits), feeCount: fees.size });
   } catch (e) { return fail(e); }
 }
 export async function PUT(req: Request) {

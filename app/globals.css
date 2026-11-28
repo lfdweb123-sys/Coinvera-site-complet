@@ -374,3 +374,5 @@ html[data-theme=dark] .es-chips .chip:hover:not(.on){border-color:#3A4A6E}
 
 .mc-ad{background:var(--soft);border-radius:12px;padding:10px 12px;min-width:0}.mc-ad span{display:block;font-size:12px;color:var(--mut)}.mc-ad address{font-style:normal;font-size:13.5px;color:var(--ink);overflow-wrap:anywhere;line-height:1.4;margin-top:2px}
 .mc-ad{display:flex;align-items:center;justify-content:space-between;gap:8px}.mc-ad>div{min-width:0;flex:1}
+.cp-info{border:1px solid var(--line);border-radius:14px;padding:4px 18px;margin:18px 0 6px;background:var(--bg)}.cp-info summary{cursor:pointer;font-weight:600;padding:14px 0;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}.cp-info summary::-webkit-details-marker{display:none}.cp-info summary:after{content:"+";font-size:22px;line-height:1;color:var(--ink2)}.cp-info[open] summary:after{content:"–"}
+.cp-info ol{margin:0 0 12px;padding-left:22px;display:grid;gap:10px;color:var(--ink2);line-height:1.6}.cp-info p{margin:0 0 14px;color:var(--ink2);line-height:1.6}

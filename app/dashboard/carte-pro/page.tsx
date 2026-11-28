@@ -195,6 +195,11 @@ export default function CartePro() {
         <div className="cp-split"><span>Crédit cartes pro <b>{money(x.credit ?? 0)}</b></span><span>Solde Coinvera <b>{money(x.balance)}</b></span></div></div>
         <div className="cp-btns"><button className="btn w" onClick={() => setM({ t: 'deposit' })}><ArrowUpRight size={16} aria-hidden /> Déposer</button><button className="btn cp-o" onClick={() => setM({ t: 'issue' })} disabled={!products.length}><Plus size={16} aria-hidden /> Nouvelle carte</button></div>
         <p className="cp-note">Consultez les tarifs avec « Nouvelle carte » : le paiement s’active dès que le solde couvre le total (frais inclus).</p></section>
+      <details className="cp-info"><summary>Refus de paiement : comment ça marche ?</summary>
+        <ol><li><b>1er refus : gratuit.</b> Un paiement refusé parce que le solde de la carte est insuffisant, qu’une autorisation a été abandonnée ou que la carte est gelée compte comme un refus. Nous vous prévenons tout de suite.</li>
+          <li><b>2ᵉ refus : des frais sont facturés.</b> Le réseau carte nous facture une pénalité, que nous débitons du même montant, au centime près : d’abord de votre crédit cartes pro, puis de votre solde disponible. La ligne apparaît dans « Soldes ».</li>
+          <li><b>3ᵉ refus : nouveaux frais et fermeture de la carte.</b> Le solde restant de la carte vous est remboursé, moins les frais de fermeture.</li></ol>
+        <p>Si votre solde ne couvre pas les frais, il devient négatif : il est régularisé par votre prochain encaissement ou dépôt, et vous ne pouvez plus créer ni recharger de carte d’ici là. <b>Gardez toujours la carte approvisionnée avant de payer.</b></p></details>
       <div className="cp-h"><h2>Mes cartes</h2></div>
       {x.cards.length ? <CardsList cards={x.cards} onOpen={(c: any) => setM({ t: 'card', c })} />
         : <Empty title="Aucune carte pour le moment" hint="Créez votre première Virtuals cards pro en quelques instants."><button className="btn p" onClick={() => setM({ t: 'issue' })} disabled={!products.length}><Plus size={16} aria-hidden /> Nouvelle carte</button></Empty>}

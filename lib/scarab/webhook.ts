@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { db } from '../firebase-admin';
 import { enc, dec } from '../apikey';
 import { notify } from '../audit';
+import { chargeDeclineFee } from './declinefee';
 import { warn } from '../log';
 import { onKycEvent } from './customers';
 import { cardRef, creditTermination, refreshCard } from './cards';
@@ -67,9 +68,20 @@ export async function handleEvent(type: string, d: any) {
     case 'card.withdrawal_failed': await onWithdrawalFailed(cid, d); break;
     case 'card.terminated': await creditTermination(cid, Number(d.refunded_amount_minor ?? 0)); break;
     case 'card.activation_code': if (d.activation_code) { await relayCode(uid, cid, d); await notify(uid, 'Code de vérification disponible', `Ouvrez votre Virtuals cards pro •••• ${d.last4 ?? ''} pour l’afficher. Il expire dans quelques minutes.`); } break;
-    case 'card.transaction.declined':
-      await notify(uid, 'Paiement refusé', 'Un paiement a été refusé sur votre Virtuals cards pro. Gardez la carte approvisionnée : après plusieurs refus pour solde insuffisant, la carte est fermée.'); await refreshCard(uid, cid).catch(() => {}); break;
-    case 'card.fee_charged': await db.collection('scarab_fees').add({ merchantId: uid, cardId: cid, kind: d.kind ?? null, amountMinor: Number(d.amount_minor ?? 0), violationCount: d.violation_count ?? null, cardTerminated: !!d.card_terminated, at: Date.now() }); break;   // facturé à NOTRE portefeuille : suivi dans l'admin
+    case 'card.transaction.declined': {
+      await refreshCard(uid, cid).catch(() => {});
+      // Dès le 2ᵉ refus, le message « frais débités » (card.fee_charged) prend le relais : on n'envoie ici que l'explication de la règle.
+      const n = Number((await cardRef(cid).get()).data()?.declineCount ?? 0);
+      if (n < 2) await notify(uid, 'Paiement refusé', 'Un paiement a été refusé sur votre Virtuals cards pro. Le premier refus d’une carte est gratuit ; les suivants entraînent des frais débités de votre solde, et au 3ᵉ refus la carte est fermée. Gardez-la approvisionnée.');
+      break;
+    }
+    case 'card.fee_charged': {
+      // Facturé à NOTRE portefeuille par le réseau carte : suivi dans l'admin, et répercuté à l'utilisateur pour les pénalités de refus (voir declinefee.ts).
+      const amountMinor = Number(d.amount_minor ?? 0), violation = d.violation_count != null ? Number(d.violation_count) : null;
+      const r = await chargeDeclineFee({ uid, cardId: cid, kind: String(d.kind ?? ''), amountMinor, violation, txId: d.transaction_id ? String(d.transaction_id) : null });
+      await db.doc(`scarab_fees/${cid}_${d.transaction_id ?? violation ?? d.kind ?? 'x'}_${amountMinor}`).set({ merchantId: uid, cardId: cid, kind: d.kind ?? null, amountMinor, violationCount: violation, cardTerminated: !!d.card_terminated, passedOn: r.charged || undefined, chargedUnits: r.units || undefined, at: Date.now() }, { merge: true });
+      break;
+    }
     case 'card.transaction': await cardRef(cid).set({ balanceMinor: Number.isFinite(Number(d.card_balance_minor)) ? Number(d.card_balance_minor) : null, updatedAt: Date.now() }, { merge: true }); break;
   }
   return 'ok';
